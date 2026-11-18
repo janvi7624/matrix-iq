@@ -65,13 +65,19 @@ export async function POST(request: NextRequest) {
 
   // New tickets default-route to the configured Marketing Owner
   const appConfig = await getAppConfig();
+  // With more than one Marketing member, a configured single owner would
+  // funnel every request to one person. Broadcast to the whole team instead
+  // and let whoever is free claim it; the owner only applies to a one-person team.
+  const marketingTeam = await listMarketingRoster();
+  const ownerUsername = marketingTeam.length > 1 ? '' : appConfig.marketingOwnerUsername || '';
+  const ownerId = ownerUsername ? appConfig.marketingOwnerId || '' : '';
 
   const record: MarketingRequestRecord = {
     id: `${Date.now()}`,
     created_at: new Date().toISOString(),
     created_by: viewer.username,
-    assigned_to: appConfig.marketingOwnerUsername || '',
-    assigned_to_id: appConfig.marketingOwnerId || '',
+    assigned_to: ownerUsername,
+    assigned_to_id: ownerId,
     technical_member_id: '',
     technical_member_username: '',
     technical_member_name: '',
@@ -100,7 +106,7 @@ export async function POST(request: NextRequest) {
     rejection_reason: '',
     completion_notes: '',
     delivered_files: [],
-    assignment_status: appConfig.marketingOwnerUsername ? 'pending' : '',
+    assignment_status: ownerUsername ? 'pending' : '',
     assignment_decline_reason: '',
     comments: []
   };
@@ -145,8 +151,7 @@ export async function POST(request: NextRequest) {
       // whoever's free picks it up first instead of waiting for a manual
       // assignment. They can hand it to each other afterward (see
       // /api/marketing-requests/[id]/exchange).
-      const roster = await listMarketingRoster();
-      const targets = roster.filter((m) => m.username.toLowerCase() !== viewer.username.toLowerCase());
+      const targets = marketingTeam.filter((m) => m.username.toLowerCase() !== viewer.username.toLowerCase());
       if (targets.length) {
         await notifyUsers(targets.map((m) => m.username), {
           title: 'New marketing request',

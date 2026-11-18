@@ -28,7 +28,6 @@ import { classifyDeadline, DEADLINE_BUCKET_BAND, DEADLINE_BUCKET_LABEL } from '@
 import { BAND_COLOR } from './ui/HealthGauge';
 import { AuditLogEntry } from '@/lib/types';
 import styles from './tmsDetail.module.css';
-import { MANUAL_PROGRESS_PROJECTS } from '@/lib/tmsLabels';
 import { fetchCached } from '@/lib/fetchCached';
 
 const PHASE_LABEL: Record<TmsProjectPhaseStatus, string> = {
@@ -453,7 +452,7 @@ export default function TmsProjectDetailView({ projectId, currentUser }: TmsProj
     );
   }
 
-  const { project, tasks, bomRequests, procurements, deadlineExtensions, activity, taskDerivedProgress } = data;
+  const { project, tasks, bomRequests, procurements, deadlineExtensions, activity } = data;
 
   // What actually needs a human on this project, built from records the hub
   // has already fetched — no extra request, no extra query (section 21).
@@ -513,8 +512,7 @@ export default function TmsProjectDetailView({ projectId, currentUser }: TmsProj
           Owner: {project.project_manager_name || 'no owner yet'}
         </span>
         <span className={styles.mutedText}>
-          Progress: {taskDerivedProgress !== null && !MANUAL_PROGRESS_PROJECTS.has(project.project_code) ? taskDerivedProgress : project.progress_percent}%
-          {taskDerivedProgress !== null && !MANUAL_PROGRESS_PROJECTS.has(project.project_code) ? ' (from tasks)' : ''}
+          Progress: {project.progress_percent}%
         </span>
         <Link className={historyStyles.button} href="/tms/projects">Back to Projects</Link>
         {/* The deadline itself is never a free-text field (see editForm/
@@ -636,7 +634,6 @@ export default function TmsProjectDetailView({ projectId, currentUser }: TmsProj
             <div className={`${calcStyles.row} ${calcStyles.columns}`}>
               <div><strong>Budget:</strong> {formatCurrency(project.budget)}</div>
               <div><strong>Progress (manual):</strong> {project.progress_percent}%</div>
-              {taskDerivedProgress !== null && <div><strong>Progress (from tasks):</strong> {taskDerivedProgress}%</div>}
             </div>
             <div className={styles.infoRow}><strong>Description:</strong> {project.description || '-'}</div>
             <div className={styles.infoRow}><strong>Notes / Remarks:</strong> {project.remarks || '-'}</div>

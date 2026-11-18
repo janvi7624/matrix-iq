@@ -362,6 +362,8 @@ interface TechWorkItem {
   doneOn: string;
   done: boolean;
   cancelled: boolean;
+  /** Paused (project or task on hold): its deadline doesn't run, so it is never counted overdue. */
+  onHold?: boolean;
   /**
    * Created but never actually set up: a TMS project still in 'planning' with
    * no end date of any kind. Reported, but kept out of the score — see the
@@ -383,6 +385,8 @@ async function scoreTechTeam(team: TeamMember[], cache: ScoringDataCache): Promi
     getTmsProcurements(cache)
   ]);
   const today = new Date().toISOString().slice(0, 10);
+
+  const heldProjectIds = new Set(tmsProjects.filter((p) => p.status === 'on_hold').map((p) => p.id));
 
   function itemsFor(memberId: string): TechWorkItem[] {
     const items: TechWorkItem[] = [];
@@ -407,13 +411,15 @@ async function scoreTechTeam(team: TeamMember[], cache: ScoringDataCache): Promi
       // so real work cannot hide in planning, and a dated planning project
       // that blows its date still counts as overdue.
       const unplanned = p.status === 'planning' && !due;
-      items.push({ id: `tmsp:${p.id}`, label: `${p.project_code} — ${p.name}`, due, doneOn: dateOnly(p.actual_close_date), done: p.status === 'completed', cancelled: p.status === 'cancelled', unplanned, href: `/tms/projects/${p.id}` });
+      items.push({ id: `tmsp:${p.id}`, label: `${p.project_code} — ${p.name}`, due, doneOn: dateOnly(p.actual_close_date), done: p.status === 'completed', cancelled: p.status === 'cancelled', onHold: p.status === 'on_hold', unplanned, href: `/tms/projects/${p.id}` });
     }
 
     for (const t of tmsTasks) {
       if (t.assignee_id !== memberId) continue;
       const due = dateOnly(t.due_date);
-      items.push({ id: `tmst:${t.id}`, label: t.name, due, doneOn: dateOnly(t.completion_date), done: t.status === 'completed', cancelled: t.status === 'cancelled', href: `/tms/tasks/${t.id}` });
+      // A task is paused if it is on hold itself OR its project is.
+      const projectOnHold = heldProjectIds.has(t.project_id);
+      items.push({ id: `tmst:${t.id}`, label: t.name, due, doneOn: dateOnly(t.completion_date), done: t.status === 'completed', cancelled: t.status === 'cancelled', onHold: t.status === 'on_hold' || projectOnHold, href: `/tms/tasks/${t.id}` });
     }
 
     for (const b of bomRequests) {
@@ -462,6 +468,10 @@ async function scoreTechTeam(team: TeamMember[], cache: ScoringDataCache): Promi
         if (!i.doneOn) return;
         if (i.doneOn <= i.due) { onTime += 1; onTimeItems.push(i); }
         else { late += 1; lateItems.push(i); }
+      } else if (i.onHold) {
+        // Paused — not late (or undated) while on hold, and not part of the
+        // score until it is resumed.
+        return;
       } else if (!i.due) {
         // Still open with no committed end date. This used to be skipped,
         // which is why a department whose projects had no dates read N/A

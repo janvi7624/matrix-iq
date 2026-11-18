@@ -276,7 +276,9 @@ function drawReport(wr: Writer, report: DailyReportRecord, template: TemplateDef
   let wroteContent = headerRows.length > 0;
 
   if (template.layout === 'rows') {
-    const fields = template.rowFields.filter((f) => !f.hidden);
+    // Task ID (the auto entry code) is left out of the PDF for every
+    // department — it is an internal reference nobody reading the report uses.
+    const fields = template.rowFields.filter((f) => !f.hidden && !(f.type === 'computed' && f.computed === 'entry_code'));
     if (report.entries.length && fields.length) {
       // Columns every entry left blank are dropped, so a wide template does
       // not print as a page of empty columns.
@@ -298,14 +300,52 @@ function drawReport(wr: Writer, report: DailyReportRecord, template: TemplateDef
         if (f.type === 'select' && !f.multiple) return { cellWidth: 17 };
         return null;
       };
+      // Helvetica has no ₹ glyph (it prints as "¹") — spell it out.
+      const clean = (t: string) => t.replace(/₹/g, 'Rs.');
+
+      // Too many columns for a portrait page squeezes text into one-letter
+      // strips (GEM-Sales has 11). Past 7 columns, print each entry as its own
+      // card instead: a header bar with the entry number, then label | value
+      // pairs two per row, so every field stays readable.
+      if (head.length > 7) {
+        const shown = keptFields;
+        report.entries.forEach((entry, idx) => {
+          const pairs = shown
+            .map((f) => [clean(f.label), clean(isFieldVisible(f, entry.data) ? fieldText(f, entry.data[f.key], entry.derived) : '')] as [string, string])
+            .filter(([, v]) => v !== '');
+          const rows: string[][] = [];
+          for (let i = 0; i < pairs.length; i += 2) rows.push([...pairs[i], ...(pairs[i + 1] ?? ['', ''])]);
+          const labelW = 30;
+          const valueW = (wr.inner - labelW * 2) / 2;
+          wr.table(
+            {
+              head: [[{ content: `Entry ${idx + 1} of ${report.entries.length}`, colSpan: 4 }]],
+              body: rows,
+              styles: { fontSize: 8, cellPadding: 1.8, textColor: BODY, lineColor: RULE, lineWidth: 0.2, valign: 'top', overflow: 'linebreak' },
+              headStyles: { fillColor: NAVY, textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 8.5 },
+              rowPageBreak: 'avoid',
+              columnStyles: {
+                0: { cellWidth: labelW, fontStyle: 'bold', fillColor: BAND, textColor: NAVY },
+                1: { cellWidth: valueW },
+                2: { cellWidth: labelW, fontStyle: 'bold', fillColor: BAND, textColor: NAVY },
+                3: { cellWidth: valueW }
+              }
+            },
+            2.5
+          );
+        });
+        wr.y += 4;
+        return;
+      }
+
       const rowColumnStyles: Record<number, Record<string, unknown>> = { 0: { cellWidth: 7, halign: 'center', textColor: MUTED } };
       keptFields.forEach((f, i) => {
         const style = widthFor(f);
         if (style) rowColumnStyles[i + 1] = style;
       });
       wr.table({
-        head: [head],
-        body: body.map((row) => row.filter((_, i) => keep[i])),
+        head: [head.map(clean)],
+        body: body.map((row) => row.filter((_, i) => keep[i]).map(clean)),
         styles: { fontSize: 7.8, cellPadding: 1.6, textColor: BODY, lineColor: RULE, lineWidth: 0.2, valign: 'top', overflow: 'linebreak' },
         headStyles: { fillColor: NAVY, textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 7.8 },
         alternateRowStyles: { fillColor: [249, 250, 251] },

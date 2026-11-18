@@ -1,7 +1,7 @@
 import { QueryTypes } from 'sequelize';
 import { sequelize } from './db';
-import { resolveVisibilityScope } from './departmentScope';
-import { listDepartmentManagers, findHrManagers } from './departmentStore';
+import { directReportIdsFor } from './reportingManagers';
+import { listDepartmentManagers, findHrManagers, departmentsManagedBy } from './departmentStore';
 
 // Who may do what in Employee Appreciation.
 //
@@ -35,9 +35,18 @@ export async function isAppreciationDecider(viewer: ViewerLike): Promise<boolean
 
 /** The employees this viewer may appreciate. Empty means they may not submit. */
 export async function pickableEmployees(viewer: ViewerLike): Promise<PickableEmployee[]> {
-  const scope = await resolveVisibilityScope(viewer.username);
-  const orgWide = isAdminRole(viewer.role) || scope.seesOrgWide;
-  const ids = orgWide ? null : (scope.scopedUserIds || []).filter((id) => id !== viewer.userId);
+  // Only the HR Manager and admin / superadmin pick from the whole company.
+  // Everyone else — including roles that see every department elsewhere — is
+  // limited to the departments they manage and their direct reports.
+  const orgWide = await isAppreciationDecider(viewer);
+  let ids: string[] | null = null;
+  if (!orgWide) {
+    const [managed, direct] = await Promise.all([departmentsManagedBy(viewer.username), directReportIdsFor(viewer.userId)]);
+    const members = managed.length
+      ? await sequelize.query<{ id: string }>('SELECT id FROM users WHERE "departmentId" = ANY($d::uuid[])', { bind: { d: managed.map((m) => m.id) }, type: QueryTypes.SELECT })
+      : [];
+    ids = [...new Set([...members.map((m) => m.id), ...direct])].filter((id) => id !== viewer.userId);
+  }
   if (ids && ids.length === 0) return [];
 
   return sequelize.query<PickableEmployee>(
