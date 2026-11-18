@@ -91,7 +91,14 @@
   border-color: #fca5a5;
   color: #b91c1c;
 }
-button:disabled {
+/* Scoped to this file's own button classes — CSS Modules reject a bare
+   `button:disabled` (no local class), which failed the production build. */
+.primary:disabled,
+.ghost:disabled,
+.ghostDanger:disabled,
+.approve:disabled,
+.reject:disabled,
+.chip:disabled {
   opacity: 0.6;
   cursor: not-allowed;
 }
