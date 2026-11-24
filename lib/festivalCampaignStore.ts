@@ -457,24 +457,16 @@ export function previewCampaign(campaign: FestivalCampaignRecord): { subject: st
   return { subject, html };
 }
 
-/**
- * Every Client Master contact with an email (project contacts + leads), plus
- * every active internal employee — staff get the exact same festival email
- * as clients. De-duplicated by address, so nobody is mailed twice.
- */
+/** Every Client Master contact with an email: project contacts + leads. */
 export async function loadRecipientPlan(): Promise<RecipientPlan> {
-  const [projects, leads, unsubscribes, users] = await Promise.all([
+  const [projects, leads, unsubscribes] = await Promise.all([
     db.Project.findAll({ attributes: ['email', 'client_name', 'company'] }),
     db.Lead.findAll({ attributes: ['email', 'name', 'company'] }),
-    db.EmailUnsubscribe.findAll({ attributes: ['email'] }),
-    listUsers()
+    db.EmailUnsubscribe.findAll({ attributes: ['email'] })
   ]);
   const contacts = [
     ...projects.map((p) => ({ email: String(p.get('email') || ''), name: String(p.get('client_name') || ''), company: String(p.get('company') || '') })),
-    ...leads.map((l) => ({ email: String(l.get('email') || ''), name: String(l.get('name') || ''), company: String(l.get('company') || '') })),
-    ...users
-      .filter((u) => u.status === 'active' && u.email)
-      .map((u) => ({ email: String(u.email), name: String(u.name || u.username || ''), company: '' }))
+    ...leads.map((l) => ({ email: String(l.get('email') || ''), name: String(l.get('name') || ''), company: String(l.get('company') || '') }))
   ];
   const optedOut = new Set(unsubscribes.map((u) => normalizeEmail(String(u.get('email')))));
   return buildRecipients(contacts, optedOut);
@@ -523,34 +515,6 @@ export interface SendSummary { campaignId: string; festival: string; recipients:
 
 export async function executeCampaignSend(id: string, now: Date = new Date()): Promise<SendSummary | null> {
   if (!(await claimForSending(id, now))) return null;
-  return runCampaignSend(id);
-}
-
-/**
- * Re-opens an already SENT campaign and mails only addresses with no send
- * row yet (e.g. internal employees, for a festival that went out before staff
- * were added). Everyone already mailed is skipped by the unique
- * (campaign_id, email) index, so no client gets it twice.
- */
-export async function sendCampaignToNewRecipients(id: string): Promise<SendSummary | null> {
-  const [count] = await db.FestivalCampaign.update({ status: 'sending' } as never, { where: { id, status: 'sent' } as never });
-  if (!count) return null;
-  return runCampaignSend(id);
-}
-
-/**
- * Sends an already SENT campaign AGAIN to everyone — Client Master and
- * employees — including addresses mailed earlier. Clears the previous send
- * rows so the per-recipient unique index lets each address through once more.
- */
-export async function resendCampaignToEveryone(id: string): Promise<SendSummary | null> {
-  const [count] = await db.FestivalCampaign.update({ status: 'sending' } as never, { where: { id, status: 'sent' } as never });
-  if (!count) return null;
-  await db.FestivalCampaignSend.destroy({ where: { campaign_id: id } as never });
-  return runCampaignSend(id);
-}
-
-async function runCampaignSend(id: string): Promise<SendSummary> {
   const campaign = (await findCampaign(id))!;
   const live = isClientMailLive() && isEmailConfigured();
   const plan = await loadRecipientPlan();
@@ -607,7 +571,7 @@ async function runCampaignSend(id: string): Promise<SendSummary> {
     id,
     `${live ? 'Festival email sent' : 'Festival email DRY RUN'}: ${campaign.festival_name}`,
     live
-      ? `Sent to ${totalSent} recipient${totalSent === 1 ? "" : "s"} (clients + employees)${totalFailed ? `, ${totalFailed} failed` : ''}. Skipped ${plan.invalid} invalid and ${plan.unsubscribed} unsubscribed address(es).`
+      ? `Sent to ${totalSent} client${totalSent === 1 ? '' : 's'}${totalFailed ? `, ${totalFailed} failed` : ''}. Skipped ${plan.invalid} invalid and ${plan.unsubscribed} unsubscribed address(es).`
       : `Real client mail is switched off (FESTIVAL_CLIENT_MAIL_ENABLED), so nothing was sent. It would have gone to ${totalSent} client(s).`,
     'festival_campaign_sent'
   );
