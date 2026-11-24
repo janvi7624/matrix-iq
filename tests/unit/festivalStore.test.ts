@@ -74,7 +74,7 @@ describe('processTodaysFestival', () => {
     expect(notifyUsersMock).not.toHaveBeenCalled();
   });
 
-  it('sends the greeting to every ACTIVE user only, excluding suspended/exited accounts', async () => {
+  it('notifies every ACTIVE user in-app only (the email now comes from the client campaign)', async () => {
     festivalFindOneMock.mockResolvedValue(festivalRow());
     notificationCountMock.mockResolvedValue(0);
     listUsersMock.mockResolvedValue([
@@ -86,7 +86,7 @@ describe('processTodaysFestival', () => {
     const result = await processTodaysFestival();
 
     expect(result?.key).toBe('diwali');
-    expect(sendFestivalEmailMock).toHaveBeenCalledTimes(2);
+    expect(sendFestivalEmailMock).not.toHaveBeenCalled();
     expect(notifyUsersMock).toHaveBeenCalledWith(['QA_TEST_active1', 'QA_TEST_active2'], expect.objectContaining({ type: 'festival_diwali' }));
   });
 
@@ -102,13 +102,13 @@ describe('processTodaysFestival', () => {
     expect(notifyUsersMock).not.toHaveBeenCalled();
   });
 
-  it('skips users with no email address rather than calling sendFestivalEmail with an empty address', async () => {
+  it('sends no old-format staff email at all', async () => {
     festivalFindOneMock.mockResolvedValue(festivalRow());
     notificationCountMock.mockResolvedValue(0);
     listUsersMock.mockResolvedValue([activeUser({ id: 'u1', email: '' }), activeUser({ id: 'u2', username: 'QA_TEST_hasEmail' })] as never);
 
     await processTodaysFestival();
 
-    expect(sendFestivalEmailMock).toHaveBeenCalledTimes(1);
+    expect(sendFestivalEmailMock).not.toHaveBeenCalled();
   });
 });

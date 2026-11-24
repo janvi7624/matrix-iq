@@ -150,6 +150,18 @@ export default function FestivalCampaignsView() {
     await call(`/api/festival-campaigns/${open.id}/test`, {}, 'Test email sent to {to}.');
   }
 
+  async function sendToStaff() {
+    if (!open) return;
+    if (!confirm('Send this same festival email to all internal employees now? Clients already mailed will not get it again.')) return;
+    await call(`/api/festival-campaigns/${open.id}/send-to-staff`, {}, 'Sent to {to} employee(s).');
+  }
+
+  async function resendEveryone() {
+    if (!open) return;
+    if (!confirm('Send this festival email AGAIN to every Client Master contact AND every employee? Clients who already got it today will receive it a second time.')) return;
+    await call(`/api/festival-campaigns/${open.id}/send-to-staff`, { everyone: true }, 'Sent to {to} recipient(s).');
+  }
+
   async function raiseNow(row: Row) {
     if (!confirm(`Raise the banner request for ${row.festival_name} to Marketing now?`)) return;
     await call('/api/festival-campaigns', { festivalId: row.festival_id }, 'Banner request raised to Marketing.');
@@ -291,6 +303,16 @@ export default function FestivalCampaignsView() {
                   <button type="button" className={historyStyles.button} onClick={testSend} disabled={busy}>
                     <Send size={14} /> Send test to me
                   </button>
+                  {open.status === 'sent' && !open.dry_run && (
+                    <button type="button" className={historyStyles.button} onClick={sendToStaff} disabled={busy}>
+                      <Send size={14} /> Send to employees
+                    </button>
+                  )}
+                  {open.status === 'sent' && !open.dry_run && (
+                    <button type="button" className={historyStyles.button} onClick={resendEveryone} disabled={busy}>
+                      <Send size={14} /> Resend to clients + employees
+                    </button>
+                  )}
                   {open.status === 'pending_approval' && (
                     <button type="button" className={`${historyStyles.button} ${historyStyles.primary}`} onClick={approve} disabled={busy}>
                       <CheckCircle2 size={14} /> Approve for {data?.recipients.total ?? 0} clients
