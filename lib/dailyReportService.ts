@@ -351,7 +351,7 @@ export async function buildTeamDailyReports(viewer: ViewerContext, filters: Team
         // missing, and it certainly is not submitted.
         return SUBMITTED_STATUSES.includes(row.submission_status as (typeof SUBMITTED_STATUSES)[number]);
       case 'late':
-        return row.submission_status === 'SUBMITTED_LATE';
+        return row.submission_status === 'SUBMITTED_LATE' && row.leave_status !== 'APPROVED' && row.leave_status !== 'PENDING';
       case 'missing':
         return row.submission_status === 'MISSING' && !row.leave_status;
       case 'leave':
@@ -365,8 +365,10 @@ export async function buildTeamDailyReports(viewer: ViewerContext, filters: Team
   // missing today, not four missing among the rows that match a search box.
   const kpis = {
     expected: rows.length,
-    submitted: rows.filter((r) => SUBMITTED_STATUSES.includes(r.submission_status as (typeof SUBMITTED_STATUSES)[number])).length,
-    submitted_late: rows.filter((r) => r.submission_status === 'SUBMITTED_LATE').length,
+    // A day on leave counts as leave only — never also as submitted / late —
+    // the same rule as the period summary and the PDF.
+    submitted: rows.filter((r) => SUBMITTED_STATUSES.includes(r.submission_status as (typeof SUBMITTED_STATUSES)[number]) && !leaveCovered.has(`${r.employee_id}|${reportDate}`)).length,
+    submitted_late: rows.filter((r) => r.submission_status === 'SUBMITTED_LATE' && !leaveCovered.has(`${r.employee_id}|${reportDate}`)).length,
     missing: rows.filter((r) => r.submission_status === 'MISSING' && !leaveCovered.has(`${r.employee_id}|${reportDate}`)).length,
     // Not filed, but the day is still open. Reported so expected still adds
     // up: without it a manager sees 30 expected, 2 submitted, 0 missing and
@@ -480,6 +482,7 @@ export async function computeDailyReportRangeSummary(
     // month is still in progress reported today, and every remaining working
     // day of it, as missing before they could possibly have been filed.
     let notYetDue = 0;
+    let filedOnLeaveDay = 0;
     for (const d of owedDates) {
       const key = `${employee.id}|${d}`;
       // A day whose deadline hasn't passed isn't a report day yet — for
@@ -491,27 +494,34 @@ export async function computeDailyReportRangeSummary(
         continue;
       }
       const found = statuses.get(key);
-      if (found && SUBMITTED_STATUSES.includes(found.submission_status)) {
-        submitted += 1;
-        if (found.is_late) submittedLate += 1;
-      } else if (leaveCovered.has(key)) {
+      const isFiled = !!found && SUBMITTED_STATUSES.includes(found.submission_status);
+      // Leave wins over a filed report: a day on (approved or pending) leave
+      // is "On leave" — never Missing and never Late — so HR's leave count
+      // matches the leave claims exactly. A report filed anyway on that day
+      // is still a real report (it appears in the PDF pages), so it is
+      // surfaced as "(+N)" below rather than silently vanishing.
+      if (leaveCovered.has(key)) {
         leaveCoveredCount += 1;
+        if (isFiled) filedOnLeaveDay += 1;
+      } else if (isFiled) {
+        submitted += 1;
+        if ((found as NonNullable<typeof found>).is_late) submittedLate += 1;
       }
     }
     const expected = owedDates.length - notYetDue;
     const missing = Math.max(0, expected - submitted - leaveCoveredCount);
     let leavePending = 0;
     for (const d of owedDates) {
-      const key = `${employee.id}|${d}`;
-      if (missingIsVisibleYet(d, now) && pendingLeave.has(key) && !(statuses.get(key) && SUBMITTED_STATUSES.includes(statuses.get(key)!.submission_status))) leavePending += 1;
+      if (missingIsVisibleYet(d, now) && pendingLeave.has(`${employee.id}|${d}`)) leavePending += 1;
     }
     // Reports filed for a day this person did NOT owe — a holiday / Sunday /
     // off-Saturday, or a day before their joining date. Real reports (they
     // appear in the PDF pages) but outside the count, so they're surfaced as
     // "(+N)" instead of silently vanishing.
-    // (Also a report filed early for a day not yet due — see the loop above.)
+    // (Also a report filed early for a day not yet due — see the loop above,
+    // and a report filed on a day already counted as On leave.)
     const owedSet = new Set(owedDates.filter((d) => missingIsVisibleYet(d, now)));
-    let filedOnOffDay = 0;
+    let filedOnOffDay = filedOnLeaveDay;
     for (const [key, s] of statuses) {
       const [eid, d] = key.split('|');
       if (eid === employee.id && !owedSet.has(d) && SUBMITTED_STATUSES.includes(s.submission_status)) filedOnOffDay += 1;
