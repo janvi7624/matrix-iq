@@ -788,7 +788,7 @@ export default function TeamDailyReportsView({
                         <td>{row.employee_name}</td>
                         <td>{row.department_name}</td>
                         <td>{row.report_days}</td>
-                        <td title={row.filed_on_off_day ? `${row.filed_on_off_day} more filed on a holiday/off day (not counted)` : undefined}>
+                        <td title={row.filed_on_off_day ? `${row.filed_on_off_day} more filed on a holiday/off day or leave day (not counted)` : undefined}>
                           {row.submitted}{row.filed_on_off_day ? ` (+${row.filed_on_off_day})` : ''}
                         </td>
                         <td>{onTime}</td>

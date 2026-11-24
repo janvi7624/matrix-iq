@@ -477,7 +477,7 @@ export async function buildDailyReportPdf(input: DailyReportPdfInput): Promise<U
     ['Departments', String(deptList.length)],
     ['Employees', String(totalPeople)],
     ['Reports to fill', `${toFill(sumRows)} in total (${totalPeople} employees × ${periodReportDays} working days)`],
-    ['Reports filed', `${totalFiled}${S('filed_on_off_day') ? ` (+${S('filed_on_off_day')} filed on a holiday/off day, not counted)` : ''}`],
+    ['Reports filed', `${totalFiled}${S('filed_on_off_day') ? ` (+${S('filed_on_off_day')} filed on a holiday/off day or leave day, not counted)` : ''}`],
     ['On time', `${totalFiled - totalLate} (${onTimePct(sumRows)} of reports filed + missing)`],
     ['Late', String(totalLate)],
     ['Missing', String(S('missing'))],
@@ -569,7 +569,7 @@ export async function buildDailyReportPdf(input: DailyReportPdfInput): Promise<U
       `Reports to fill: how many reports each person had to file — working days already due (${periodReportDays}; holidays, Sundays and off-Saturdays excluded) for every employee.`,
       'Reports filed + Missing + On leave + Before joining = Reports to fill. Department rows are totals across their employees.',
       'On time + Late = Reports filed. On-time % = On time ÷ (Reports filed + Missing). Leave and days before joining are not counted against anyone.',
-      '(+N) in Reports filed: reports also filed on a holiday/off day — shown in the pages below but not counted, as no report was owed that day.',
+      '(+N) in Reports filed: reports also filed on a holiday/off day or on a leave day — shown in the pages below but not counted (a leave day always counts as On leave, never Late or Missing).',
       '* in On leave: some of that leave is still awaiting HR approval; it is excused meanwhile and becomes Missing if HR rejects it.',
       'Warnings: active (not waived) warnings in the period. A late report keeps its warning — it missed the deadline — so Warnings can exceed Missing. (N Z) = raised because a report was filed with zero activity.'
     ];
