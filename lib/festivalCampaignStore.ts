@@ -457,14 +457,20 @@ export function previewCampaign(campaign: FestivalCampaignRecord): { subject: st
   return { subject, html };
 }
 
-/** Every Client Master contact with an email: project contacts + leads. */
+/**
+ * Every Client Master contact with an email (project contacts + leads), plus
+ * every active internal employee — staff receive the exact same festival mail
+ * as clients. An address that is both is de-duplicated by buildRecipients.
+ */
 export async function loadRecipientPlan(): Promise<RecipientPlan> {
-  const [projects, leads, unsubscribes] = await Promise.all([
+  const [projects, leads, unsubscribes, users] = await Promise.all([
     db.Project.findAll({ attributes: ['email', 'client_name', 'company'] }),
     db.Lead.findAll({ attributes: ['email', 'name', 'company'] }),
-    db.EmailUnsubscribe.findAll({ attributes: ['email'] })
+    db.EmailUnsubscribe.findAll({ attributes: ['email'] }),
+    listUsers()
   ]);
   const contacts = [
+    ...users.filter((u) => u.status === 'active' && u.email).map((u) => ({ email: u.email, name: u.name || u.username, company: '' })),
     ...projects.map((p) => ({ email: String(p.get('email') || ''), name: String(p.get('client_name') || ''), company: String(p.get('company') || '') })),
     ...leads.map((l) => ({ email: String(l.get('email') || ''), name: String(l.get('name') || ''), company: String(l.get('company') || '') }))
   ];
@@ -571,7 +577,7 @@ export async function executeCampaignSend(id: string, now: Date = new Date()): P
     id,
     `${live ? 'Festival email sent' : 'Festival email DRY RUN'}: ${campaign.festival_name}`,
     live
-      ? `Sent to ${totalSent} client${totalSent === 1 ? '' : 's'}${totalFailed ? `, ${totalFailed} failed` : ''}. Skipped ${plan.invalid} invalid and ${plan.unsubscribed} unsubscribed address(es).`
+      ? `Sent to ${totalSent} recipient${totalSent === 1 ? '' : 's'} (clients + employees)${totalFailed ? `, ${totalFailed} failed` : ''}. Skipped ${plan.invalid} invalid and ${plan.unsubscribed} unsubscribed address(es).`
       : `Real client mail is switched off (FESTIVAL_CLIENT_MAIL_ENABLED), so nothing was sent. It would have gone to ${totalSent} client(s).`,
     'festival_campaign_sent'
   );
