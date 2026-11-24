@@ -1,7 +1,6 @@
 import { db } from './db';
 import { listUsers } from './userStore';
 import { notifyUsers } from './notificationStore';
-import { sendFestivalEmail } from './email/notifications';
 
 // Company-wide Indian festival greetings. HR-managed (see db/migrations/
 // 20261109143000-create-festivals.js for the full rationale) — previously a
@@ -136,11 +135,10 @@ export async function processTodaysFestival(): Promise<FestivalRecord | null> {
 
   const activeUsers = (await listUsers()).filter((u) => u.status === 'active');
 
-  await Promise.allSettled(
-    activeUsers
-      .filter((u) => u.email)
-      .map((u) => sendFestivalEmail({ email: u.email, name: u.name || u.username, festivalName: festival.name, greeting: festival.greeting }))
-  );
+  // No separate staff email any more: employees receive the same approved
+  // festival mail as clients, sent by the client campaign
+  // (lib/festivalCampaignStore.ts loadRecipientPlan). Only the in-app
+  // notification is posted here.
 
   await notifyUsers(activeUsers.map((u) => u.username), {
     title: `🎉 ${festival.name}!`,
