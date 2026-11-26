@@ -2,7 +2,7 @@
 // to, and whether they may use the rest of the portal yet.
 //
 // A partner account is created by a member of the sales team, who is then
-// the person that approves what the partner uploads. Until all three
+// the person that approves what the partner uploads. Until every
 // documents are approved the partner can sign in but reaches only the
 // onboarding page — the portal is not refused at the door (they would have
 // no way to comply) and not opened either.
@@ -10,7 +10,7 @@
 // Pure: no db/fs imports, so the gate, the progress strip and the tests all
 // read the same rules.
 
-export const PARTNER_DOCUMENT_KINDS = ['agreement', 'nda', 'payment_agreement'] as const;
+export const PARTNER_DOCUMENT_KINDS = ['agreement', 'nda', 'gst', 'pan'] as const;
 
 export type PartnerDocumentKind = (typeof PARTNER_DOCUMENT_KINDS)[number];
 
@@ -19,14 +19,31 @@ export type PartnerDocumentStatus = 'pending' | 'approved' | 'rejected';
 export const PARTNER_DOCUMENT_LABEL: Record<PartnerDocumentKind, string> = {
   agreement: 'Partnership Agreement',
   nda: 'Non-Disclosure Agreement (NDA)',
-  payment_agreement: 'Payment Agreement'
+  gst: 'GST',
+  pan: 'PAN No.'
 };
+
+/**
+ * The heading each document is listed under.
+ *
+ * Two groups, because they are asked for two different reasons: the
+ * agreement and NDA are the terms of the relationship, while GST and PAN are
+ * what the company needs on file to list the partner as a payable vendor at
+ * all. Every document in both groups is mandatory — onboarding completes only
+ * when all four are approved — so the grouping is for legibility, not for
+ * optional extras.
+ */
+export const PARTNER_DOCUMENT_GROUPS: { title: string; kinds: PartnerDocumentKind[] }[] = [
+  { title: 'Onboarding documents', kinds: ['agreement', 'nda'] },
+  { title: 'Listing documents', kinds: ['gst', 'pan'] }
+];
 
 /** What the partner is told to provide, in the order they are asked for it. */
 export const PARTNER_DOCUMENT_HINT: Record<PartnerDocumentKind, string> = {
   agreement: 'The signed partnership agreement, as a PDF or scan.',
   nda: 'The signed NDA. Every page, signed and dated by both sides.',
-  payment_agreement: 'The agreed payment and commission terms, signed.'
+  gst: 'Your GST registration certificate. Required.',
+  pan: 'Your company PAN card. Required.'
 };
 
 export function isPartnerDocumentKind(value: string): value is PartnerDocumentKind {

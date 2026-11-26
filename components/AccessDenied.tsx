@@ -1,7 +1,7 @@
-import Link from 'next/link';
-import { ShieldAlert } from 'lucide-react';
+import { LayoutDashboard, ShieldAlert } from 'lucide-react';
 import AppShell from './AppShell';
 import EmptyState from './ui/EmptyState';
+import CommonButton from './ui/CommonButton';
 import { BRAND } from '@/lib/branding';
 
 interface AccessDeniedProps {
@@ -19,12 +19,16 @@ interface AccessDeniedProps {
 // rather than being bounced without explanation.
 export default function AccessDenied({ title, message }: AccessDeniedProps) {
   return (
-    <AppShell title={title} subtitle={BRAND.tagline} showBackLink>
+    <AppShell title={title} subtitle={BRAND.tagline}>
       <EmptyState
         icon={ShieldAlert}
         title={title}
         message={message}
-        action={<Link href="/">Back to Dashboard</Link>}
+        action={
+          <CommonButton href="/" variant="primary" leadingIcon={<LayoutDashboard />}>
+            Go to Dashboard
+          </CommonButton>
+        }
       />
     </AppShell>
   );

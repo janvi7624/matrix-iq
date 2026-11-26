@@ -11,11 +11,13 @@ import Table, { TableColumn } from './ui/Table';
 import StatTile from './ui/StatTile';
 import FilterBar from './ui/FilterBar';
 import Input from './ui/Input';
-import Select from './ui/Select';
+import Dropdown from './ui/Dropdown';
+import { setListParam } from '@/lib/listParam';
+import SearchInput from './ui/SearchInput';
 import Button from './ui/Button';
 import EmptyState from './ui/EmptyState';
 import ErrorState from './ui/ErrorState';
-import { SkeletonRows } from './ui/Skeleton';
+import { SkeletonStatCards, SkeletonTable } from './ui/Skeleton';
 import { useToast } from './ui/ToastProvider';
 import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
@@ -64,7 +66,7 @@ export default function BillingView({ currentUser }: Props) {
 
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
-  const [owner, setOwner] = useState('');
+  const [owner, setOwner] = useState<string[]>([]);
   const [query, setQuery] = useState('');
 
   const load = useCallback(async () => {
@@ -74,7 +76,7 @@ export default function BillingView({ currentUser }: Props) {
       const params = new URLSearchParams();
       if (from) params.set('from', from);
       if (to) params.set('to', to);
-      if (owner) params.set('owner', owner);
+      setListParam(params, 'owner', owner);
       if (query.trim()) params.set('q', query.trim());
       const response = await fetch(`/api/billing?${params.toString()}`);
       const body = await response.json().catch(() => null);
@@ -192,7 +194,10 @@ export default function BillingView({ currentUser }: Props) {
   ];
 
   return (
-    <AppShell title="Billing" subtitle="Won deals and the agreed work behind them — what is billable, and what it rests on.">
+    <AppShell fillPage title="Billing" subtitle="Won deals and the agreed work behind them — what is billable, and what it rests on.">
+      {!totals && loading && (
+        <div style={{ marginBottom: 18 }}><SkeletonStatCards count={5} minWidth={170} /></div>
+      )}
       {totals && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 12, marginBottom: 18 }}>
           <StatTile label="Won deals" value={totals.count} icon={<Receipt size={16} />} />
@@ -234,14 +239,17 @@ export default function BillingView({ currentUser }: Props) {
         <Input auto type="date" value={from} onChange={(e) => setFrom(e.target.value)} aria-label="Closed from" />
         <Input auto type="date" value={to} onChange={(e) => setTo(e.target.value)} aria-label="Closed to" />
         {data && data.owners.length > 1 && (
-          <Select auto value={owner} onChange={(e) => setOwner(e.target.value)} aria-label="Sales person">
-            <option value="">All sales people</option>
-            {data.owners.map((o) => (
-              <option key={o} value={o}>{o}</option>
-            ))}
-          </Select>
+          <Dropdown
+            multiselect
+            value={owner}
+            onChange={setOwner}
+            placeholder="All sales people"
+            label="Sales person"
+            ariaLabel="Sales person"
+            options={data.owners.map((o) => ({ value: o, label: o }))}
+          />
         )}
-        <Input auto placeholder="Search deal, client, PO…" value={query} onChange={(e) => setQuery(e.target.value)} />
+        <SearchInput placeholder="Search deal, client, PO…" value={query} onChange={(v) => setQuery(v)} />
         <Button variant="ghost" compact icon={<Download size={15} />} onClick={handleCsv}>CSV</Button>
         <Button variant="ghost" compact icon={<Download size={15} />} onClick={handlePdf}>PDF</Button>
       </FilterBar>
@@ -278,13 +286,13 @@ export default function BillingView({ currentUser }: Props) {
       {loadFailed ? (
         <ErrorState message={loadFailed} onRetry={load} />
       ) : loading ? (
-        <div className={historyStyles.tableWrap}><SkeletonRows rows={6} columns={8} /></div>
+        <SkeletonTable columns={8} rows={6} />
       ) : rows.length === 0 ? (
         <EmptyState
           icon={Receipt}
           title="No won deals yet"
           message={
-            from || to || owner || query
+            from || to || owner.length || query
               ? 'Nothing matches these filters — try clearing one.'
               : 'A project closed as Won, or a quotation marked Approved, shows up here.'
           }

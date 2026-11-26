@@ -120,19 +120,8 @@
 .cardAmount { font-size: 17px; font-weight: 800; color: var(--mx-ink); white-space: nowrap; }
 .cardMeta { font-size: 12px; color: var(--mx-ink-muted); margin-top: 6px; }
 .cardActions { display: flex; gap: 8px; margin-top: 12px; }
-.cardActions button, .cardActions a {
-    flex: 1;
-    text-align: center;
-    padding: 8px;
-    border-radius: var(--mx-radius-sm);
-    font-size: 12.5px;
-    font-weight: 700;
-    box-shadow: var(--mx-shadow-xs);
-    background: var(--mx-surface);
-    color: var(--mx-ink);
-    cursor: pointer;
-    text-decoration: none;
-}
+/* The View/Pay buttons are CommonButtons; only the equal-width layout is local. */
+.cardActions > * { flex: 1; }
 
 @media (max-width: 768px) {
     .tableSection { display: none; }
@@ -263,6 +252,7 @@
     justify-content: center;
     min-width: 18px;
     height: 18px;
+    margin-left: 8px;
     padding: 0 5px;
     border-radius: 999px;
     background: var(--mx-brand);
@@ -377,3 +367,29 @@
         grid-template-columns: 1fr;
     }
 }
+
+/* Phone width: a row of options must scroll inside itself, never widen the page. */
+.tabRow { overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; max-width: 100%; }
+.tabRow::-webkit-scrollbar { display: none; }
+.tabRow > * { flex-shrink: 0; }
+
+/* Responsive: these rows hold controls or a title + actions. They wrap
+   onto a second line when the screen is too narrow for them, instead of
+   overflowing or crushing their neighbours. No effect when they fit. */
+.cardHead,
+.cardActions,
+.detailActions,
+.entryHead,
+.clearFilters {
+    flex-wrap: wrap;
+    row-gap: 8px;
+}
+
+/* Shared vertical spacing between stacked blocks (app/globals.css → "Stack spacing"). */
+.toolbar { composes: mx-block from global; }
+
+.filterPanel { composes: mx-block from global; }
+
+.resultBar { composes: mx-block from global; }
+
+.tableSection { composes: mx-block from global; }

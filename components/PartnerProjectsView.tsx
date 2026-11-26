@@ -1,7 +1,7 @@
 'use client';
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
-import Link from 'next/link';
+import { Plus } from 'lucide-react';
 import { PartnerRecord } from '@/lib/types';
 import { ProjectDepartment, PROJECT_DEPARTMENT_LABEL } from '@/lib/projectDepartmentOptions';
 import { OpportunityType } from '@/lib/projectLeadOptions';
@@ -12,9 +12,15 @@ import ProjectDepartmentField from './ui/ProjectDepartmentField';
 import OpportunityTypeField from './ui/OpportunityTypeField';
 import PhoneInput from './ui/PhoneInput';
 import PartnerShell from './PartnerShell';
+import CommonButton from './ui/CommonButton';
+import Dropdown, { inSelection } from './ui/Dropdown';
+import SearchInput from './ui/SearchInput';
+import StatCard, { StatCardGrid } from './ui/StatCard';
+import { Skeleton, SkeletonTable } from './ui/Skeleton';
 import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
 import styles from './partnerPortal.module.css';
+import Select from './ui/Select';
 
 interface PartnerProject {
   id: string;
@@ -88,8 +94,12 @@ export default function PartnerProjectsView({ partner }: Props) {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
-  const [stageFilter, setStageFilter] = useState('all');
-  const [statusFilter, setStatusFilter] = useState('all');
+  const [stageFilter, setStageFilter] = useState<string[]>([]);
+  const [statusFilter, setStatusFilter] = useState<string[]>([]);
+
+  // `status` starts as 'Loading...' and is only ever set to that before the first fetch.
+  const loading = status === 'Loading...';
+  const sk = <Skeleton width={64} height={24} />;
 
   const load = useCallback(async () => {
     try {
@@ -128,8 +138,8 @@ export default function PartnerProjectsView({ partner }: Props) {
   const visible = useMemo(() => {
     const needle = search.trim().toLowerCase();
     return projects.filter((p) => {
-      if (stageFilter !== 'all' && p.stage !== stageFilter) return false;
-      if (statusFilter !== 'all' && p.status !== statusFilter) return false;
+      if (!inSelection(p.stage, stageFilter)) return false;
+      if (!inSelection(p.status, statusFilter)) return false;
       if (!needle) return true;
       return (
         p.company.toLowerCase().includes(needle) ||
@@ -180,6 +190,9 @@ export default function PartnerProjectsView({ partner }: Props) {
       partnerName={partner.company_name}
       partnerCode={partner.partner_code}
     >
+      {/* Fills the screen: the table scrolls, not the page (app/globals.css →
+          .mx-fill-page). Not while the long submission form is open. */}
+      <div className={showForm ? undefined : 'mx-fill-page'}>
       {error && <div className={historyStyles.loginError}>{error}</div>}
 
       {showForm ? (
@@ -248,11 +261,11 @@ export default function PartnerProjectsView({ partner }: Props) {
             </div>
             <div className={calcStyles.field}>
               <label className={calcStyles.label} htmlFor="ppriority">Priority</label>
-              <select id="ppriority" className={calcStyles.formControl} value={form.priority} onChange={(e) => setForm({ ...form, priority: e.target.value })}>
+              <Select id="ppriority" value={form.priority} onChange={(e) => setForm({ ...form, priority: e.target.value })}>
                 <option value="low">Low</option>
                 <option value="medium">Medium</option>
                 <option value="high">High</option>
-              </select>
+              </Select>
             </div>
           </div>
 
@@ -307,8 +320,8 @@ export default function PartnerProjectsView({ partner }: Props) {
           </p>
 
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            <button type="submit" className={calcStyles.btn} disabled={submitting}>{submitting ? 'Submitting...' : 'Submit for review'}</button>
-            <button type="button" className={historyStyles.button} onClick={() => { setShowForm(false); setError(''); }}>Cancel</button>
+            <CommonButton type="submit" variant="primary" loading={submitting} loadingLabel="Submitting...">Submit for review</CommonButton>
+            <CommonButton onClick={() => { setShowForm(false); setError(''); }}>Cancel</CommonButton>
           </div>
         </form>
       ) : (
@@ -318,73 +331,59 @@ export default function PartnerProjectsView({ partner }: Props) {
             Send us a lead or project and our sales team will review it. You will see the decision here, and can follow the
             project through to close.
           </p>
-          <button type="button" className={calcStyles.btn} style={{ marginTop: 12 }} onClick={() => setShowForm(true)}>+ New submission</button>
+          <CommonButton variant="primary" leadingIcon={<Plus />} style={{ marginTop: 12 }} onClick={() => setShowForm(true)}>New submission</CommonButton>
         </section>
       )}
 
       <h3 className={styles.sectionHeading}>Your submissions</h3>
 
       {/* The same KPI strip the internal Project Dashboard opens with. */}
-      <div className={styles.kpiRow}>
-        <div className={styles.kpi}>
-          <span className={styles.kpiValue}>{kpis.total}</span>
-          <span className={styles.kpiLabel}>Total</span>
-        </div>
-        <div className={styles.kpi}>
-          <span className={styles.kpiValue}>{kpis.awaiting}</span>
-          <span className={styles.kpiLabel}>Awaiting review</span>
-        </div>
-        <div className={styles.kpi}>
-          <span className={styles.kpiValue}>{kpis.active}</span>
-          <span className={styles.kpiLabel}>Active</span>
-        </div>
-        <div className={styles.kpi}>
-          <span className={styles.kpiValue}>{kpis.onHold}</span>
-          <span className={styles.kpiLabel}>On Hold</span>
-        </div>
-        <div className={styles.kpi}>
-          <span className={styles.kpiValue}>{kpis.won}</span>
-          <span className={styles.kpiLabel}>Won</span>
-        </div>
-        <div className={styles.kpi}>
-          <span className={styles.kpiValue}>{kpis.lost}</span>
-          <span className={styles.kpiLabel}>Lost</span>
-        </div>
-        <div className={styles.kpi}>
-          <span className={styles.kpiValue}>{money(kpis.estimate)}</span>
-          {/* Deliberately "Your estimates", not "Total Value": these are
-              figures the partner submitted, not business we have booked. */}
-          <span className={styles.kpiLabel}>Your estimates</span>
-        </div>
-      </div>
+      <StatCardGrid>
+        <StatCard value={loading ? sk : kpis.total} label="Total" />
+        <StatCard value={loading ? sk : kpis.awaiting} label="Awaiting review" />
+        <StatCard value={loading ? sk : kpis.active} label="Active" />
+        <StatCard value={loading ? sk : kpis.onHold} label="On Hold" />
+        <StatCard value={loading ? sk : kpis.won} label="Won" />
+        <StatCard value={loading ? sk : kpis.lost} label="Lost" />
+        {/* Deliberately "Your estimates", not "Total Value": these are
+            figures the partner submitted, not business we have booked. */}
+        <StatCard value={loading ? sk : money(kpis.estimate)} label="Your estimates" />
+      </StatCardGrid>
 
       <div className={historyStyles.toolbar}>
-        <input
-          type="text"
+        <SearchInput
           placeholder="Search customer, project, reference…"
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          onChange={(v) => setSearch(v)}
         />
-        <select value={stageFilter} onChange={(e) => setStageFilter(e.target.value)}>
-          <option value="all">All stages</option>
-          {PARTNER_STAGE_STEPS.map((stage) => (
-            <option key={stage} value={stage}>{PARTNER_STAGE_LABEL[stage]}</option>
-          ))}
-          {(['info_requested', 'rejected', 'won', 'lost', 'on_hold'] as PartnerProjectStage[]).map((stage) => (
-            <option key={stage} value={stage}>{PARTNER_STAGE_LABEL[stage]}</option>
-          ))}
-        </select>
-        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
-          <option value="all">All statuses</option>
-          {Object.entries(STATUS_LABEL).map(([key, label]) => (
-            <option key={key} value={key}>{label}</option>
-          ))}
-        </select>
+        <Dropdown
+          multiple
+          value={stageFilter}
+          onChange={setStageFilter}
+          placeholder="All stages"
+          label="Stage"
+          options={[
+            ...PARTNER_STAGE_STEPS,
+            ...(['info_requested', 'rejected', 'won', 'lost', 'on_hold'] as PartnerProjectStage[])
+          ].map((stage) => ({ value: stage, label: PARTNER_STAGE_LABEL[stage] }))}
+        />
+        <Dropdown
+          multiple
+          value={statusFilter}
+          onChange={setStatusFilter}
+          placeholder="All statuses"
+          label="Status"
+          options={Object.entries(STATUS_LABEL).map(([key, label]) => ({ value: key, label }))}
+        />
       </div>
 
-      <div className={historyStyles.status}>
-        {status || `${visible.length} of ${projects.length} project${projects.length === 1 ? '' : 's'}`}
-      </div>
+      {loading ? (
+        <SkeletonTable columns={10} rows={6} />
+      ) : (
+        <div className={historyStyles.status}>
+          {status || `${visible.length} of ${projects.length} project${projects.length === 1 ? '' : 's'}`}
+        </div>
+      )}
 
       {visible.length > 0 && (
         <div className={historyStyles.tableWrap}>
@@ -426,13 +425,14 @@ export default function PartnerProjectsView({ partner }: Props) {
                   <td>{STATUS_LABEL[p.status] ?? p.status ?? '—'}</td>
                   <td>{p.expected_closing_date ? new Date(p.expected_closing_date).toLocaleDateString('en-IN') : '—'}</td>
                   <td>{p.last_activity_at ? new Date(p.last_activity_at).toLocaleDateString('en-IN') : '—'}</td>
-                  <td><Link className={historyStyles.button} href={`/partner/projects/${p.id}`}>Open</Link></td>
+                  <td><CommonButton size="sm" href={`/partner/projects/${p.id}`}>Open</CommonButton></td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
       )}
+      </div>
     </PartnerShell>
   );
 }

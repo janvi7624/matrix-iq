@@ -1,9 +1,9 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { Search, Loader2 } from 'lucide-react';
 import Modal from './ui/Modal';
-import Input from './ui/Input';
+import SearchInput from './ui/SearchInput';
+import { SkeletonList } from './ui/Skeleton';
 import { TMS_TASK_STATUS_LABEL, TMS_PRIORITY_LABEL, formatTmsDueDate } from '@/lib/tmsLabels';
 import calcStyles from './calculator.module.css';
 import styles from './dailyReport.module.css';
@@ -81,21 +81,15 @@ export default function TmsTaskPicker({
   return (
     <Modal title="Select a TMS task" ariaLabel="Select an existing TMS task to link" onClose={onClose} size="wide">
       <div className={styles.tmsPickerSearch}>
-        <Search size={15} aria-hidden="true" />
-        <Input
-          type="text"
+        <SearchInput
           placeholder="Search by task name, project or status…"
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          onChange={(v) => setSearch(v)}
           autoFocus
         />
       </div>
 
-      {tasks === null && !error && (
-        <div className={calcStyles.small}>
-          <Loader2 size={14} className={styles.spin} /> Loading your TMS tasks…
-        </div>
-      )}
+      {tasks === null && !error && <SkeletonList rows={5} avatar={false} />}
       {error && <div className={styles.errorText}>{error}</div>}
       {tasks !== null && !error && filtered.length === 0 && (
         <div className={calcStyles.small}>

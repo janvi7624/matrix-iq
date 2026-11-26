@@ -4,6 +4,7 @@ import { listClaims } from '@/lib/dailyReportLeaveClaimStore';
 import { canAccessHrReview } from '@/lib/dailyReportAccess';
 import { DailyReportLeaveClaimStatus } from '@/lib/dailyReportTypes';
 import { isIsoDate } from '@/lib/dailyReportTime';
+import { getListParam } from '@/lib/listParam';
 
 const STATUSES: DailyReportLeaveClaimStatus[] = ['PENDING', 'APPROVED', 'REJECTED'];
 
@@ -23,13 +24,17 @@ export async function GET(request: NextRequest) {
 
   try {
     const params = request.nextUrl.searchParams;
-    const status = params.get('status');
+    // Repeated keys from the multi-select filter (?status=PENDING&status=APPROVED);
+    // a single legacy value still works. Unknown values are dropped.
+    const statuses = getListParam(params, 'status').filter((s): s is DailyReportLeaveClaimStatus =>
+      STATUSES.includes(s as DailyReportLeaveClaimStatus)
+    );
     const from = params.get('from');
     const to = params.get('to');
     const { page, pageSize } = readPagination(request);
 
     const result = await listClaims({
-      status: status && STATUSES.includes(status as DailyReportLeaveClaimStatus) ? (status as DailyReportLeaveClaimStatus) : undefined,
+      status: statuses.length ? statuses : undefined,
       from: from && isIsoDate(from) ? from : undefined,
       to: to && isIsoDate(to) ? to : undefined,
       search: params.get('search') || undefined,

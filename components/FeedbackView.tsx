@@ -2,7 +2,8 @@
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import AppShell from './AppShell';
-import { SkeletonRows } from './ui/Skeleton';
+import CommonButton from './ui/CommonButton';
+import { SkeletonForm } from './ui/Skeleton';
 import calcStyles from './calculator.module.css';
 import historyStyles from './quotationHistory.module.css';
 import styles from './feedback.module.css';
@@ -166,7 +167,7 @@ export default function FeedbackView() {
   if (!data) {
     return (
       <AppShell title="Your Feedback" subtitle="Tell us how MatrixIQ is working for you">
-        <SkeletonRows rows={6} columns={2} />
+        <SkeletonForm fields={6} />
       </AppShell>
     );
   }
@@ -278,9 +279,9 @@ export default function FeedbackView() {
         </div>
 
         <div className={calcStyles.sectionPanel}>
-          <button type="submit" className={calcStyles.btn} disabled={saving}>
-            {saving ? 'Saving…' : data.existing ? 'Update my feedback' : 'Submit my feedback'}
-          </button>
+          <CommonButton type="submit" variant="primary" loading={saving} loadingLabel="Saving…">
+            {data.existing ? 'Update my feedback' : 'Submit my feedback'}
+          </CommonButton>
           {data.existing ? (
             <span className={styles.savedNote}>
               Last saved {new Date(data.existing.submittedAt).toLocaleString('en-IN')}

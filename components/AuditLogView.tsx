@@ -8,11 +8,15 @@ import styles from './quotationHistory.module.css';
 import auditStyles from './auditLog.module.css';
 import calcStyles from './calculator.module.css';
 import ToolbarButton from './ui/ToolbarButton';
+import Dropdown from './ui/Dropdown';
+import { setListParam } from '@/lib/listParam';
+import CommonButton from './ui/CommonButton';
 import Table, { TableColumn } from './ui/Table';
-import Pagination from './ui/Pagination';
+import TablePager from './ui/TablePager';
+import { Skeleton, SkeletonTable } from './ui/Skeleton';
+import { RefreshButton } from './ui/ListControls';
 
 const ENTITY_OPTIONS: { value: string; label: string }[] = [
-  { value: '', label: 'All entities' },
   { value: 'demo', label: 'Demo requests' },
   { value: 'delivery_challan', label: 'Delivery Challans' },
   { value: 'custom_module', label: 'Custom Modules' },
@@ -33,18 +37,28 @@ const ENTITY_OPTIONS: { value: string; label: string }[] = [
   { value: 'employee_exit', label: 'Employee Exits' }
 ];
 
-const PAGE_SIZE = 50;
+const DEFAULT_PAGE_SIZE = 50;
+// The API caps a page at 200 rows (lib/auditLogStore.ts MAX_PAGE_SIZE).
+const PAGE_SIZES = [25, 50, 100, 200] as const;
 
-const EMPTY_FILTERS = {
+interface Filters {
+  search: string;
+  // Multi-select: an empty list means no filter (sent as repeated params, lib/listParam).
+  entityType: string[];
+  by: string[];
+  role: string[];
+  dateFrom: string;
+  dateTo: string;
+}
+
+const EMPTY_FILTERS: Filters = {
   search: '',
-  entityType: '',
-  by: '',
-  role: '',
+  entityType: [],
+  by: [],
+  role: [],
   dateFrom: '',
   dateTo: ''
 };
-
-type Filters = typeof EMPTY_FILTERS;
 
 function formatDateTime(iso: string): string {
   if (!iso) return '-';
@@ -59,6 +73,7 @@ export default function AuditLogView() {
   const [rows, setRows] = useState<AuditLogEntry[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
   const [facets, setFacets] = useState<{ users: string[]; roles: string[] }>({ users: [], roles: [] });
   const [failed, setFailed] = useState(false);
   const [loadedKey, setLoadedKey] = useState('');
@@ -79,20 +94,20 @@ export default function AuditLogView() {
   }, [filters.search]);
 
   const activeCount = useMemo(
-    () => (Object.keys(EMPTY_FILTERS) as (keyof Filters)[]).filter((key) => filters[key].trim() !== '').length,
+    () => (Object.keys(EMPTY_FILTERS) as (keyof Filters)[]).filter((key) => { const v = filters[key]; return Array.isArray(v) ? v.length > 0 : v.trim() !== ''; }).length,
     [filters]
   );
 
-  const requestKey = [page, debouncedSearch, filters.entityType, filters.by, filters.role, filters.dateFrom, filters.dateTo].join('|');
+  const requestKey = [page, pageSize, debouncedSearch, filters.entityType.join(','), filters.by.join(','), filters.role.join(','), filters.dateFrom, filters.dateTo].join('|');
   const loading = loadedKey !== requestKey;
 
   const load = useCallback(async () => {
     try {
-      const params = new URLSearchParams({ page: String(page), pageSize: String(PAGE_SIZE) });
+      const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
       if (debouncedSearch.trim()) params.set('search', debouncedSearch.trim());
-      if (filters.entityType) params.set('entityType', filters.entityType);
-      if (filters.by) params.set('by', filters.by);
-      if (filters.role) params.set('role', filters.role);
+      setListParam(params, 'entityType', filters.entityType);
+      setListParam(params, 'by', filters.by);
+      setListParam(params, 'role', filters.role);
       if (filters.dateFrom) params.set('dateFrom', filters.dateFrom);
       if (filters.dateTo) params.set('dateTo', filters.dateTo);
 
@@ -108,7 +123,7 @@ export default function AuditLogView() {
     } finally {
       setLoadedKey(requestKey);
     }
-  }, [requestKey, page, debouncedSearch, filters.entityType, filters.by, filters.role, filters.dateFrom, filters.dateTo]);
+  }, [requestKey, page, pageSize, debouncedSearch, filters.entityType, filters.by, filters.role, filters.dateFrom, filters.dateTo]);
 
   useEffect(() => {
     load();
@@ -144,10 +159,9 @@ export default function AuditLogView() {
     { key: 'ip', header: 'IP', render: (r) => r.ip || '-' }
   ];
 
-  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   return (
-    <AppShell title="Audit Log" subtitle="Every status-changing action across the platform.">
+    <AppShell fillPage title="Audit Log" subtitle="Every status-changing action across the platform.">
       <div className={auditStyles.filterPanel}>
         <div className={auditStyles.filterGrid}>
           <label className={auditStyles.field}>
@@ -163,11 +177,7 @@ export default function AuditLogView() {
 
           <label className={auditStyles.field}>
             <span className={auditStyles.label}>Entity</span>
-            <select className={calcStyles.formControl} value={filters.entityType} onChange={(e) => set('entityType', e.target.value)}>
-              {ENTITY_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>{option.label}</option>
-              ))}
-            </select>
+            <Dropdown multiselect fullWidth ariaLabel="Entity" placeholder="All entities" value={filters.entityType} onChange={(v) => set('entityType', v)} options={ENTITY_OPTIONS} />
           </label>
 
           {/* Options come from the table itself, so a user or role with no
@@ -175,22 +185,12 @@ export default function AuditLogView() {
               nothing is worse than no filter. */}
           <label className={auditStyles.field}>
             <span className={auditStyles.label}>User</span>
-            <select className={calcStyles.formControl} value={filters.by} onChange={(e) => set('by', e.target.value)}>
-              <option value="">Everyone</option>
-              {facets.users.map((user) => (
-                <option key={user} value={user}>{user}</option>
-              ))}
-            </select>
+            <Dropdown multiselect fullWidth ariaLabel="User" placeholder="Everyone" value={filters.by} onChange={(v) => set('by', v)} options={facets.users.map((user) => ({ value: user, label: user }))} />
           </label>
 
           <label className={auditStyles.field}>
             <span className={auditStyles.label}>Role</span>
-            <select className={calcStyles.formControl} value={filters.role} onChange={(e) => set('role', e.target.value)}>
-              <option value="">All roles</option>
-              {facets.roles.map((role) => (
-                <option key={role} value={role}>{role}</option>
-              ))}
-            </select>
+            <Dropdown multiselect fullWidth ariaLabel="Role" placeholder="All roles" value={filters.role} onChange={(v) => set('role', v)} options={facets.roles.map((role) => ({ value: role, label: role }))} />
           </label>
 
           <label className={auditStyles.field}>
@@ -207,7 +207,7 @@ export default function AuditLogView() {
         <div className={auditStyles.filterActions}>
           <span className={auditStyles.resultCount}>
             {loading
-              ? 'Loading…'
+              ? <Skeleton inline width={90} height={14} />
               : failed
                 ? 'Could not reach the audit log API. Try refreshing.'
                 : total
@@ -215,15 +215,16 @@ export default function AuditLogView() {
                   : ''}
           </span>
           {activeCount > 0 && (
-            <button type="button" className={auditStyles.clearBtn} onClick={() => setFilters(EMPTY_FILTERS)}>
+            <CommonButton variant="link" size="sm" onClick={() => setFilters(EMPTY_FILTERS)}>
               Clear {activeCount} filter{activeCount === 1 ? '' : 's'}
-            </button>
+            </CommonButton>
           )}
           <ToolbarButton onClick={handleExportPdf}>Export page as PDF</ToolbarButton>
-          <ToolbarButton onClick={load}>Refresh</ToolbarButton>
+          <RefreshButton onRefresh={load} pushRight />
         </div>
       </div>
 
+      {loading && <SkeletonTable columns={columns.length} rows={8} />}
       {!loading && !failed && (
         <>
           <Table
@@ -236,7 +237,19 @@ export default function AuditLogView() {
               </div>
             }
           />
-          {totalPages > 1 && <Pagination page={page} totalPages={totalPages} onChange={setPage} />}
+          <TablePager
+            page={page}
+            pageSize={pageSize}
+            total={total}
+            onPageChange={setPage}
+            onPageSizeChange={(size) => {
+              setPageSize(size);
+              setPage(1);
+            }}
+            noun={total === 1 ? 'entry' : 'entries'}
+            sizes={PAGE_SIZES}
+            allowAll={false}
+          />
         </>
       )}
     </AppShell>

@@ -1,11 +1,13 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import Link from 'next/link';
-import { ExternalLink, FileText, Layers, ShoppingCart, Check } from 'lucide-react';
+import Link from '@/components/ui/AppLink';
+import { ExternalLink, FileText, Layers, ShoppingCart, Check, Plus, X } from 'lucide-react';
 import { DeadlineExtensionReason, DeadlineExtensionStatus, TmsBomRequestRecord, TmsDeadlineExtensionRecord, TmsPriority, TmsProcurementRecord, TmsProjectPhaseRecord, TmsProjectPhaseStatus, TmsProjectRecord, TmsProjectStatus, TmsTaskRecord, UserRole } from '@/lib/types';
 import { TMS_BOM_STATUS_LABEL, TMS_BOM_STATUS_TONE, TMS_PRIORITY_LABEL, TMS_PRIORITY_TONE, TMS_PROJECT_STATUS_LABEL, TMS_PROJECT_STATUS_TONE, TMS_PURCHASE_STATUS_LABEL, TMS_PURCHASE_STATUS_TONE, TMS_ROLE_LABEL, TMS_TASK_STATUS_LABEL, TMS_TASK_STATUS_TONE, todayIso } from '@/lib/tmsLabels';
 import AppShell from './AppShell';
+import CommonButton from './ui/CommonButton';
+import PageBackButton from './ui/PageBackButton';
 import DecisionModal from './ui/DecisionModal';
 import ProjectDocuments from './ProjectDocuments';
 import historyStyles from './quotationHistory.module.css';
@@ -29,6 +31,8 @@ import { BAND_COLOR } from './ui/HealthGauge';
 import { AuditLogEntry } from '@/lib/types';
 import styles from './tmsDetail.module.css';
 import { fetchCached } from '@/lib/fetchCached';
+import { SkeletonDetail, SkeletonList } from './ui/Skeleton';
+import RowActions from './ui/RowActions';
 
 const PHASE_LABEL: Record<TmsProjectPhaseStatus, string> = {
   pending: 'Pending',
@@ -446,8 +450,15 @@ export default function TmsProjectDetailView({ projectId, currentUser }: TmsProj
 
   if (!data) {
     return (
-      <AppShell title="Project" subtitle="" showBackLink>
-        <div className={historyStyles.status}>{status || 'Loading...'}</div>
+      <AppShell title="Project" subtitle="">
+        <div className={styles.headerRow}>
+          <PageBackButton fallbackRoute="/tms/projects" />
+        </div>
+        {!status || status === 'Loading...' ? (
+          <SkeletonDetail panels={2} pairs={6} withTopRow={false} />
+        ) : (
+          <div className={historyStyles.status}>{status}</div>
+        )}
       </AppShell>
     );
   }
@@ -500,9 +511,9 @@ export default function TmsProjectDetailView({ projectId, currentUser }: TmsProj
     <AppShell
       title={project.name}
       subtitle={`${project.project_code} · ${project.project_type === 'combined' && project.department_names.length ? project.department_names.join(', ') : project.department_name}`}
-      showBackLink
     >
       <div className={styles.headerRow}>
+        <PageBackButton fallbackRoute="/tms/projects" />
         <StatusBadge tone={TMS_PROJECT_STATUS_TONE[project.status]} label={TMS_PROJECT_STATUS_LABEL[project.status]} />
         <PriorityBadge tone={TMS_PRIORITY_TONE[project.priority]} label={TMS_PRIORITY_LABEL[project.priority]} />
         {deadlineBand !== 'na' && (
@@ -514,24 +525,22 @@ export default function TmsProjectDetailView({ projectId, currentUser }: TmsProj
         <span className={styles.mutedText}>
           Progress: {project.progress_percent}%
         </span>
-        <Link className={historyStyles.button} href="/tms/projects">Back to Projects</Link>
         {/* The deadline itself is never a free-text field (see editForm/
             saveEdit above) — it only ever moves through this one audited,
             tiered-approval flow. The FIRST move is a direct "Set Deadline"
             (TmsDeadlineExtendModal already accepts a blank currentDeadline
             fine); every move after that is explicitly "Extend", since a
             deadline that already exists must never look like a blank fill-in. */}
-        <button
-          type="button"
-          className={project.deadline ? historyStyles.button : `${historyStyles.button} ${historyStyles.primary}`}
+        <CommonButton
+          variant={project.deadline ? 'secondary' : 'primary'}
           onClick={() => setShowExtendDeadline(true)}
         >
           {project.deadline ? 'Extend Deadline' : 'Set Deadline'}
-        </button>
-        <button type="button" className={historyStyles.button} onClick={editing ? saveEdit : startEdit} disabled={saving}>
+        </CommonButton>
+        <CommonButton onClick={editing ? saveEdit : startEdit} disabled={saving}>
           {editing ? (saving ? 'Saving…' : 'Save changes') : 'Edit'}
-        </button>
-        {editing && <button type="button" className={historyStyles.button} onClick={() => setEditing(false)}>Cancel</button>}
+        </CommonButton>
+        {editing && <CommonButton onClick={() => setEditing(false)}>Cancel</CommonButton>}
       </div>
 
       {showExtendDeadline && (
@@ -600,9 +609,9 @@ export default function TmsProjectDetailView({ projectId, currentUser }: TmsProj
               <strong>Needs attention</strong>
               <div className={styles.actionButtonsRow}>
                 {attention.map((a) => (
-                  <button key={a.key} type="button" className={historyStyles.button} onClick={() => setTab(a.tab)}>
+                  <CommonButton key={a.key} size="sm" onClick={() => setTab(a.tab)}>
                     {a.label}
-                  </button>
+                  </CommonButton>
                 ))}
               </div>
             </div>
@@ -614,9 +623,9 @@ export default function TmsProjectDetailView({ projectId, currentUser }: TmsProj
                 <div>
                   <strong>Handed off from Sales:</strong> {project.sales_person_name || 'a sales person'} assigned this project to {project.project_manager_name || 'the project manager'} below.
                 </div>
-                <Link className={historyStyles.linkButtonSmall} href={`/projects/${project.sales_project_id}`} target="_blank" rel="noopener noreferrer">
-                  <ExternalLink size={13} /> View Sales Project
-                </Link>
+                <CommonButton size="sm" leadingIcon={<ExternalLink />} href={`/projects/${project.sales_project_id}`} target="_blank" rel="noopener noreferrer">
+                  View Sales Project
+                </CommonButton>
               </div>
             )}
             <div className={`${calcStyles.row} ${calcStyles.columns}`}>
@@ -654,9 +663,9 @@ export default function TmsProjectDetailView({ projectId, currentUser }: TmsProj
             <div className={`${styles.teamHeaderRow} ${editingTeam ? styles.teamHeaderRowEditing : ''}`}>
               <div className={`${calcStyles.h2} ${calcStyles.h2Reset}`}>Assigned Engineers</div>
               {!editingTeam && (
-                <button type="button" className={historyStyles.button} onClick={startEditTeam}>
-                  {project.team_member_ids.length ? 'Edit' : '+ Assign Engineer'}
-                </button>
+                <CommonButton size="sm" leadingIcon={project.team_member_ids.length ? undefined : <Plus />} onClick={startEditTeam}>
+                  {project.team_member_ids.length ? 'Edit' : 'Assign Engineer'}
+                </CommonButton>
               )}
             </div>
             {editingTeam ? (
@@ -671,10 +680,10 @@ export default function TmsProjectDetailView({ projectId, currentUser }: TmsProj
                   emptyMessage="No matching active Technical Team members found in this project's department."
                 />
                 <div className={`${styles.actionButtonsRow} ${calcStyles.mt10}`}>
-                  <button type="button" className={calcStyles.btn} onClick={saveTeam} disabled={savingTeam}>
-                    {savingTeam ? 'Saving…' : 'Save'}
-                  </button>
-                  <button type="button" className={historyStyles.button} onClick={() => setEditingTeam(false)}>Cancel</button>
+                  <CommonButton variant="primary" onClick={saveTeam} loading={savingTeam} loadingLabel="Saving…">
+                    Save
+                  </CommonButton>
+                  <CommonButton onClick={() => setEditingTeam(false)}>Cancel</CommonButton>
                 </div>
               </>
             ) : project.team_member_ids.length === 0 ? (
@@ -698,12 +707,12 @@ export default function TmsProjectDetailView({ projectId, currentUser }: TmsProj
             icon={Layers}
             title="No tasks yet"
             message="Break the work on this project into tasks so the team can pick them up and report progress."
-            action={<Link className={calcStyles.btn} href={`/tms/tasks?new=1&projectId=${project.id}`}>+ Add Task</Link>}
+            action={<CommonButton variant="primary" leadingIcon={<Plus />} href={`/tms/tasks?new=1&projectId=${project.id}`}>Add Task</CommonButton>}
           />
         ) : (
           <>
           <div className={historyStyles.actionRow}>
-            <Link className={calcStyles.btn} href={`/tms/tasks?new=1&projectId=${project.id}`}>+ Add Task</Link>
+            <CommonButton variant="primary" leadingIcon={<Plus />} href={`/tms/tasks?new=1&projectId=${project.id}`}>Add Task</CommonButton>
           </div>
           <div className={historyStyles.tableWrap}>
           <table className={historyStyles.table}>
@@ -718,7 +727,7 @@ export default function TmsProjectDetailView({ projectId, currentUser }: TmsProj
                   <td><StatusBadge tone={TMS_TASK_STATUS_TONE[t.status]} label={TMS_TASK_STATUS_LABEL[t.status]} /></td>
                   <td><PriorityBadge tone={TMS_PRIORITY_TONE[t.priority]} label={TMS_PRIORITY_LABEL[t.priority]} /></td>
                   <td>{formatDate(t.due_date)}</td>
-                  <td><Link className={historyStyles.button} href={`/tms/tasks/${t.id}`}>View</Link></td>
+                  <td><CommonButton size="sm" href={`/tms/tasks/${t.id}`}>View</CommonButton></td>
                 </tr>
               ))}
             </tbody>
@@ -762,12 +771,12 @@ export default function TmsProjectDetailView({ projectId, currentUser }: TmsProj
               onChange={(e) => setPhaseForm((f) => ({ ...f, description: e.target.value }))}
             />
           </Field>
-          <button type="button" className={calcStyles.btn} disabled={phaseBusy} onClick={() => void addPhase()}>
-            {phaseBusy ? 'Saving…' : '+ Add Phase'}
-          </button>
+          <CommonButton variant="primary" leadingIcon={<Plus />} loading={phaseBusy} loadingLabel="Saving…" onClick={() => void addPhase()}>
+            Add Phase
+          </CommonButton>
 
           {phases === null ? (
-            <div className={`${calcStyles.small} ${calcStyles.mt12}`}>Loading phases…</div>
+            <div className={calcStyles.mt12}><SkeletonList rows={3} avatar={false} /></div>
           ) : phases.length === 0 ? (
             <EmptyState
               icon={Layers}
@@ -835,12 +844,12 @@ export default function TmsProjectDetailView({ projectId, currentUser }: TmsProj
             icon={FileText}
             title="No material requirements yet"
             message="Raise a BOM request for any part or material this project needs. Approved requests go on to procurement."
-            action={<Link className={calcStyles.btn} href={`/tms/bom-requests?new=1&projectId=${project.id}`}>+ Create BOM Request</Link>}
+            action={<CommonButton variant="primary" leadingIcon={<Plus />} href={`/tms/bom-requests?new=1&projectId=${project.id}`}>Create BOM Request</CommonButton>}
           />
         ) : (
           <>
           <div className={historyStyles.actionRow}>
-            <Link className={calcStyles.btn} href={`/tms/bom-requests?new=1&projectId=${project.id}`}>+ Create BOM Request</Link>
+            <CommonButton variant="primary" leadingIcon={<Plus />} href={`/tms/bom-requests?new=1&projectId=${project.id}`}>Create BOM Request</CommonButton>
           </div>
           <div className={historyStyles.tableWrap}>
           <table className={historyStyles.table}>
@@ -854,7 +863,7 @@ export default function TmsProjectDetailView({ projectId, currentUser }: TmsProj
                   <td>{b.item_name}</td>
                   <td>{b.quantity}</td>
                   <td><StatusBadge tone={TMS_BOM_STATUS_TONE[b.status]} label={TMS_BOM_STATUS_LABEL[b.status]} /></td>
-                  <td><Link className={historyStyles.button} href={`/tms/bom-requests/${b.id}`}>View</Link></td>
+                  <td><CommonButton size="sm" href={`/tms/bom-requests/${b.id}`}>View</CommonButton></td>
                 </tr>
               ))}
             </tbody>
@@ -870,12 +879,12 @@ export default function TmsProjectDetailView({ projectId, currentUser }: TmsProj
             icon={ShoppingCart}
             title="Nothing being procured yet"
             message="Approved BOM requests come through here once they are sent to procurement. You can also raise a purchase for this project directly."
-            action={<Link className={calcStyles.btn} href={`/tms/procurement?new=1&projectId=${project.id}`}>+ Create Procurement Request</Link>}
+            action={<CommonButton variant="primary" leadingIcon={<Plus />} href={`/tms/procurement?new=1&projectId=${project.id}`}>Create Procurement Request</CommonButton>}
           />
         ) : (
           <>
           <div className={historyStyles.actionRow}>
-            <Link className={calcStyles.btn} href={`/tms/procurement?new=1&projectId=${project.id}`}>+ Create Procurement Request</Link>
+            <CommonButton variant="primary" leadingIcon={<Plus />} href={`/tms/procurement?new=1&projectId=${project.id}`}>Create Procurement Request</CommonButton>
           </div>
           <div className={historyStyles.tableWrap}>
           <table className={historyStyles.table}>
@@ -897,7 +906,7 @@ export default function TmsProjectDetailView({ projectId, currentUser }: TmsProj
                   </td>
                   <td>{p.vendor || '-'}</td>
                   <td><StatusBadge tone={TMS_PURCHASE_STATUS_TONE[p.purchase_status]} label={TMS_PURCHASE_STATUS_LABEL[p.purchase_status]} /></td>
-                  <td><Link className={historyStyles.button} href={`/tms/procurement/${p.id}`}>View</Link></td>
+                  <td><CommonButton size="sm" href={`/tms/procurement/${p.id}`}>View</CommonButton></td>
                 </tr>
               ))}
             </tbody>
@@ -912,9 +921,9 @@ export default function TmsProjectDetailView({ projectId, currentUser }: TmsProj
           <div className={`${styles.teamHeaderRow} ${editingManager ? styles.teamHeaderRowEditing : ''}`}>
             <div className={styles.infoRow}><strong>Project Manager:</strong> {editingManager ? '' : (project.project_manager_name || 'Unassigned')}</div>
             {!editingManager && (
-              <button type="button" className={historyStyles.button} onClick={startEditManager}>
-                {project.project_manager_id ? 'Change' : '+ Assign Manager'}
-              </button>
+              <CommonButton size="sm" leadingIcon={project.project_manager_id ? undefined : <Plus />} onClick={startEditManager}>
+                {project.project_manager_id ? 'Change' : 'Assign Manager'}
+              </CommonButton>
             )}
           </div>
           {editingManager && (
@@ -928,10 +937,10 @@ export default function TmsProjectDetailView({ projectId, currentUser }: TmsProj
                 emptyMessage="No matching active Technical Team members found in this project's department."
               />
               <div className={`${styles.actionButtonsRow} ${calcStyles.mt10}`}>
-                <button type="button" className={calcStyles.btn} onClick={saveManager} disabled={savingManager}>
-                  {savingManager ? 'Saving…' : 'Save'}
-                </button>
-                <button type="button" className={historyStyles.button} onClick={() => setEditingManager(false)}>Cancel</button>
+                <CommonButton variant="primary" onClick={saveManager} loading={savingManager} loadingLabel="Saving…">
+                  Save
+                </CommonButton>
+                <CommonButton onClick={() => setEditingManager(false)}>Cancel</CommonButton>
               </div>
             </>
           )}
@@ -983,10 +992,13 @@ export default function TmsProjectDetailView({ projectId, currentUser }: TmsProj
                     <td>{formatDate(ext.createdAt.slice(0, 10))}</td>
                     <td>
                       {canDecide && (
-                        <div className={styles.actionButtonsRow}>
-                          <button type="button" className={calcStyles.btn} onClick={() => { setDecidingExtension({ id: ext.id, decision: 'approve' }); setDecisionRemark(''); }}>Approve</button>
-                          <ToolbarButton onClick={() => { setDecidingExtension({ id: ext.id, decision: 'reject' }); setDecisionRemark(''); }}>Reject</ToolbarButton>
-                        </div>
+                        <RowActions
+                          label="Extension request actions"
+                          actions={[
+                            { key: 'approve', pinned: true, label: 'Approve', icon: <Check />, variant: 'success', onClick: () => { setDecidingExtension({ id: ext.id, decision: 'approve' }); setDecisionRemark(''); } },
+                            { key: 'reject', pinned: true, label: 'Reject', icon: <X />, destructive: true, onClick: () => { setDecidingExtension({ id: ext.id, decision: 'reject' }); setDecisionRemark(''); } }
+                          ]}
+                        />
                       )}
                     </td>
                   </tr>

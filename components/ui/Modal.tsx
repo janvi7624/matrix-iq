@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom';
 import styles from './notify.module.css';
 import controlsStyles from './controls.module.css';
 import { useModalBehavior } from '@/lib/useModalBehavior';
+import CommonButton from './CommonButton';
 
 export interface ModalProps {
   title: ReactNode;
@@ -70,9 +71,9 @@ export default function Modal({ title, ariaLabel, onClose, children, footer, siz
 }
 
 export function ModalCancelButton(props: ButtonHTMLAttributes<HTMLButtonElement>) {
-  return <button type="button" className={styles.confirmCancel} {...props} />;
+  return <CommonButton variant="secondary" {...props} />;
 }
 
 export function ModalOkButton(props: ButtonHTMLAttributes<HTMLButtonElement>) {
-  return <button type="button" className={styles.confirmOk} {...props} />;
+  return <CommonButton variant="primary" {...props} />;
 }

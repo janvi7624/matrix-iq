@@ -6,6 +6,7 @@ import { TMS_ROLE_LABEL } from '@/lib/tmsLabels';
 import AppShell from './AppShell';
 import historyStyles from './quotationHistory.module.css';
 import { useToast } from './ui/ToastProvider';
+import { SkeletonTable } from './ui/Skeleton';
 
 const PERMISSION_ACTIONS: { key: ModulePermissionAction; label: string }[] = [
   { key: 'view', label: 'View' },
@@ -29,6 +30,9 @@ export default function TmsTabAccessView({ currentUser, embedded }: TmsTabAccess
   const [roles, setRoles] = useState<RoleRecord[]>([]);
   const [modules, setModules] = useState<ModuleConfigRecord[]>([]);
   const [status, setStatus] = useState('Loading...');
+
+  // First load only: the reload after each toggle keeps the grid on screen.
+  const firstLoad = status === 'Loading...' && roles.length === 0;
 
   async function load() {
     setStatus('Loading...');
@@ -71,9 +75,13 @@ export default function TmsTabAccessView({ currentUser, embedded }: TmsTabAccess
 
   const content = (
     <>
+      {firstLoad ? (
+        <SkeletonTable columns={6} rows={8} />
+      ) : (
+        <>
       <div className={historyStyles.status}>{status}</div>
 
-      <div className={historyStyles.permTableScroll}>
+      <div className={`${historyStyles.permTableScroll} mx-rtable-wrap`}>
         <table className={historyStyles.permTable}>
           <thead>
             <tr>
@@ -111,12 +119,14 @@ export default function TmsTabAccessView({ currentUser, embedded }: TmsTabAccess
           </tbody>
         </table>
       </div>
+        </>
+      )}
     </>
   );
 
   if (embedded) return content;
   return (
-    <AppShell title="TMS Tab Access" subtitle="Configure which TMS roles can view, create, edit, delete, approve, or manage each tab.">
+    <AppShell fillPage title="TMS Tab Access" subtitle="Configure which TMS roles can view, create, edit, delete, approve, or manage each tab.">
       {content}
     </AppShell>
   );

@@ -16,6 +16,7 @@ import {
 import { DailyReportPayloadInput, EMPTY_PAYLOAD } from '@/lib/dailyReportTemplates';
 import { DailyReportHistoryItem, MyDailyReportResponse } from '@/lib/dailyReportTypes';
 import AppShell from './AppShell';
+import CommonButton from './ui/CommonButton';
 import DailyReportForm from './DailyReportForm';
 import calcStyles from './calculator.module.css';
 import historyStyles from './quotationHistory.module.css';
@@ -26,7 +27,7 @@ import Textarea from './ui/Textarea';
 import Modal, { ModalCancelButton, ModalOkButton } from './ui/Modal';
 import EmptyState from './ui/EmptyState';
 import ErrorState from './ui/ErrorState';
-import { SkeletonRows } from './ui/Skeleton';
+import { SkeletonForm } from './ui/Skeleton';
 import { useToast } from './ui/ToastProvider';
 import { useConfirm } from './ui/ConfirmDialog';
 import { useAutoRefresh } from '@/lib/useAutoRefresh';
@@ -368,7 +369,7 @@ export default function DailyReportView({
     embedded ? <>{node}</> : <AppShell title={title} subtitle={subtitle}>{node}</AppShell>;
 
   if (loading && !data) {
-    return wrap(<div className={calcStyles.sectionPanel}><SkeletonRows rows={6} columns={3} /></div>);
+    return wrap(<div className={calcStyles.sectionPanel}><SkeletonForm fields={6} /></div>);
   }
 
   if (loadFailed || !data) {
@@ -442,16 +443,16 @@ export default function DailyReportView({
       {/* ------------------------------------------------- command bar */}
       <div className={styles.commandBar}>
         <div className={styles.dateNav}>
-          <button
-            type="button"
-            className={styles.stepBtn}
+          <CommonButton
+            variant="outlined"
+            size="md"
+            iconOnly
+            leadingIcon={<ChevronLeft />}
             onClick={() => goToDate(prevDate)}
             disabled={!prevDate}
             aria-label="Previous working day"
             title={prevDate ? `Go to ${formatDate(prevDate)}` : 'No earlier day in your history'}
-          >
-            <ChevronLeft size={18} />
-          </button>
+          />
           <div className={styles.dateBlock}>
             <div className={styles.dateHeadline}>
               {formatIstDayShort(data.report_date)}
@@ -461,9 +462,9 @@ export default function DailyReportView({
               {data.report_date === today ? (
                 <span className={styles.dateToday}>Today</span>
               ) : (
-                <button type="button" className={styles.todayBtn} onClick={() => goToDate(today)}>
+                <CommonButton variant="link" size="sm" onClick={() => goToDate(today)}>
                   Jump to today
-                </button>
+                </CommonButton>
               )}
             </div>
             {/* Name and department both stay on the page even though this is
@@ -476,16 +477,16 @@ export default function DailyReportView({
               {data.template_configured ? ` · ${data.template.label}` : ''}
             </div>
           </div>
-          <button
-            type="button"
-            className={styles.stepBtn}
+          <CommonButton
+            variant="outlined"
+            size="md"
+            iconOnly
+            leadingIcon={<ChevronRight />}
             onClick={() => goToDate(nextDate)}
             disabled={!nextDate}
             aria-label="Next working day"
             title={nextDate ? `Go to ${formatDate(nextDate)}` : 'This is your most recent working day'}
-          >
-            <ChevronRight size={18} />
-          </button>
+          />
           <Input
             className={styles.datePicker}
             type="date"

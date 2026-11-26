@@ -238,7 +238,8 @@ export async function listClaimsForDate(employeeId: string, reportDate: string):
 export interface ClaimFilters {
   employeeIds?: string[];
   departmentIds?: string[];
-  status?: DailyReportLeaveClaimStatus;
+  // One status or a list (matches ANY); an empty list is no filter.
+  status?: DailyReportLeaveClaimStatus | DailyReportLeaveClaimStatus[];
   from?: string;
   to?: string;
   search?: string;
@@ -252,7 +253,9 @@ export async function listClaims(filters: ClaimFilters = {}): Promise<{ claims: 
   const where: Record<string | symbol, unknown> = {};
   if (filters.employeeIds) where.employee_id = filters.employeeIds;
   if (filters.departmentIds?.length) where.department_id = filters.departmentIds;
-  if (filters.status) where.status = filters.status;
+  if (Array.isArray(filters.status)) {
+    if (filters.status.length) where.status = { [Op.in]: filters.status };
+  } else if (filters.status) where.status = filters.status;
   if (filters.from && filters.to) where.report_date = { [Op.between]: [filters.from, filters.to] };
   else if (filters.from) where.report_date = { [Op.gte]: filters.from };
   else if (filters.to) where.report_date = { [Op.lte]: filters.to };

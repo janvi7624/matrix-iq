@@ -7,6 +7,7 @@ import base from '@/components/landing/landing.module.css';
 import visualStyles from '@/components/auth/matrixLoginVisual.module.css';
 import MatrixLoginVisual from '@/components/auth/MatrixLoginVisual';
 import { BRAND } from '@/lib/branding';
+import CommonButton from '@/components/ui/CommonButton';
 
 // First-login (and any forced) password change. Same shell, animated
 // background and glass card as the login page (app/login/LoginPageClient.tsx)
@@ -123,9 +124,9 @@ export default function ChangePasswordPage() {
           <PasswordField id="currentPassword" label="Current (temporary) password" value={currentPassword} onChange={setCurrentPassword} autoComplete="current-password" autoFocus />
           <PasswordField id="newPassword" label="New password (min. 6 characters)" value={newPassword} onChange={setNewPassword} autoComplete="new-password" />
           <PasswordField id="confirmPassword" label="Confirm new password" value={confirmPassword} onChange={setConfirmPassword} autoComplete="new-password" />
-          <button type="submit" className={visualStyles.formSubmit} disabled={busy}>
-            {busy ? 'Updating...' : 'Update password'}
-          </button>
+          <CommonButton type="submit" variant="primary" fullWidth style={{ marginTop: 6 }} loading={busy} loadingLabel="Updating...">
+            Update password
+          </CommonButton>
         </form>
       </div>
     </div>

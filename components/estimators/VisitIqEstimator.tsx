@@ -6,7 +6,10 @@ import { formatMoney } from '@/lib/format';
 import { selectAllOnFocus } from '@/lib/numberInputHelpers';
 import { DomainResult, LineItem } from '@/lib/types';
 import { applyOverride, extraProductKeys, overrideMapKey, OverrideMap } from '@/lib/catalogOverrides';
+import { Minus, Plus } from 'lucide-react';
+import CommonButton from '../ui/CommonButton';
 import styles from '../calculator.module.css';
+import Select from '../ui/Select';
 
 interface VisitIqEstimatorProps {
   active: boolean;
@@ -122,20 +125,20 @@ export default function VisitIqEstimator({ active, onResultChange, overrides }: 
       <div className={`${styles.row} ${styles.columns}`}>
         <div className={styles.field}>
           <label className={styles.label} htmlFor="visitiqPlan">Plan</label>
-          <select id="visitiqPlan" className={styles.formControl} value={planId} onChange={(e) => setPlanId(e.target.value)}>
+          <Select id="visitiqPlan" value={planId} onChange={(e) => setPlanId(e.target.value)}>
             {effectivePlans.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.name} ({p.subtitle}){p.badge ? ` — ${p.badge}` : ''}
               </option>
             ))}
-          </select>
+          </Select>
         </div>
         <div className={styles.field}>
           <label className={styles.label} htmlFor="visitiqBilling">Billing cycle</label>
-          <select id="visitiqBilling" className={styles.formControl} value={billingCycle} onChange={(e) => setBillingCycle(e.target.value as BillingCycle)}>
+          <Select id="visitiqBilling" value={billingCycle} onChange={(e) => setBillingCycle(e.target.value as BillingCycle)}>
             <option value="yearly">Annual — {formatMoney(plan.annualPricePerMonth)}/mo billed yearly (save ~17%)</option>
             <option value="monthly">Monthly — {formatMoney(plan.monthlyPrice)}/mo</option>
-          </select>
+          </Select>
         </div>
       </div>
 
@@ -163,9 +166,9 @@ export default function VisitIqEstimator({ active, onResultChange, overrides }: 
               <div className={styles.addOnQtyPrice}>{formatMoney(q.unit)}/mo each</div>
             </div>
             <div className={styles.addOnStepper}>
-              <button type="button" className={styles.addOnStepBtn} aria-label={`Fewer ${q.title.toLowerCase()}`} disabled={q.value <= 0} onClick={() => q.set(Math.max(0, q.value - 1))}>−</button>
+              <CommonButton variant="outlined" size="sm" iconOnly leadingIcon={<Minus />} aria-label={`Fewer ${q.title.toLowerCase()}`} disabled={q.value <= 0} onClick={() => q.set(Math.max(0, q.value - 1))} />
               <input id={q.id} className={styles.addOnStepInput} type="number" step={1} min={0} value={q.value} onFocus={selectAllOnFocus} onChange={(e) => q.set(Math.max(0, parseInt(e.target.value, 10) || 0))} />
-              <button type="button" className={styles.addOnStepBtn} aria-label={`More ${q.title.toLowerCase()}`} onClick={() => q.set(q.value + 1)}>+</button>
+              <CommonButton variant="outlined" size="sm" iconOnly leadingIcon={<Plus />} aria-label={`More ${q.title.toLowerCase()}`} onClick={() => q.set(q.value + 1)} />
               {q.value > 0 && (
                 <span className={styles.addOnQtyTotal}>{formatMoney(q.unit * q.value * cycleMultiplier)}/{periodUnit.toLowerCase()}</span>
               )}

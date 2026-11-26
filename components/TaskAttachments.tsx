@@ -2,6 +2,7 @@
 
 import { useRef, useState } from 'react';
 import { Download, Eye, File, FileImage, FileSpreadsheet, FileText, Loader2, Paperclip, UploadCloud } from 'lucide-react';
+import CommonButton from './ui/CommonButton';
 import styles from './taskAttachments.module.css';
 
 // The stored name is "<timestamp>-<8 hex>-<original name>" (see
@@ -96,12 +97,20 @@ export default function TaskAttachments({
                   <span className={styles.fileName} title={name}>{name}</span>
                   <span className={styles.fileType}>{extLabel(name)}</span>
                 </span>
-                <a className={styles.viewBtn} href={url} target="_blank" rel="noreferrer">
-                  <Eye size={14} /> View
-                </a>
-                <a className={styles.dlBtn} href={url} download={name} aria-label={`Download ${name}`} title="Download">
-                  <Download size={14} />
-                </a>
+                <CommonButton href={url} native target="_blank" rel="noreferrer" variant="secondary" size="sm" leadingIcon={<Eye />}>
+                  View
+                </CommonButton>
+                <CommonButton
+                  href={url}
+                  native
+                  download={name}
+                  variant="outlined"
+                  size="sm"
+                  iconOnly
+                  aria-label={`Download ${name}`}
+                  title="Download"
+                  leadingIcon={<Download />}
+                />
               </li>
             );
           })}

@@ -1,0 +1,75 @@
+/* TablePager — the footer under a table:
+   [Showing 1–25 of 142]        [Rows per page 25 ▾]  [« ‹ 1 2 3 … 6 › »] */
+
+.footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  margin-top: 10px;
+  padding: 10px 14px;
+  border: 1px solid var(--mx-border);
+  border-radius: var(--mx-radius-sm);
+  background: #ffffff;
+  box-shadow: var(--mx-shadow-xs);
+}
+.summary {
+  font-size: var(--mx-text-body);
+  color: var(--mx-text-secondary);
+}
+.summary strong { color: var(--mx-ink); font-weight: var(--mx-weight-semibold); }
+
+.controls {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  margin-left: auto;
+}
+.size {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--mx-text-meta);
+  color: var(--mx-text-secondary);
+  white-space: nowrap;
+}
+/* Rows-per-page Dropdown: just a narrow trigger (its look comes from the common Dropdown). */
+.select { min-width: 76px; }
+
+.pages { display: inline-flex; align-items: center; gap: 4px; }
+.page {
+  min-width: 34px;
+  height: 34px;
+  padding: 0 8px;
+  border: 1px solid transparent;
+  border-radius: var(--mx-radius-xs);
+  background: transparent;
+  color: var(--mx-ink);
+  font: inherit;
+  font-size: var(--mx-text-body);
+  font-weight: var(--mx-weight-medium);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.page:hover:not(:disabled):not(.current) { background: var(--mx-surface-sunken); }
+.page:focus-visible { outline: var(--mx-focus-ring-width) solid var(--mx-focus-ring-color); outline-offset: 1px; }
+.page:disabled { opacity: var(--mx-disabled-opacity); cursor: not-allowed; }
+.page :global(svg) { width: 16px; height: 16px; }
+.current {
+  background: var(--mx-selected-bg);
+  border-color: var(--mx-selected-border);
+  color: var(--mx-selected-fg);
+  cursor: default;
+}
+.gap { padding: 0 2px; color: var(--mx-ink-faint); }
+
+@media (max-width: 640px) {
+  .footer { justify-content: center; }
+  .summary { width: 100%; text-align: center; }
+  .controls { margin-left: 0; justify-content: center; width: 100%; }
+  .pageNumber { display: none; } /* phones: ‹ current › only */
+}

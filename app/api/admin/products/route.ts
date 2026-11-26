@@ -3,6 +3,8 @@ import { getSessionFromRequest } from '@/lib/auth';
 import { assignProductManager, createProduct, listProducts, ProductInput } from '@/lib/productStore';
 import { isUuid } from '@/lib/db';
 import { apiErrorResponse } from '@/lib/apiError';
+import { getListParam } from '@/lib/listParam';
+import { ProductStatus } from '@/lib/types';
 
 // Base auth + admin/superadmin/manager gating happens in proxy.ts (matcher: /api/admin/:path*).
 export async function GET(request: NextRequest) {
@@ -10,9 +12,11 @@ export async function GET(request: NextRequest) {
     const params = request.nextUrl.searchParams;
     const products = await listProducts({
       q: params.get('q') || undefined,
-      category: params.get('category') || undefined,
+      // Repeated keys from the multi-select filters (?category=a&category=b);
+      // a single legacy value still works.
+      category: getListParam(params, 'category'),
       brand: params.get('brand') || undefined,
-      status: (params.get('status') as 'active' | 'inactive' | null) || undefined
+      status: getListParam(params, 'status').filter((s): s is ProductStatus => s === 'active' || s === 'inactive')
     });
     return NextResponse.json(products);
   } catch (error) {

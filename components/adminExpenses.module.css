@@ -1,5 +1,7 @@
 /* components/AdminExpensesView.tsx — was inline style={{}} objects. */
-.pageWrap { max-width: 1000px; margin: 0 auto; padding: 0 16px; }
+/* Full width of the app content area (the shell already caps it at 1440px): a
+   1000px cap left wide empty gutters while the table had to scroll. */
+.pageWrap { width: 100%; }
 /* quotationHistory.module.css's .table sets overflow:hidden for its rounded
    corners, which — same as that file's own .tableViewport comment about its
    sticky <th> — makes the TABLE itself the nearest scrolling ancestor for
@@ -22,7 +24,7 @@
     color: #92400e;
     font-weight: 600;
 }
-.fieldsGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px; margin-bottom: 16px; }
+.fieldsGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(220px, 100%), 1fr)); gap: 16px; margin-bottom: 16px; }
 .fieldLabel { display: block; font-size: 12.5px; font-weight: 600; color: var(--mx-ink-muted); margin-bottom: 4px; }
 .fieldLabelSpaced { display: block; font-size: 12.5px; font-weight: 600; color: var(--mx-ink-muted); margin-bottom: 6px; }
 .fieldHint { font-size: 11.5px; color: var(--mx-brand-hover, #1e40af); font-weight: 600; margin-top: 4px; }
@@ -38,7 +40,7 @@
     border-radius: var(--mx-radius-xs, 6px);
     padding: 8px;
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(min(200px, 100%), 1fr));
     gap: 4px;
 }
 .employeeOption { display: flex; align-items: center; gap: 8px; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 13px; color: var(--mx-ink); }
@@ -56,7 +58,7 @@
 .centerMuted { text-align: center; padding: 40px; color: var(--mx-ink-faint); }
 .centerMutedSmall { text-align: center; padding: 40px; color: var(--mx-ink-faint); font-size: 14px; }
 .nowrap { white-space: nowrap; }
-.typeBadge { display: inline-block; padding: 2px 10px; border-radius: 12px; font-size: 12px; font-weight: 600; }
+.typeBadge { display: inline-block; padding: 2px 10px; border-radius: 12px; font-size: 12px; font-weight: 600; white-space: nowrap; }
 .boldCell { font-weight: 600; }
 .employeeBadge { display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 11.5px; background: #f3f4f6; color: #374151; font-weight: 500; white-space: nowrap; }
 .employeeMoreText { font-size: 11.5px; color: var(--mx-ink-muted); font-weight: 600; white-space: nowrap; }
@@ -81,13 +83,17 @@ tr:hover .employeeExpanded { display: flex; }
    share, the Actions column included, which is exactly what left no room
    for Approve/Edit/Delete on a small laptop screen. Rebalanced to sum to
    100, with Actions given the extra room it actually needs. */
-.colDate { width: 9%; }
-.colType { width: 10%; }
-.colRoute { width: 14%; }
-.colTotal { width: 9%; }
-.colEmployees { width: 16%; }
-.colPerPerson { width: 9%; }
-.colAdded { width: 9%; }
+/* Content-sized columns (the table is table-layout:auto now). Fixed %
+   widths clipped status pills and amounts while leaving the Actions column
+   with empty space. Short values stay on one line; the two free-text
+   columns get a floor and wrap inside it. */
+.colType, .colTotal, .colPerPerson, .colAdded, .colStatus { white-space: nowrap; }
+/* A date range wraps after its arrow ("23 Nov 2026 →" / "03 Dec 2026") instead of one
+   long line; a single date stays on one line. */
+.colDate { min-width: 110px; }
+.dateCell { min-width: 110px; }
+.colRoute { min-width: 140px; }
+.colEmployees { min-width: 180px; }
 .perPersonCell { font-weight: 600; color: #16a34a; }
 .addedCell { white-space: nowrap; font-size: 12.5px; color: var(--mx-ink-muted); }
 /* Pinned to the right edge of .tableWrap's own scroll viewport (same
@@ -99,8 +105,11 @@ tr:hover .employeeExpanded { display: flex; }
    is the last-resort safety net if even that floor is tight — buttons stack
    onto a second line instead of visually overflowing the cell. */
 .colActions {
-  width: 15%;
-  min-width: 190px;
+  composes: mx-sticky-actions from global;
+  /* Exactly as wide as its content — the ⋮ menu (plus Approve for an
+     approver on a pending row). width:1% + nowrap = shrink to fit. */
+  width: 1%;
+  white-space: nowrap;
   position: sticky;
   right: 0;
   background: var(--mx-surface, #fff);
@@ -226,3 +235,15 @@ tr:hover .employeeExpanded { display: flex; }
 
 /* Two entry points side by side in the header. */
 .headerActions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+/* Responsive: these rows hold controls or a title + actions. They wrap
+   onto a second line when the screen is too narrow for them, instead of
+   overflowing or crushing their neighbours. No effect when they fit. */
+.headerRow,
+.employeeSearchRow,
+.formButtonsRow,
+.unallocatedRow,
+.bulkSubmitRow {
+    flex-wrap: wrap;
+    row-gap: 8px;
+}

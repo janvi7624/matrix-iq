@@ -2,7 +2,10 @@
 
 import { ChangeEvent, useEffect, useRef, useState } from 'react';
 import { BRAND } from '@/lib/branding';
+import { Download } from 'lucide-react';
 import AppShell from '@/components/AppShell';
+import CommonButton from '@/components/ui/CommonButton';
+import PageBackButton from '@/components/ui/PageBackButton';
 import historyStyles from '@/components/quotationHistory.module.css';
 import calcStyles from '@/components/calculator.module.css';
 import { useToast } from '@/components/ui/ToastProvider';
@@ -246,6 +249,9 @@ export default function ImportEmployeesPage() {
 
   return (
     <AppShell title={`${BRAND.appName} — Import Employees`} subtitle="Administration › User Management › bulk-create accounts from Excel.">
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+          <PageBackButton fallbackRoute="/admin/users" />
+        </div>
         {currentRole !== null && !authorized ? (
           <div className={calcStyles.sectionPanel}>
             <p>Bulk employee import is available to Admin and Super Admin accounts only.</p>
@@ -260,11 +266,11 @@ export default function ImportEmployeesPage() {
               </p>
               <div className={styles.fileRow}>
                 <input ref={fileInputRef} type="file" accept=".xlsx" onChange={handleFileChange} />
-                <button type="button" className={calcStyles.btn} disabled={!file || stage === 'previewing'} onClick={runPreview}>
-                  {stage === 'previewing' ? 'Reading file...' : 'Preview Import'}
-                </button>
+                <CommonButton variant="primary" size="md" disabled={!file} loading={stage === 'previewing'} loadingLabel="Reading file..." onClick={runPreview}>
+                  Preview Import
+                </CommonButton>
                 {(preview || committed) && (
-                  <button type="button" className={historyStyles.button} onClick={reset}>Start Over</button>
+                  <CommonButton variant="secondary" size="md" onClick={reset}>Start Over</CommonButton>
                 )}
               </div>
             </div>
@@ -301,9 +307,9 @@ export default function ImportEmployeesPage() {
 
                 {stage === 'preview' && (
                   <div className={calcStyles.mt14}>
-                    <button type="button" className={calcStyles.btn} onClick={runCommit}>
+                    <CommonButton variant="primary" size="md" onClick={runCommit}>
                       Confirm Import — Create {preview?.summary.created ?? 0} Account{(preview?.summary.created ?? 0) === 1 ? '' : 's'}
-                    </button>
+                    </CommonButton>
                   </div>
                 )}
                 {stage === 'committing' && <div className={historyStyles.status}>Creating accounts...</div>}
@@ -316,9 +322,9 @@ export default function ImportEmployeesPage() {
                       Export or share them securely, then ask each employee to change their password on first login.
                     </p>
                     <div className={calcStyles.mb10}>
-                      <button type="button" className={calcStyles.btn} onClick={exportCredentials} disabled={exporting}>
-                        {exporting ? 'Exporting...' : 'Export User Credentials (Excel)'}
-                      </button>
+                      <CommonButton variant="primary" size="md" leadingIcon={<Download />} onClick={exportCredentials} loading={exporting} loadingLabel="Exporting...">
+                        Export User Credentials (Excel)
+                      </CommonButton>
                     </div>
                     <div className={historyStyles.tableWrap}>
                       <table className={historyStyles.table}>
@@ -344,15 +350,15 @@ export default function ImportEmployeesPage() {
                               <td><span className={`${historyStyles.statusPill} ${historyStyles.statusPillActive}`}>Active</span></td>
                               <td>
                                 {row.userId && (
-                                  <button
-                                    type="button"
-                                    className={historyStyles.toggleBtn}
+                                  <CommonButton
+                                    variant="secondary"
+                                    size="sm"
                                     disabled={!row.email || resending[row.rowNumber]}
                                     title={row.email ? undefined : 'No email address on file for this row'}
                                     onClick={() => resendRow(row)}
                                   >
                                     {resending[row.rowNumber] ? 'Sending...' : resent[row.rowNumber] ? 'Resent ✓' : 'Resend Email'}
-                                  </button>
+                                  </CommonButton>
                                 )}
                               </td>
                             </tr>

@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { Cake, Award, PartyPopper } from 'lucide-react';
+import CommonButton from './ui/CommonButton';
 import styles from './celebrations.module.css';
 
 interface CelebrationEntry {
@@ -128,9 +129,9 @@ function CelebrationPanel({
         <>
           {shown.map((entry, i) => <CelebrationCard key={`${type}-${i}`} entry={entry} type={type} />)}
           {(hidden > 0 || expanded) && (
-            <button type="button" className={styles.panelMore} onClick={() => setExpanded((v) => !v)}>
+            <CommonButton variant="ghost" size="sm" fullWidth onClick={() => setExpanded((v) => !v)}>
               {expanded ? 'Show less' : `Show ${hidden} more`}
-            </button>
+            </CommonButton>
           )}
         </>
       )}

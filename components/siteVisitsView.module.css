@@ -3,3 +3,11 @@
 .headerRow { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; }
 .hrDivider { margin: 18px 0; border: none; border-top: 1px solid var(--mx-border); }
 .checkboxLabelInline { display: flex; align-items: center; gap: 6px; font-size: 13.5px; }
+
+/* Responsive: these rows hold controls or a title + actions. They wrap
+   onto a second line when the screen is too narrow for them, instead of
+   overflowing or crushing their neighbours. No effect when they fit. */
+.headerRow {
+    flex-wrap: wrap;
+    row-gap: 8px;
+}

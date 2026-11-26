@@ -1,11 +1,15 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Search, SlidersHorizontal, X } from 'lucide-react';
+import { Download, SlidersHorizontal, X } from 'lucide-react';
+import CommonButton from './ui/CommonButton';
 import AppShell from './AppShell';
 import StatTile from './ui/StatTile';
-import Select from './ui/Select';
+import SearchInput from './ui/SearchInput';
+import Dropdown from './ui/Dropdown';
 import Table from './ui/Table';
+import TablePager from './ui/TablePager';
+import { Skeleton, SkeletonList, SkeletonTable } from './ui/Skeleton';
 import Drawer from './ui/Drawer';
 import Modal from './ui/Modal';
 import StatusBadge, { StatusTone } from './ui/StatusBadge';
@@ -20,6 +24,7 @@ import styles from './accountsPayments.module.css';
 import calcStyles from './calculator.module.css';
 import historyStyles from './quotationHistory.module.css';
 import { useAutoRefresh } from '@/lib/useAutoRefresh';
+import { setListParam } from '@/lib/listParam';
 
 interface Props {
   currentUser: { username: string; name: string; role: UserRole; isPrivileged: boolean };
@@ -72,7 +77,8 @@ function dueTone(item: PaymentQueueItem): string {
   return '';
 }
 
-const PAGE_SIZE = 20;
+const DEFAULT_PAGE_SIZE = 20;
+const PAGE_SIZE_CHOICES = [10, 20, 50, 100] as const;
 
 export default function AccountsPaymentsView({ currentUser }: Props) {
   const toast = useToast();
@@ -80,13 +86,16 @@ export default function AccountsPaymentsView({ currentUser }: Props) {
   const [pivot, setPivot] = useState<ReimbursementPivot | null>(null);
   const [pivotLoading, setPivotLoading] = useState(false);
   const [summary, setSummary] = useState<PaymentSummary | null>(null);
+  const [summaryLoaded, setSummaryLoaded] = useState(false);
   const [items, setItems] = useState<PaymentQueueItem[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState<number>(DEFAULT_PAGE_SIZE);
   const [loading, setLoading] = useState(true);
 
-  const [source, setSource] = useState('all');
-  const [status, setStatus] = useState('all');
+  // Multi-select filters: an empty list means "all".
+  const [source, setSource] = useState<string[]>([]);
+  const [status, setStatus] = useState<string[]>([]);
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
 
@@ -97,8 +106,8 @@ export default function AccountsPaymentsView({ currentUser }: Props) {
   const [periodType, setPeriodType] = useState<TargetPeriodType | 'none'>('none');
   const [fiscalYear, setFiscalYear] = useState(currentFiscalYear());
   const [periodKey, setPeriodKey] = useState(() => periodContainingDate('monthly').periodKey);
-  const [department, setDepartment] = useState('all');
-  const [employee, setEmployee] = useState('all');
+  const [department, setDepartment] = useState<string[]>([]);
+  const [employee, setEmployee] = useState<string[]>([]);
   const [minAmount, setMinAmount] = useState('');
   const [maxAmount, setMaxAmount] = useState('');
   const [overdueOnly, setOverdueOnly] = useState(false);
@@ -222,23 +231,24 @@ export default function AccountsPaymentsView({ currentUser }: Props) {
     fetch('/api/accounts/payments/summary')
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => setSummary(data))
-      .catch(() => setSummary(null));
+      .catch(() => setSummary(null))
+      .finally(() => setSummaryLoaded(true));
   }, []);
 
   // Built once and reused by both the list fetch and the CSV export link, so
   // a download can never carry different filters from the list on screen.
   const filterParams = useCallback(() => {
     const params = new URLSearchParams();
-    if (source !== 'all') params.set('source', source);
-    if (tab === 'queue' && status !== 'all') params.set('status', status);
+    setListParam(params, 'source', source);
+    if (tab === 'queue') setListParam(params, 'status', status);
     if (debouncedSearch) params.set('search', debouncedSearch);
     if (periodType !== 'none') {
       params.set('periodType', periodType);
       params.set('fiscalYear', fiscalYear);
       if (periodType !== 'annual') params.set('periodKey', periodKey);
     }
-    if (department !== 'all') params.set('department', department);
-    if (employee !== 'all') params.set('employee', employee);
+    setListParam(params, 'department', department);
+    setListParam(params, 'employee', employee);
     if (minAmount.trim()) params.set('minAmount', minAmount.trim());
     if (maxAmount.trim()) params.set('maxAmount', maxAmount.trim());
     if (tab === 'queue' && overdueOnly) params.set('overdueOnly', 'true');
@@ -250,7 +260,7 @@ export default function AccountsPaymentsView({ currentUser }: Props) {
     setLoading(true);
     const params = filterParams();
     params.set('page', String(page));
-    params.set('pageSize', String(PAGE_SIZE));
+    params.set('pageSize', String(pageSize));
     const endpoint = tab === 'queue' ? '/api/accounts/payments' : '/api/accounts/payments/history';
     fetch(`${endpoint}?${params.toString()}`)
       .then((r) => (r.ok ? r.json() : null))
@@ -262,7 +272,7 @@ export default function AccountsPaymentsView({ currentUser }: Props) {
       })
       .catch(() => { setItems([]); setTotal(0); setTotals(null); })
       .finally(() => setLoading(false));
-  }, [tab, filterParams, page]);
+  }, [tab, filterParams, page, pageSize]);
 
   useEffect(() => { fetchSummary(); }, [fetchSummary]);
   useEffect(() => { fetchList(); }, [fetchList]);
@@ -292,7 +302,7 @@ export default function AccountsPaymentsView({ currentUser }: Props) {
       .finally(() => setPivotLoading(false));
   }, [tab, pivot, pivotLoading]);
 
-  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
   // Counted so the Filters button can say how many are on without the panel
   // being open — otherwise a filter set yesterday silently narrows today's
@@ -300,8 +310,8 @@ export default function AccountsPaymentsView({ currentUser }: Props) {
   // in the toolbar where they're already visible.
   const activeFilterCount =
     (periodType !== 'none' ? 1 : 0) +
-    (department !== 'all' ? 1 : 0) +
-    (employee !== 'all' ? 1 : 0) +
+    (department.length > 0 ? 1 : 0) +
+    (employee.length > 0 ? 1 : 0) +
     (minAmount.trim() ? 1 : 0) +
     (maxAmount.trim() ? 1 : 0) +
     (overdueOnly ? 1 : 0);
@@ -310,8 +320,8 @@ export default function AccountsPaymentsView({ currentUser }: Props) {
     setPeriodType('none');
     setFiscalYear(currentFiscalYear());
     setPeriodKey(periodContainingDate('monthly').periodKey);
-    setDepartment('all');
-    setEmployee('all');
+    setDepartment([]);
+    setEmployee([]);
     setMinAmount('');
     setMaxAmount('');
     setOverdueOnly(false);
@@ -348,9 +358,9 @@ export default function AccountsPaymentsView({ currentUser }: Props) {
         header: 'Action',
         render: (r: PaymentQueueItem) =>
           r.status === 'payment_required' ? (
-            <button type="button" className={styles.payBtn} onClick={(e) => { e.stopPropagation(); openPay(r); }}>
+            <CommonButton variant="primary" size="sm" onClick={(e) => { e.stopPropagation(); openPay(r); }}>
               Pay
-            </button>
+            </CommonButton>
           ) : (
             <span style={{ fontSize: 12, color: 'var(--mx-ink-faint)' }}>View</span>
           )
@@ -502,12 +512,16 @@ export default function AccountsPaymentsView({ currentUser }: Props) {
   }
 
   return (
-    <AppShell title={BRAND.appName} subtitle={`Accounts — Payments · ${currentUser.name}`} showBackLink={false}>
+    <AppShell title={BRAND.appName} subtitle={`Accounts — Payments · ${currentUser.name}`}>
+      {/* Payment Queue / History fill the screen: the page doesn't scroll, the
+          table does (app/globals.css → .mx-fill-page). The long report tab
+          flows normally. */}
+      <div className={tab === 'reimbursement-report' ? undefined : 'mx-fill-page'}>
       <div className={styles.kpiGrid}>
-        <StatTile label="Pending" value={summary ? formatMoney(summary.pendingAmount) : '—'} tone="info" />
-        <StatTile label="Due Today" value={summary ? formatMoney(summary.dueTodayAmount) : '—'} tone="warning" />
-        <StatTile label="Overdue" value={summary ? formatMoney(summary.overdueAmount) : '—'} tone="danger" />
-        <StatTile label="Paid This Month" value={summary ? formatMoney(summary.paidThisMonthAmount) : '—'} tone="success" />
+        <StatTile label="Pending" value={summary ? formatMoney(summary.pendingAmount) : summaryLoaded ? '—' : <Skeleton width={64} height={24} />} tone="info" />
+        <StatTile label="Due Today" value={summary ? formatMoney(summary.dueTodayAmount) : summaryLoaded ? '—' : <Skeleton width={64} height={24} />} tone="warning" />
+        <StatTile label="Overdue" value={summary ? formatMoney(summary.overdueAmount) : summaryLoaded ? '—' : <Skeleton width={64} height={24} />} tone="danger" />
+        <StatTile label="Paid This Month" value={summary ? formatMoney(summary.paidThisMonthAmount) : summaryLoaded ? '—' : <Skeleton width={64} height={24} />} tone="success" />
       </div>
 
       <div className={styles.tabRow}>
@@ -528,43 +542,47 @@ export default function AccountsPaymentsView({ currentUser }: Props) {
         <>
       <div className={styles.toolbar}>
         <div className={styles.search}>
-          <div className={calcStyles.formControl} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <Search size={15} color="var(--mx-ink-faint)" />
-            <input
-              type="text"
-              placeholder="Search payee, description, requester…"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              style={{ border: 'none', outline: 'none', flex: 1, fontSize: 16, background: 'transparent' }}
-            />
-          </div>
+          <SearchInput
+            placeholder="Search payee, description, requester…"
+            value={search}
+            onChange={(v) => setSearch(v)}
+          />
         </div>
-        <Select auto value={source} onChange={(e) => setSource(e.target.value)}>
-          <option value="all">All Sources</option>
-          {Object.entries(SOURCE_LABELS).map(([key, label]) => (
-            <option key={key} value={key}>{label}</option>
-          ))}
-        </Select>
+        <Dropdown
+          multiselect
+          value={source}
+          onChange={setSource}
+          placeholder="All Sources"
+          label="Source"
+          options={Object.entries(SOURCE_LABELS).map(([key, label]) => ({ value: key, label }))}
+        />
         {tab === 'queue' && (
-          <Select auto value={status} onChange={(e) => setStatus(e.target.value)}>
-            <option value="all">All Statuses</option>
-            <option value="payment_required">Payment Required</option>
-            <option value="on_hold">On Hold</option>
-          </Select>
+          <Dropdown
+            multiselect
+            value={status}
+            onChange={setStatus}
+            placeholder="All Statuses"
+            label="Status"
+            options={[
+              { value: 'payment_required', label: 'Payment Required' },
+              { value: 'on_hold', label: 'On Hold' }
+            ]}
+          />
         )}
-        <button
-          type="button"
-          className={`${styles.filterToggle} ${activeFilterCount ? styles.filterToggleActive : ''}`}
+        <CommonButton
+          variant="secondary"
+          size="md"
+          leadingIcon={<SlidersHorizontal size={14} />}
           onClick={() => setShowFilters((v) => !v)}
           aria-expanded={showFilters}
         >
-          <SlidersHorizontal size={14} /> Filters
+          Filters
           {activeFilterCount > 0 && <span className={styles.filterBadge}>{activeFilterCount}</span>}
-        </button>
+        </CommonButton>
         {/* Carries the current filters, so the download matches the screen. */}
-        <a className={styles.exportLink} href={`/api/accounts/payments/export.csv?scope=${tab}&${filterParams().toString()}`}>
+        <CommonButton variant="secondary" size="md" native leadingIcon={<Download />} href={`/api/accounts/payments/export.csv?scope=${tab}&${filterParams().toString()}`}>
           Export CSV
-        </a>
+        </CommonButton>
       </div>
 
       {showFilters && (
@@ -572,55 +590,72 @@ export default function AccountsPaymentsView({ currentUser }: Props) {
           <div className={styles.filterGrid}>
             <label className={styles.filterField}>
               <span className={styles.filterLabel}>{tab === 'queue' ? 'Raised in' : 'Paid in'}</span>
-              <Select value={periodType} onChange={(e) => handlePeriodTypeChange(e.target.value as TargetPeriodType | 'none')}>
-                <option value="none">Any time</option>
-                <option value="monthly">Month</option>
-                <option value="quarterly">Quarter</option>
-                <option value="half_yearly">Half-Year</option>
-                <option value="annual">Full Year</option>
-              </Select>
+              <Dropdown<TargetPeriodType>
+                fullWidth
+                value={periodType === 'none' ? '' : periodType}
+                onChange={(v) => handlePeriodTypeChange(v || 'none')}
+                placeholder="Any time"
+                options={[
+                  { value: 'monthly', label: 'Month' },
+                  { value: 'quarterly', label: 'Quarter' },
+                  { value: 'half_yearly', label: 'Half-Year' },
+                  { value: 'annual', label: 'Full Year' }
+                ]}
+              />
             </label>
 
             {periodType !== 'none' && (
               <label className={styles.filterField}>
                 <span className={styles.filterLabel}>Financial Year</span>
-                <Select value={fiscalYear} onChange={(e) => setFiscalYear(e.target.value)}>
-                  {fiscalYearOptions().map((fy) => (
-                    <option key={fy} value={fy}>FY {fy}</option>
-                  ))}
-                </Select>
+                <Dropdown
+                  fullWidth
+                  value={fiscalYear}
+                  onChange={(v) => { if (v) setFiscalYear(v); }}
+                  clearable={false}
+                  ariaLabel="Financial Year"
+                  options={fiscalYearOptions().map((fy) => ({ value: fy, label: `FY ${fy}` }))}
+                />
               </label>
             )}
 
             {periodOptions.length > 0 && (
               <label className={styles.filterField}>
                 <span className={styles.filterLabel}>Period</span>
-                <Select value={periodKey} onChange={(e) => setPeriodKey(e.target.value)}>
-                  {periodOptions.map((p) => (
-                    <option key={p.key} value={p.key}>{p.label}</option>
-                  ))}
-                </Select>
+                <Dropdown
+                  fullWidth
+                  value={periodKey}
+                  onChange={(v) => { if (v) setPeriodKey(v); }}
+                  clearable={false}
+                  ariaLabel="Period"
+                  options={periodOptions.map((p) => ({ value: p.key, label: p.label }))}
+                />
               </label>
             )}
 
             <label className={styles.filterField}>
               <span className={styles.filterLabel}>Department</span>
-              <Select value={department} onChange={(e) => setDepartment(e.target.value)}>
-                <option value="all">All departments</option>
-                {facets.departments.map((d) => (
-                  <option key={d} value={d}>{d}</option>
-                ))}
-              </Select>
+              <Dropdown
+                fullWidth
+                multiselect
+                value={department}
+                onChange={setDepartment}
+                placeholder="All departments"
+                ariaLabel="Department"
+                options={facets.departments.map((d) => ({ value: d, label: d }))}
+              />
             </label>
 
             <label className={styles.filterField}>
               <span className={styles.filterLabel}>Employee</span>
-              <Select value={employee} onChange={(e) => setEmployee(e.target.value)}>
-                <option value="all">Everyone</option>
-                {facets.employees.map((p) => (
-                  <option key={p} value={p}>{p}</option>
-                ))}
-              </Select>
+              <Dropdown
+                fullWidth
+                multiselect
+                value={employee}
+                onChange={setEmployee}
+                placeholder="Everyone"
+                ariaLabel="Employee"
+                options={facets.employees.map((p) => ({ value: p, label: p }))}
+              />
             </label>
 
             <label className={styles.filterField}>
@@ -655,9 +690,9 @@ export default function AccountsPaymentsView({ currentUser }: Props) {
           </div>
 
           {activeFilterCount > 0 && (
-            <button type="button" className={styles.clearFilters} onClick={clearFilters}>
-              <X size={13} /> Clear all filters
-            </button>
+            <CommonButton variant="ghost" size="sm" leadingIcon={<X size={13} />} onClick={clearFilters}>
+              Clear all filters
+            </CommonButton>
           )}
         </div>
       )}
@@ -680,13 +715,19 @@ export default function AccountsPaymentsView({ currentUser }: Props) {
       )}
 
       <div className={styles.tableSection}>
-        <Table
-          columns={columns}
-          rows={items}
-          rowKey={(r) => r.paymentId}
-          onRowClick={openDetail}
-          empty={<div className={styles.emptyState}>{loading ? 'Loading…' : tab === 'queue' ? 'Nothing needs payment right now. You\'re all caught up.' : 'No paid payments yet.'}</div>}
-        />
+        {/* Skeleton only while there is nothing to show yet — a refetch keeps
+            the current rows on screen. */}
+        {loading && !items.length ? (
+          <SkeletonTable rows={6} columns={columns.length} />
+        ) : (
+          <Table
+            columns={columns}
+            rows={items}
+            rowKey={(r) => r.paymentId}
+            onRowClick={openDetail}
+            empty={<div className={styles.emptyState}>{tab === 'queue' ? 'Nothing needs payment right now. You\'re all caught up.' : 'No paid payments yet.'}</div>}
+          />
+        )}
       </div>
 
       <div className={styles.cardList}>
@@ -705,24 +746,33 @@ export default function AccountsPaymentsView({ currentUser }: Props) {
             </div>
             {r.status === 'payment_required' && (
               <div className={styles.cardActions}>
-                <button type="button" onClick={(e) => { e.stopPropagation(); openDetail(r); }}>View</button>
-                <button type="button" onClick={(e) => { e.stopPropagation(); openPay(r); }}>Pay</button>
+                <CommonButton variant="secondary" size="sm" fullWidth onClick={(e) => { e.stopPropagation(); openDetail(r); }}>View</CommonButton>
+                <CommonButton variant="primary" size="sm" fullWidth onClick={(e) => { e.stopPropagation(); openPay(r); }}>Pay</CommonButton>
               </div>
             )}
           </div>
         ))}
-        {!items.length && <div className={styles.emptyState}>{loading ? 'Loading…' : 'Nothing here.'}</div>}
+        {!items.length && (loading ? <SkeletonList rows={4} avatar={false} /> : <div className={styles.emptyState}>Nothing here.</div>)}
       </div>
 
-      {totalPages > 1 && (
-        <div className={styles.pagination}>
-          <button type="button" className={styles.pageBtn} disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>Prev</button>
-          <span>Page {page} of {totalPages}</span>
-          <button type="button" className={styles.pageBtn} disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>Next</button>
-        </div>
-      )}
+      {/* Same footer as every list: how many, rows per page, page buttons.
+          Server-paged, so no "All" option. */}
+      <TablePager
+        page={Math.min(page, totalPages)}
+        pageSize={pageSize}
+        total={total}
+        noun="payments"
+        sizes={PAGE_SIZE_CHOICES}
+        allowAll={false}
+        onPageChange={setPage}
+        onPageSizeChange={(size) => {
+          setPageSize(size);
+          setPage(1);
+        }}
+      />
         </>
       )}
+      </div>
 
       {selected && !payOpen && !holdOpen && (
         <Drawer title={`Payment — ${SOURCE_LABELS[selected.source]}`} ariaLabel="Payment detail" onClose={() => setSelected(null)}>
@@ -773,7 +823,7 @@ export default function AccountsPaymentsView({ currentUser }: Props) {
               <>
                 <div className={styles.detailDivider} />
                 {voucherLoading ? (
-                  <div className={styles.detailValue}>Loading expense entries…</div>
+                  <SkeletonList rows={3} avatar={false} boxed={false} />
                 ) : voucherData ? (
                   <>
                     <div className={styles.detailRow}>
@@ -802,12 +852,12 @@ export default function AccountsPaymentsView({ currentUser }: Props) {
                       ))}
                     </div>
                     <div className={styles.detailActions}>
-                      <button type="button" className={styles.holdBtn} disabled={downloadingVoucher} onClick={downloadVoucherPdf}>
+                      <CommonButton variant="secondary" size="md" disabled={downloadingVoucher} onClick={downloadVoucherPdf}>
                         {downloadingVoucher ? 'Preparing…' : 'Download Expense Sheet (PDF)'}
-                      </button>
-                      <button type="button" className={styles.holdBtn} disabled={mergingBills} onClick={downloadAllBills}>
+                      </CommonButton>
+                      <CommonButton variant="secondary" size="md" disabled={mergingBills} onClick={downloadAllBills}>
                         {mergingBills ? 'Merging…' : 'Download All Bills (PDF)'}
-                      </button>
+                      </CommonButton>
                     </div>
                   </>
                 ) : (
@@ -820,7 +870,7 @@ export default function AccountsPaymentsView({ currentUser }: Props) {
               <>
                 <div className={styles.detailDivider} />
                 {officeEntriesLoading ? (
-                  <div className={styles.detailValue}>Loading expense entries…</div>
+                  <SkeletonList rows={3} avatar={false} boxed={false} />
                 ) : officeEntries ? (
                   <>
                     <div className={styles.detailRow}>
@@ -859,7 +909,7 @@ export default function AccountsPaymentsView({ currentUser }: Props) {
               <>
                 <div className={styles.detailDivider} />
                 {adminEntriesLoading ? (
-                  <div className={styles.detailValue}>Loading expense entries…</div>
+                  <SkeletonList rows={3} avatar={false} boxed={false} />
                 ) : adminEntries ? (
                   <>
                     <div className={styles.detailRow}>
@@ -906,13 +956,13 @@ export default function AccountsPaymentsView({ currentUser }: Props) {
             )}
             {selected.status === 'payment_required' && (
               <div className={styles.detailActions}>
-                <button type="button" className={styles.holdBtn} onClick={() => openHold(selected)}>Put On Hold</button>
-                <button type="button" className={styles.payBtn} style={{ padding: 12 }} onClick={() => openPay(selected)}>Make Payment</button>
+                <CommonButton variant="secondary" size="md" onClick={() => openHold(selected)}>Put On Hold</CommonButton>
+                <CommonButton variant="primary" size="md" onClick={() => openPay(selected)}>Make Payment</CommonButton>
               </div>
             )}
             {selected.status === 'on_hold' && (
               <div className={styles.detailActions}>
-                <button type="button" className={styles.resumeBtn} disabled={busy} onClick={() => resumePayment(selected)}>Resume Payment</button>
+                <CommonButton variant="warning" size="md" disabled={busy} onClick={() => resumePayment(selected)}>Resume Payment</CommonButton>
               </div>
             )}
           </div>
@@ -948,8 +998,8 @@ export default function AccountsPaymentsView({ currentUser }: Props) {
             </div>
             <p style={{ fontSize: 13.5, color: 'var(--mx-ink-muted)' }}>Are you sure this payment has been completed?</p>
             <div className={styles.detailActions}>
-              <button type="button" className={styles.holdBtn} disabled={busy} onClick={() => { setPayOpen(false); setSelected(null); }}>Back</button>
-              <button type="button" className={styles.payBtn} style={{ padding: 12 }} disabled={busy || !payForm.paymentDate} onClick={submitPay}>Confirm Payment</button>
+              <CommonButton variant="secondary" size="md" disabled={busy} onClick={() => { setPayOpen(false); setSelected(null); }}>Back</CommonButton>
+              <CommonButton variant="primary" size="md" disabled={busy || !payForm.paymentDate} onClick={submitPay}>Confirm Payment</CommonButton>
             </div>
           </div>
         </Modal>
@@ -969,8 +1019,8 @@ export default function AccountsPaymentsView({ currentUser }: Props) {
               />
             </div>
             <div className={styles.detailActions}>
-              <button type="button" className={styles.holdBtn} onClick={() => { setHoldOpen(false); setSelected(null); }}>Cancel</button>
-              <button type="button" className={styles.payBtn} style={{ padding: 12 }} disabled={busy || !holdReason.trim()} onClick={submitHold}>Put On Hold</button>
+              <CommonButton variant="secondary" size="md" onClick={() => { setHoldOpen(false); setSelected(null); }}>Cancel</CommonButton>
+              <CommonButton variant="primary" size="md" disabled={busy || !holdReason.trim()} onClick={submitHold}>Put On Hold</CommonButton>
             </div>
           </div>
         </Modal>
@@ -1003,8 +1053,11 @@ function ReimbursementPivotTable({ pivot, loading }: { pivot: ReimbursementPivot
     URL.revokeObjectURL(url);
   }
 
-  if (loading || !pivot) {
-    return <div className={styles.emptyState}>{loading ? 'Loading…' : 'Could not load the report. Refresh to try again.'}</div>;
+  if (loading) {
+    return <SkeletonTable rows={8} columns={6} />;
+  }
+  if (!pivot) {
+    return <div className={styles.emptyState}>Could not load the report. Refresh to try again.</div>;
   }
   if (!pivot.rows.length) {
     return <div className={styles.emptyState}>No reimbursements recorded yet.</div>;
@@ -1013,9 +1066,9 @@ function ReimbursementPivotTable({ pivot, loading }: { pivot: ReimbursementPivot
   return (
     <div className={styles.tableSection}>
       <div className={styles.toolbar}>
-        <button type="button" className={styles.exportLink} onClick={downloadCsv}>Export CSV</button>
+        <CommonButton variant="secondary" size="md" leadingIcon={<Download />} onClick={downloadCsv}>Export CSV</CommonButton>
       </div>
-      <div style={{ overflowX: 'auto' }}>
+      <div className={historyStyles.tableWrap}>
         <table className={historyStyles.table}>
           <thead>
             <tr>

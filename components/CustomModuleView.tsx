@@ -3,13 +3,19 @@
 import { useEffect, useMemo, useState } from 'react';
 import { CustomModuleDef, CustomModuleRecord, UserRole } from '@/lib/types';
 import { BRAND } from '@/lib/branding';
+import { Download, Plus, Check, Pencil, Trash2, X } from 'lucide-react';
 import AppShell from './AppShell';
+import CommonButton from './ui/CommonButton';
+import SearchInput from './ui/SearchInput';
 import CustomFieldInput from './CustomFieldInput';
 import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
 import styles from './customModuleView.module.css';
 import { useToast } from './ui/ToastProvider';
 import { useConfirm } from './ui/ConfirmDialog';
+import { SkeletonPage } from './ui/Skeleton';
+import RowActions from './ui/RowActions';
+import { RefreshButton } from './ui/ListControls';
 
 const STATUS_LABEL: Record<CustomModuleRecord['status'], string> = {
   active: 'Active',
@@ -162,15 +168,16 @@ export default function CustomModuleView({ moduleKey }: CustomModuleViewProps) {
   }
 
   return (
-    <AppShell title={`${module_?.icon ?? ''} ${module_?.name || '...'}`} subtitle="Custom module — created from the UI, no code involved.">
+    <AppShell fillPage={!formOpen} title={`${module_?.icon ?? ''} ${module_?.name || '...'}`} subtitle="Custom module — created from the UI, no code involved.">
+        {!module_ && <SkeletonPage columns={5} />}
         {module_ && (
           <>
             <div className={historyStyles.toolbar}>
-              <input type="text" placeholder="Search..." value={q} onChange={(e) => setQ(e.target.value)} />
-              <button type="button" className={`${historyStyles.button} ${historyStyles.primary}`} onClick={openCreate}>+ New</button>
-              <a className={historyStyles.button} href={`/api/custom-modules/${moduleKey}/records/export.csv`}>Export CSV</a>
-              <button type="button" className={historyStyles.button} onClick={() => window.print()}>Print</button>
-              <button type="button" className={historyStyles.button} onClick={load}>Refresh</button>
+              <SearchInput inline placeholder="Search..." value={q} onChange={(v) => setQ(v)} />
+              <CommonButton variant="primary" leadingIcon={<Plus />} onClick={openCreate}>New</CommonButton>
+              <CommonButton variant="secondary" leadingIcon={<Download />} href={`/api/custom-modules/${moduleKey}/records/export.csv`} native>Export CSV</CommonButton>
+              <CommonButton variant="secondary" onClick={() => window.print()}>Print</CommonButton>
+              <RefreshButton onRefresh={load} pushRight />
             </div>
             <div className={historyStyles.status}>{status}</div>
 
@@ -185,8 +192,8 @@ export default function CustomModuleView({ moduleKey }: CustomModuleViewProps) {
                   </div>
                 ))}
                 <div className={styles.saveActionsRow}>
-                  <button type="button" className={calcStyles.btn} disabled={saving} onClick={handleSubmit}>{saving ? 'Saving...' : 'Save'}</button>
-                  <button type="button" className={historyStyles.button} onClick={() => setFormOpen(false)}>Cancel</button>
+                  <CommonButton variant="primary" loading={saving} loadingLabel="Saving..." onClick={handleSubmit}>Save</CommonButton>
+                  <CommonButton variant="secondary" onClick={() => setFormOpen(false)}>Cancel</CommonButton>
                 </div>
               </div>
             )}
@@ -216,16 +223,15 @@ export default function CustomModuleView({ moduleKey }: CustomModuleViewProps) {
                         )}
                         <td>{r.created_by}</td>
                         <td>
-                          <div className={historyStyles.rowActionsInline}>
-                            {canEdit && <button type="button" className={historyStyles.button} onClick={() => openEdit(r)}>Edit</button>}
-                            {canDecide && (
-                              <>
-                                <button type="button" className={`${historyStyles.button} ${historyStyles.primary}`} onClick={() => handleDecision(r, 'approve')}>Approve</button>
-                                <button type="button" className={historyStyles.deleteBtn} onClick={() => handleDecision(r, 'reject')}>Reject</button>
-                              </>
-                            )}
-                            {isPrivileged && <button type="button" className={historyStyles.deleteBtn} onClick={() => handleDelete(r)}>Delete</button>}
-                          </div>
+                          <RowActions
+                            label="Record actions"
+                            actions={[
+                              { key: 'edit', label: 'Edit', icon: <Pencil />, hidden: !canEdit, onClick: () => openEdit(r) },
+                              { key: 'approve', pinned: true, label: 'Approve', icon: <Check />, variant: 'success', hidden: !canDecide, onClick: () => handleDecision(r, 'approve') },
+                              { key: 'reject', pinned: true, label: 'Reject', icon: <X />, destructive: true, hidden: !canDecide, onClick: () => handleDecision(r, 'reject') },
+                              { key: 'delete', label: 'Delete', icon: <Trash2 />, destructive: true, hidden: !isPrivileged, onClick: () => handleDelete(r) }
+                            ]}
+                          />
                         </td>
                       </tr>
                     );

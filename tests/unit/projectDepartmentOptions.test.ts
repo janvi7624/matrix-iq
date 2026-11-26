@@ -3,6 +3,7 @@ import {
   PROJECT_DEPARTMENTS,
   ProjectDepartment,
   departmentValueOf,
+  departmentsValueOf,
   formatProjectDepartments,
   isProjectDepartment,
   parseDepartmentAmounts,
@@ -194,5 +195,26 @@ describe('departmentValueOf', () => {
   it('splits without inventing or losing value', () => {
     const perDepartment = PROJECT_DEPARTMENTS.reduce((sum, d) => sum + departmentValueOf(adani, d), 0);
     expect(perDepartment).toBe(departmentValueOf(adani, ''));
+  });
+});
+
+describe('departmentsValueOf (multi-select department filter)', () => {
+  const adani = { approx_price: 5000000, departments: ['ai', 'av'] as ProjectDepartment[], department_amounts: { ai: 2700000, av: 2300000 } };
+  const single = { approx_price: 800000, departments: ['av'] as ProjectDepartment[], department_amounts: {} };
+
+  it('is the whole price with no departments picked', () => {
+    expect(departmentsValueOf(adani, [])).toBe(5000000);
+  });
+
+  it('matches departmentValueOf for one department', () => {
+    expect(departmentsValueOf(adani, ['ai'])).toBe(departmentValueOf(adani, 'ai'));
+    expect(departmentsValueOf(single, ['ai'])).toBe(0);
+  });
+
+  it('sums the picked shares without double counting', () => {
+    expect(departmentsValueOf(adani, ['ai', 'av'])).toBe(5000000);
+    expect(departmentsValueOf(adani, ['ai', 'robotics'])).toBe(2700000);
+    expect(departmentsValueOf(adani, ['ai', 'ai'])).toBe(2700000);
+    expect(departmentsValueOf(single, ['ai', 'av'])).toBe(800000);
   });
 });

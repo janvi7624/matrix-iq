@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import Link from 'next/link';
+import CommonButton from './ui/CommonButton';
+import PageBackButton from './ui/PageBackButton';
 import { TmsBomRequestRecord, UserRole } from '@/lib/types';
 import { TMS_BOM_STATUS_LABEL, TMS_BOM_STATUS_TONE } from '@/lib/tmsLabels';
 import { bomPendingWithLabel } from '@/lib/tmsBomApprovalChain';
@@ -14,6 +15,7 @@ import { useToast } from './ui/ToastProvider';
 import { useConfirm } from './ui/ConfirmDialog';
 import { usePrompt } from './ui/PromptDialog';
 import EmptyState from './ui/EmptyState';
+import { SkeletonDetail } from './ui/Skeleton';
 import styles from './tmsDetail.module.css';
 import { Paperclip } from 'lucide-react';
 import { fetchCached } from '@/lib/fetchCached';
@@ -195,8 +197,15 @@ export default function TmsBomRequestDetailView({ requestId, currentUser }: TmsB
 
   if (!record) {
     return (
-      <AppShell title="BOM Request" subtitle="" showBackLink>
-        <div className={historyStyles.status}>{status || 'Loading...'}</div>
+      <AppShell title="BOM Request" subtitle="">
+        <div className={styles.headerRowTight}>
+          <PageBackButton fallbackRoute="/tms/bom-requests" label="Back to BOM Requests" />
+        </div>
+        {!status || status === 'Loading...' ? (
+          <SkeletonDetail panels={2} pairs={6} withTopRow={false} />
+        ) : (
+          <div className={historyStyles.status}>{status}</div>
+        )}
       </AppShell>
     );
   }
@@ -206,20 +215,20 @@ export default function TmsBomRequestDetailView({ requestId, currentUser }: TmsB
   const pendingLabel = bomPendingWithLabel(record, financeStageEnabled);
 
   return (
-    <AppShell title={record.item_name} subtitle={`${record.bom_request_code} · ${record.project_name}`} showBackLink>
+    <AppShell title={record.item_name} subtitle={`${record.bom_request_code} · ${record.project_name}`}>
       <div className={styles.headerRowTight}>
+        <PageBackButton fallbackRoute="/tms/bom-requests" label="Back to BOM Requests" />
         <StatusBadge tone={TMS_BOM_STATUS_TONE[record.status]} label={TMS_BOM_STATUS_LABEL[record.status]} />
-        <Link className={historyStyles.button} href="/tms/bom-requests">Back to BOM Requests</Link>
         {record.status === 'draft' && (
-          <button type="button" className={calcStyles.btn} disabled={busy} onClick={handleSubmit}>Submit for review</button>
+          <CommonButton variant="primary" size="md" disabled={busy} onClick={handleSubmit}>Submit for review</CommonButton>
         )}
         {(record.status === 'submitted' || record.status === 'under_review') && (
           <>
             {record.viewer_can_approve && (
-              <button type="button" className={`${historyStyles.button} ${historyStyles.primary}`} disabled={busy} onClick={handleApprove}>Approve</button>
+              <CommonButton variant="success" size="md" disabled={busy} onClick={handleApprove}>Approve</CommonButton>
             )}
             {record.viewer_can_reject && (
-              <button type="button" className={historyStyles.dangerButton} disabled={busy} onClick={handleReject}>Reject</button>
+              <CommonButton variant="destructive" size="md" disabled={busy} onClick={handleReject}>Reject</CommonButton>
             )}
           </>
         )}
@@ -227,21 +236,21 @@ export default function TmsBomRequestDetailView({ requestId, currentUser }: TmsB
           <>
             {record.viewer_can_admin_approve && (
               <>
-                <button type="button" className={`${historyStyles.button} ${historyStyles.primary}`} disabled={busy} onClick={handleAdminApprove}>Approve (Management)</button>
-                <button type="button" className={historyStyles.dangerButton} disabled={busy} onClick={handleAdminReject}>Reject</button>
+                <CommonButton variant="success" size="md" disabled={busy} onClick={handleAdminApprove}>Approve (Management)</CommonButton>
+                <CommonButton variant="destructive" size="md" disabled={busy} onClick={handleAdminReject}>Reject</CommonButton>
               </>
             )}
-            <button type="button" className={calcStyles.btn} disabled={busy} onClick={handleSendToProcurement}>Send to Procurement</button>
+            <CommonButton variant="primary" size="md" disabled={busy} onClick={handleSendToProcurement}>Send to Procurement</CommonButton>
           </>
         )}
         {record.status === 'admin_approved' && record.viewer_can_finance_approve && (
           <>
-            <button type="button" className={`${historyStyles.button} ${historyStyles.primary}`} disabled={busy} onClick={handleFinanceApprove}>Approve (Finance)</button>
-            <button type="button" className={historyStyles.dangerButton} disabled={busy} onClick={handleFinanceReject}>Reject</button>
+            <CommonButton variant="success" size="md" disabled={busy} onClick={handleFinanceApprove}>Approve (Finance)</CommonButton>
+            <CommonButton variant="destructive" size="md" disabled={busy} onClick={handleFinanceReject}>Reject</CommonButton>
           </>
         )}
         {record.status === 'payment_done' && (isRequester || currentUser.isPrivileged) && (
-          <button type="button" className={`${historyStyles.button} ${historyStyles.primary}`} disabled={busy} onClick={handleMarkReceived}>Mark Material Received</button>
+          <CommonButton variant="primary" size="md" disabled={busy} onClick={handleMarkReceived}>Mark Material Received</CommonButton>
         )}
       </div>
 

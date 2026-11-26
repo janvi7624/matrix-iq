@@ -1,60 +1,262 @@
-/* app/admin/settings/page.tsx — was inline style={{}} objects. */
+/* Application settings — a two-pane settings screen: the areas on the
+   left, the chosen area's settings on the right, one save bar for all. */
 
-.maxWidth260 { max-width: 260px; }
-.maxWidth320 { max-width: 320px; }
-.templateBlock { border-top: none; padding-top: 0; margin-top: 0; }
-.templateBlockDivider { border-top: 1px solid #eef0f2; padding-top: 12px; margin-top: 12px; }
-.templateLabel { font-weight: 700; font-size: 13.5px; margin-bottom: 6px; }
+.layout {
+    display: grid;
+    grid-template-columns: 260px minmax(0, 1fr);
+    gap: 24px;
+    align-items: start;
+}
 
-
-/* "Who can create partner accounts" — a named list, so it needs to stay
-   readable at every-account-in-the-company scale. Three parts: who has it
-   today, a search, then the list. */
-.creatorChosen { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
-
-.creatorTag {
+/* ---------- Left: sections ---------- */
+.nav {
+    position: sticky;
+    top: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 8px;
+    border-radius: var(--mx-radius-md);
+    background: var(--mx-surface);
+    box-shadow: var(--mx-shadow-xs);
+}
+.navItem {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    padding: 10px 12px;
+    border: none;
+    border-radius: var(--mx-radius-sm);
+    background: transparent;
+    color: var(--mx-ink);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+    transition: background var(--mx-duration-base) var(--mx-ease), color var(--mx-duration-base) var(--mx-ease);
+}
+.navItem:hover { background: var(--mx-surface-sunken); }
+.navItem:focus-visible { outline: var(--mx-focus-ring-width) solid var(--mx-focus-ring-color); outline-offset: 1px; }
+.navItemActive,
+.navItemActive:hover { background: var(--mx-brand-subtle); color: var(--mx-brand-text); }
+.navIcon {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
-    font-size: 12.5px;
-    font-weight: 600;
-    color: var(--mx-brand);
-    background: var(--mx-surface-2, rgba(127, 127, 127, 0.06));
-    border: 1px solid var(--mx-brand);
-    border-radius: 999px;
-    padding: 3px 6px 3px 11px;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 34px;
+    height: 34px;
+    border-radius: 10px;
+    background: var(--mx-surface-sunken);
+    color: var(--mx-ink-muted);
 }
-.creatorTag button {
-    border: none;
-    background: none;
-    color: inherit;
-    font-size: 15px;
-    line-height: 1;
-    cursor: pointer;
-    padding: 0 3px;
+.navIcon svg { width: 17px; height: 17px; }
+.navItemActive .navIcon { background: var(--mx-brand); color: #fff; }
+.navText { display: flex; flex-direction: column; min-width: 0; }
+.navTitle { font-size: 14px; font-weight: 700; }
+.navDesc {
+    font-size: 12px;
+    color: var(--mx-ink-muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
-.creatorTag button:hover { color: var(--mx-danger); }
+.navItemActive .navDesc { color: var(--mx-brand-text); opacity: 0.8; }
 
-.creatorList {
-    margin-top: 8px;
-    max-height: 260px;
+/* ---------- Right: the chosen section ---------- */
+.panel {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    border-radius: var(--mx-radius-md);
+    background: var(--mx-surface);
+    box-shadow: var(--mx-shadow-xs);
+}
+.panelHead {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 20px 24px;
+    border-bottom: 1px solid var(--mx-border);
+}
+.panelIcon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    background: var(--mx-brand-subtle);
+    color: var(--mx-brand);
+}
+.panelIcon svg { width: 22px; height: 22px; }
+.panelTitle { margin: 0; font-size: 18px; font-weight: 800; color: var(--mx-ink); }
+.panelDesc { margin: 2px 0 0; font-size: 13px; color: var(--mx-ink-muted); }
+.panelBody { display: flex; flex-direction: column; gap: 20px; padding: 20px 24px 24px; }
+
+/* A titled block of rows inside a section. */
+.group {
+    display: flex;
+    flex-direction: column;
+    border: 1px solid var(--mx-border);
+    border-radius: var(--mx-radius-sm);
+    padding: 4px 18px;
+}
+.groupTitle {
+    margin: 14px 0 2px;
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--mx-ink-muted);
+}
+
+/* One setting: text left, control right. */
+.row {
+    display: grid;
+    grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
+    gap: 24px;
+    align-items: start;
+    padding: 16px 0;
+    border-bottom: 1px solid var(--mx-border);
+}
+.row:last-child { border-bottom: none; }
+/* Wide controls (textarea, people list) go under their label. */
+.rowStack { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+.rowText { display: flex; flex-direction: column; gap: 4px; padding-top: 10px; }
+.rowStack .rowText { padding-top: 0; }
+.rowLabel { font-size: 14px; font-weight: 700; color: var(--mx-ink); }
+.rowHelp { margin: 0; font-size: 12.5px; line-height: 1.5; color: var(--mx-ink-muted); }
+.rowControl { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+/* Controls keep their own height here. (SearchInput grows with flex: 1 1 260px
+   in toolbars — in this column that turned into a 260px-tall box.) */
+.rowControl.rowControl > * { flex: 0 0 auto; }
+.rowControl > input,
+.rowControl > textarea { width: 100%; box-sizing: border-box; }
+
+.suffixInput { display: flex; align-items: center; gap: 10px; }
+.suffixInput > input { flex: 0 1 160px; min-width: 0; }
+.suffix { font-size: 13px; color: var(--mx-ink-muted); white-space: nowrap; }
+.counter { align-self: flex-end; font-size: 12px; color: var(--mx-ink-muted); }
+
+.note {
+    padding: 12px 14px;
+    border-radius: var(--mx-radius-sm);
+    background: var(--mx-surface-sunken);
+    font-size: 12.5px;
+    line-height: 1.5;
+    color: var(--mx-text-secondary);
+}
+.group > .note { margin: 4px 0 16px; }
+.muted { margin: 0; font-size: 13px; color: var(--mx-ink-muted); }
+
+/* Partner creators: who has it now, a search, then everyone. */
+.chosen { display: flex; flex-wrap: wrap; gap: 6px; }
+.people {
+    max-height: 300px;
     overflow-y: auto;
     border: 1px solid var(--mx-border);
     border-radius: var(--mx-radius-sm);
 }
-
-/* One row per person rather than wrapped chips: names are of wildly
-   different lengths, and a column scans far faster than a ragged block. */
-.creatorRow {
+.person {
     display: flex;
     align-items: center;
-    gap: 9px;
-    padding: 7px 11px;
+    gap: 10px;
+    padding: 9px 12px;
     border-bottom: 1px solid var(--mx-border);
+    font-size: 13.5px;
     cursor: pointer;
-    font-size: 13px;
 }
-.creatorRow:last-child { border-bottom: none; }
-.creatorRow:hover { background: var(--mx-surface-2, rgba(127, 127, 127, 0.05)); }
-.creatorRowOn { background: var(--mx-surface-2, rgba(127, 127, 127, 0.08)); }
-.creatorName { flex: 1 1 auto; color: var(--mx-ink); }
+.person:last-child { border-bottom: none; }
+.person:hover { background: var(--mx-surface-sunken); }
+.personOn { background: var(--mx-brand-subtle); }
+.person input { accent-color: var(--mx-brand); width: 16px; height: 16px; flex-shrink: 0; }
+.personName { flex: 1 1 auto; min-width: 0; font-weight: 600; color: var(--mx-ink); }
+.personUser { font-size: 12px; color: var(--mx-ink-muted); }
+
+/* One save for every section, pinned to the bottom of the screen while scrolling. */
+.saveBar {
+    position: sticky;
+    bottom: 0;
+    z-index: 5;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+    padding: 14px 24px;
+    border-top: 1px solid var(--mx-border);
+    border-radius: 0 0 var(--mx-radius-md) var(--mx-radius-md);
+    background: var(--mx-surface);
+}
+.saveBarDirty { box-shadow: 0 -8px 24px rgba(17, 24, 39, 0.08); }
+.saveState { font-size: 13px; font-weight: 600; color: var(--mx-ink-muted); }
+.saveBarDirty .saveState { color: var(--mx-brand-text); }
+.saveActions { display: flex; gap: 8px; margin-left: auto; }
+
+/* ---------- Fits the screen (AppShell fillPage) ---------- */
+/* The page and sidebar stay put: the menu and the settings form scroll
+   inside their own boxes, and the save bar sits at the bottom of the panel.
+   Phones (≤640px) keep normal page scrolling. */
+@media (min-width: 641px) {
+    /* Doubled class: beats the fill page's generic "children keep their height" rule. */
+    .layout.layout {
+        flex: 1 1 0;
+        min-height: 0;
+        grid-template-rows: minmax(0, 1fr);
+    }
+    .nav {
+        position: static;
+        max-height: 100%;
+        overflow-y: auto;
+        box-sizing: border-box;
+    }
+    .panel {
+        height: 100%;
+        min-height: 0;
+        overflow: hidden;
+    }
+    .panelHead { flex-shrink: 0; }
+    .panelBody {
+        flex: 1 1 auto;
+        min-height: 0;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+    }
+    .saveBar { position: static; flex-shrink: 0; }
+}
+
+/* ---------- Tablet: sections become a scrollable strip on top ---------- */
+@media (max-width: 960px) {
+    .layout { grid-template-columns: minmax(0, 1fr); gap: 16px; }
+    .layout.layout { grid-template-rows: auto minmax(0, 1fr); }
+    .nav {
+        position: static;
+        flex-direction: row;
+        overflow-x: auto;
+        scroll-snap-type: x proximity;
+        padding: 6px;
+    }
+    .navItem { width: auto; flex: 0 0 auto; padding: 8px 12px; scroll-snap-align: start; }
+    .navIcon { width: 28px; height: 28px; border-radius: 8px; }
+    .navIcon svg { width: 15px; height: 15px; }
+    .navDesc { display: none; }
+    .navTitle { white-space: nowrap; font-size: 13.5px; }
+}
+
+/* ---------- Phone: rows stack, tighter padding ---------- */
+@media (max-width: 640px) {
+    .panelHead { padding: 16px; }
+    .panelBody { padding: 16px; gap: 16px; }
+    .group { padding: 2px 14px; }
+    .row { grid-template-columns: minmax(0, 1fr); gap: 8px; padding: 14px 0; }
+    .rowText { padding-top: 0; }
+    .saveBar { padding: 12px 16px; }
+    .saveActions { width: 100%; }
+    .saveActions > * { flex: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .navItem { transition: none; }
+}

@@ -1,7 +1,7 @@
 'use client';
 
 import { FormEvent, useEffect, useState } from 'react';
-import Link from 'next/link';
+import Link from '@/components/ui/AppLink';
 import { CustomerResponseRecord, CustomerResponseType, ProjectRecord, UserRole } from '@/lib/types';
 import { exportListToPdf } from '@/lib/exportPdf';
 import AppShell from './AppShell';
@@ -17,8 +17,11 @@ import Textarea from './ui/Textarea';
 import SubmitButton from './ui/SubmitButton';
 import FilterBar from './ui/FilterBar';
 import ToolbarButton from './ui/ToolbarButton';
+import CommonButton from './ui/CommonButton';
 import Table, { TableColumn } from './ui/Table';
 import { fetchCached, OPTIONS_TTL_MS } from '@/lib/fetchCached';
+import { SkeletonTable } from './ui/Skeleton';
+import { RefreshButton } from './ui/ListControls';
 
 const EMPTY_FORM = { projectId: '', demoId: '', feedback: '', responseType: '' as CustomerResponseType | '', expectedDecisionDate: '', remarks: '' };
 
@@ -135,12 +138,12 @@ export default function CustomerResponseView({ currentUser }: CustomerResponseVi
     {
       key: 'actions',
       header: '',
-      render: (r) => isPrivileged && <button type="button" className={historyStyles.deleteBtn} onClick={() => handleDelete(r.id)}>Delete</button>
+      render: (r) => isPrivileged && <CommonButton variant="destructive" size="sm" onClick={() => handleDelete(r.id)}>Delete</CommonButton>
     }
   ];
 
   return (
-    <AppShell title="Customer Response" subtitle="What clients said after the demo.">
+    <AppShell fillPage title="Customer Response" subtitle="What clients said after the demo.">
         <h2 className={`${calcStyles.h2} ${calcStyles.h2Flush}`}>Log a customer response</h2>
         <form className={calcStyles.sectionPanel} onSubmit={handleCreate}>
           <FieldRow>
@@ -176,9 +179,13 @@ export default function CustomerResponseView({ currentUser }: CustomerResponseVi
         <FilterBar className={historyStyles.toolbarSpaced}>
           <ToolbarButton onClick={handleExportPdf}>Export PDF</ToolbarButton>
           <ToolbarButton onClick={() => window.print()}>Print</ToolbarButton>
-          <ToolbarButton onClick={load}>Refresh</ToolbarButton>
+          <RefreshButton onRefresh={load} loading={!loaded} pushRight />
         </FilterBar>
-        <div className={historyStyles.status}>{status}</div>
+        {!loaded && status === 'Loading...' ? (
+          <SkeletonTable columns={7} rows={6} />
+        ) : (
+          <div className={historyStyles.status}>{status}</div>
+        )}
         {loaded && (
           <Table
             columns={columns}

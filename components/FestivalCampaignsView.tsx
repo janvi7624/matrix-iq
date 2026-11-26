@@ -3,8 +3,11 @@
 import { useCallback, useEffect, useState } from 'react';
 import { CheckCircle2, Send, Undo2, X, Eye, Megaphone } from 'lucide-react';
 import AppShell from './AppShell';
+import CommonButton from './ui/CommonButton';
 import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
+import { Skeleton, SkeletonTable } from './ui/Skeleton';
+import { TableWrap } from './ui/Table';
 
 interface Campaign {
   id: string;
@@ -158,7 +161,7 @@ export default function FestivalCampaignsView() {
   const editable = open && ['awaiting_creative', 'pending_approval', 'approved'].includes(open.status);
 
   return (
-    <AppShell title="Festival Client Emails" subtitle="Banner from Marketing → approval → sent to every client in Client Master on the festival morning">
+    <AppShell fillPage title="Festival Client Emails" subtitle="Banner from Marketing → approval → sent to every client in Client Master on the festival morning">
       {data && (
         <div className={calcStyles.sectionPanel} style={{ marginBottom: 16 }}>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 24, alignItems: 'center' }}>
@@ -176,10 +179,18 @@ export default function FestivalCampaignsView() {
         </div>
       )}
 
-      {status && <p className={calcStyles.small}>{status}</p>}
+      {status === 'Loading…' && !data ? (
+        <div style={{ display: 'grid', gap: 16 }}>
+          <Skeleton height={72} radius={12} />
+          <SkeletonTable columns={5} rows={5} />
+        </div>
+      ) : (
+        status && <p className={calcStyles.small}>{status}</p>
+      )}
       {notice && !open && <p style={{ color: notice.kind === 'ok' ? 'var(--mx-success)' : 'var(--mx-danger)' }}>{notice.text}</p>}
 
       {data && data.rows.length > 0 && (
+        <TableWrap>
         <table className={historyStyles.table}>
           <thead>
             <tr>
@@ -226,13 +237,13 @@ export default function FestivalCampaignsView() {
                   </td>
                   <td>
                     {c ? (
-                      <button type="button" className={`${historyStyles.button} ${c.status === 'pending_approval' ? historyStyles.primary : ''}`} onClick={() => startReview(c)}>
-                        <Eye size={14} /> {c.status === 'pending_approval' ? 'Review & approve' : 'View'}
-                      </button>
+                      <CommonButton size="sm" variant={c.status === 'pending_approval' ? 'primary' : 'secondary'} leadingIcon={<Eye />} onClick={() => startReview(c)}>
+                        {c.status === 'pending_approval' ? 'Review & approve' : 'View'}
+                      </CommonButton>
                     ) : away > 0 ? (
-                      <button type="button" className={historyStyles.button} onClick={() => raiseNow(row)} disabled={busy}>
-                        <Megaphone size={14} /> Request banner now
-                      </button>
+                      <CommonButton size="sm" leadingIcon={<Megaphone />} onClick={() => raiseNow(row)} disabled={busy}>
+                        Request banner now
+                      </CommonButton>
                     ) : null}
                   </td>
                 </tr>
@@ -240,6 +251,7 @@ export default function FestivalCampaignsView() {
             })}
           </tbody>
         </table>
+        </TableWrap>
       )}
 
       {open && (
@@ -254,9 +266,7 @@ export default function FestivalCampaignsView() {
             <div style={{ display: 'flex', alignItems: 'center', marginBottom: 12 }}>
               <h2 style={{ margin: 0, fontSize: 18 }}>{open.festival_name} — {formatDate(open.festival_date)}</h2>
               <span style={{ marginLeft: 12, color: STATUS_LABEL[open.status].color, fontWeight: 600 }}>{STATUS_LABEL[open.status].text}</span>
-              <button type="button" className={historyStyles.button} style={{ marginLeft: 'auto' }} onClick={() => setOpenId(null)} aria-label="Close">
-                <X size={14} />
-              </button>
+              <CommonButton variant="ghost" iconOnly leadingIcon={<X />} style={{ marginLeft: 'auto' }} onClick={() => setOpenId(null)} aria-label="Close" />
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 20 }}>
@@ -281,25 +291,25 @@ export default function FestivalCampaignsView() {
 
                 <div className={calcStyles.inlineFlexGap8} style={{ flexWrap: 'wrap', marginTop: 12 }}>
                   {editable && (
-                    <button type="button" className={historyStyles.button} onClick={() => loadPreview(open.id, headline, message)} disabled={busy}>
-                      <Eye size={14} /> Refresh preview
-                    </button>
+                    <CommonButton leadingIcon={<Eye />} onClick={() => loadPreview(open.id, headline, message)} disabled={busy}>
+                      Refresh preview
+                    </CommonButton>
                   )}
                   {editable && (
-                    <button type="button" className={historyStyles.button} onClick={saveWording} disabled={busy}>Save wording</button>
+                    <CommonButton onClick={saveWording} disabled={busy}>Save wording</CommonButton>
                   )}
-                  <button type="button" className={historyStyles.button} onClick={testSend} disabled={busy}>
-                    <Send size={14} /> Send test to me
-                  </button>
+                  <CommonButton leadingIcon={<Send />} onClick={testSend} disabled={busy}>
+                    Send test to me
+                  </CommonButton>
                   {open.status === 'pending_approval' && (
-                    <button type="button" className={`${historyStyles.button} ${historyStyles.primary}`} onClick={approve} disabled={busy}>
-                      <CheckCircle2 size={14} /> Approve for {data?.recipients.total ?? 0} clients
-                    </button>
+                    <CommonButton variant="primary" leadingIcon={<CheckCircle2 />} onClick={approve} disabled={busy}>
+                      Approve for {data?.recipients.total ?? 0} clients
+                    </CommonButton>
                   )}
                   {(open.status === 'pending_approval' || open.status === 'approved') && (
-                    <button type="button" className={historyStyles.button} onClick={sendBack} disabled={busy}>
-                      <Undo2 size={14} /> Send back to Marketing
-                    </button>
+                    <CommonButton leadingIcon={<Undo2 />} onClick={sendBack} disabled={busy}>
+                      Send back to Marketing
+                    </CommonButton>
                   )}
                 </div>
               </div>

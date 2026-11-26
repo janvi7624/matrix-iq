@@ -2,13 +2,18 @@
 
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { DepartmentRecord } from '@/lib/types';
+import { ArrowDown, ArrowUp, Plus, Pencil, Power, Trash2 } from 'lucide-react';
 import AppShell from '@/components/AppShell';
+import CommonButton from '@/components/ui/CommonButton';
 import historyStyles from '@/components/quotationHistory.module.css';
 import calcStyles from '@/components/calculator.module.css';
 import { useToast } from '@/components/ui/ToastProvider';
 import { useConfirm } from '@/components/ui/ConfirmDialog';
 import pageStyles from './departmentsPage.module.css';
+import { SkeletonTable } from '@/components/ui/Skeleton';
 import { fetchCached, invalidatePeopleCaches } from '@/lib/fetchCached';
+import RowActions from '@/components/ui/RowActions';
+import SearchInput from '@/components/ui/SearchInput';
 
 export default function DepartmentMasterPage() {
   const [departments, setDepartments] = useState<DepartmentRecord[]>([]);
@@ -24,6 +29,9 @@ export default function DepartmentMasterPage() {
   const [users, setUsers] = useState<{ id: string; username: string; name: string }[]>([]);
   const toast = useToast();
   const confirm = useConfirm();
+
+  // First load only: a reload after an edit keeps the current rows on screen.
+  const firstLoad = status === 'Loading...' && departments.length === 0;
 
   async function load() {
     // Same reasoning as User Management: every write here reloads the list,
@@ -153,7 +161,7 @@ export default function DepartmentMasterPage() {
   }
 
   return (
-    <AppShell title="Department Master" subtitle="Administration › departments used across user profiles — no code change required.">
+    <AppShell fillPage title="Department Master" subtitle="Administration › departments used across user profiles — no code change required.">
         <h2 className={`${calcStyles.h2} ${calcStyles.h2Flush}`}>Add department</h2>
         <form className={calcStyles.sectionPanel} onSubmit={handleCreate}>
           {createError && <div className={historyStyles.loginError}>{createError}</div>}
@@ -167,14 +175,17 @@ export default function DepartmentMasterPage() {
               <input id="deptDesc" className={calcStyles.formControl} type="text" value={description} onChange={(e) => setDescription(e.target.value)} />
             </div>
           </div>
-          <button type="submit" className={calcStyles.btn} disabled={creating}>{creating ? 'Adding...' : '+ Add department'}</button>
+          <CommonButton type="submit" variant="primary" size="md" leadingIcon={<Plus />} loading={creating} loadingLabel="Adding...">Add department</CommonButton>
         </form>
 
         <h2 className={calcStyles.h2}>Departments</h2>
         <div className={historyStyles.toolbar}>
-          <input type="text" placeholder="Search departments..." value={q} onChange={(e) => setQ(e.target.value)} />
+          <SearchInput placeholder="Search departments..." value={q} onChange={(v) => setQ(v)} />
         </div>
-        <div className={historyStyles.status}>{status}</div>
+        {!firstLoad && <div className={historyStyles.status}>{status}</div>}
+        {firstLoad ? (
+          <SkeletonTable columns={6} rows={6} />
+        ) : (
         <div className={historyStyles.tableWrap}>
           <table className={historyStyles.table}>
             <thead>
@@ -194,8 +205,8 @@ export default function DepartmentMasterPage() {
                   <tr key={d.id}>
                     <td>
                       <div className={pageStyles.reorderRow}>
-                        <button type="button" className={historyStyles.toggleBtn} disabled={i === 0} onClick={() => move(d.id, -1)}>↑</button>
-                        <button type="button" className={historyStyles.toggleBtn} disabled={i === arr.length - 1} onClick={() => move(d.id, 1)}>↓</button>
+                        <CommonButton variant="outlined" size="sm" iconOnly leadingIcon={<ArrowUp />} aria-label="Move up" title="Move up" disabled={i === 0} onClick={() => move(d.id, -1)} />
+                        <CommonButton variant="outlined" size="sm" iconOnly leadingIcon={<ArrowDown />} aria-label="Move down" title="Move down" disabled={i === arr.length - 1} onClick={() => move(d.id, 1)} />
                       </div>
                     </td>
                     {isEditing && editState ? (
@@ -220,8 +231,8 @@ export default function DepartmentMasterPage() {
                         <td>{d.status === 'active' ? 'Active' : 'Inactive'}</td>
                         <td>
                           <div className={pageStyles.actionsRow6}>
-                            <button type="button" className={`${historyStyles.button} ${historyStyles.primary}`} onClick={() => saveEdit(d.id)}>Save</button>
-                            <button type="button" className={historyStyles.button} onClick={() => { setEditingId(null); setEditState(null); }}>Cancel</button>
+                            <CommonButton variant="primary" size="sm" onClick={() => saveEdit(d.id)}>Save</CommonButton>
+                            <CommonButton variant="secondary" size="sm" onClick={() => { setEditingId(null); setEditState(null); }}>Cancel</CommonButton>
                           </div>
                         </td>
                       </>
@@ -236,13 +247,14 @@ export default function DepartmentMasterPage() {
                           </span>
                         </td>
                         <td>
-                          <div className={historyStyles.rowActionsInline}>
-                            <button type="button" className={historyStyles.button} onClick={() => startEdit(d)}>Edit</button>
-                            <button type="button" className={historyStyles.button} onClick={() => toggleStatus(d)}>
-                              {d.status === 'active' ? 'Deactivate' : 'Activate'}
-                            </button>
-                            <button type="button" className={historyStyles.deleteBtn} onClick={() => handleDelete(d)}>Delete</button>
-                          </div>
+                          <RowActions
+                            label={`Actions for ${d.name}`}
+                            actions={[
+                              { key: 'edit', label: 'Edit', icon: <Pencil />, onClick: () => startEdit(d) },
+                              { key: 'status', label: d.status === 'active' ? 'Deactivate' : 'Activate', icon: <Power />, onClick: () => toggleStatus(d) },
+                              { key: 'delete', label: 'Delete', icon: <Trash2 />, destructive: true, onClick: () => handleDelete(d) }
+                            ]}
+                          />
                           {rowError[d.id] && <div className={historyStyles.loginError}>{rowError[d.id]}</div>}
                         </td>
                       </>
@@ -256,6 +268,7 @@ export default function DepartmentMasterPage() {
             </tbody>
           </table>
         </div>
+        )}
     </AppShell>
   );
 }

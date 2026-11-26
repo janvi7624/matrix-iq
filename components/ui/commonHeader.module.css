@@ -1,0 +1,205 @@
+/* CommonHeader — [← back] [brand] [title / subtitle] ............ [actions]
+   The back button is always the first child of .lead, and .lead is always
+   the first child of the header, so it can never be pushed right or hidden:
+   it is flex-shrink:0 and the title is the element that gives way (ellipsis). */
+
+.root {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px 16px;
+  min-width: 0;
+}
+
+/* Dark application bar (default) — same look the app header always had. */
+.dark {
+  background: var(--mx-header-bg);
+  color: var(--mx-header-fg);
+  padding: var(--mx-header-py) var(--mx-header-px);
+  border-bottom: 2px solid var(--mx-header-accent);
+  /* See quotationHistory.module.css .header: the real z-index tier keeps
+     the notification/search popovers above sticky table headers. */
+  position: relative;
+  z-index: var(--mx-z-header);
+}
+
+/* Light in-page header — a detail panel or sub-view inside a page. */
+.light {
+  background: transparent;
+  color: var(--mx-text-primary);
+  padding: 0 0 var(--mx-space-4);
+}
+
+.lead {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1 1 280px;
+  min-width: 0;
+}
+
+.back {
+  flex-shrink: 0;
+  /* Always a full touch target, even though the icon is small. */
+  width: var(--mx-touch-target);
+  min-width: var(--mx-touch-target);
+  height: var(--mx-touch-target);
+  min-height: var(--mx-touch-target);
+  border-radius: var(--mx-radius-sm);
+}
+.dark .back {
+  color: var(--mx-header-fg);
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.16);
+}
+.dark .back:hover {
+  background: var(--mx-header-control-hover);
+  border-color: rgba(255, 255, 255, 0.3);
+}
+.light .back {
+  background: var(--mx-surface);
+  border-color: var(--mx-border);
+  color: var(--mx-text-primary);
+}
+/* In-page back button (PageBackButton) — sits on the light page surface. */
+.pageBack {
+  background: var(--mx-surface);
+  border-color: var(--mx-border-strong);
+  color: var(--mx-text-primary);
+  box-shadow: var(--mx-shadow-xs);
+}
+.pageBack:hover {
+  background: var(--mx-surface-sunken);
+  border-color: var(--mx-ink-faint);
+}
+.back :global(svg) {
+  width: var(--mx-icon-xl) !important;
+  height: var(--mx-icon-xl) !important;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  text-decoration: none;
+  color: inherit;
+  border-radius: var(--mx-radius-xs);
+}
+.brand:focus-visible {
+  outline: var(--mx-focus-ring-width) solid currentColor;
+  outline-offset: var(--mx-focus-ring-offset);
+}
+
+.titles {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-width: 0;
+}
+
+.breadcrumb {
+  font-size: 11px;
+  font-weight: var(--mx-weight-medium);
+  text-transform: uppercase;
+  letter-spacing: var(--mx-tracking-caps);
+  margin-bottom: 3px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dark .breadcrumb { color: var(--mx-header-fg-faint); }
+.light .breadcrumb { color: var(--mx-ink-faint); }
+.breadcrumbSep { opacity: 0.6; margin: 0 2px; }
+
+.title {
+  margin: 0;
+  font-size: var(--mx-header-title-size);
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  line-height: var(--mx-leading-tight);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.light .title { font-size: var(--mx-text-title); }
+
+.subtitle {
+  font-size: var(--mx-text-meta);
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dark .subtitle { color: var(--mx-header-fg-muted); }
+.light .subtitle { color: var(--mx-text-secondary); }
+
+.actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-left: auto;
+  min-width: 0;
+}
+
+.search {
+  box-sizing: border-box;
+  height: var(--mx-btn-h-sm);
+  min-width: 0;
+  width: 220px;
+  padding: 0 12px;
+  border-radius: var(--mx-radius-sm);
+  border: 1px solid var(--mx-border-strong);
+  background: #ffffff;
+  color: var(--mx-ink);
+  font: inherit;
+  font-size: var(--mx-text-body);
+}
+.search:focus-visible {
+  outline: var(--mx-focus-ring-width) solid var(--mx-focus-ring-color);
+  outline-offset: 1px;
+}
+
+.menu {
+  display: flex;
+  flex-direction: column;
+  min-width: 180px;
+  padding: 4px;
+}
+.menuItem {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 40px;
+  padding: 0 12px;
+  border: none;
+  border-radius: var(--mx-radius-xs);
+  background: transparent;
+  color: var(--mx-ink);
+  font: inherit;
+  font-size: var(--mx-text-body);
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+.menuItem:hover,
+.menuItem:focus-visible { background: var(--mx-surface-sunken); outline: none; }
+.menuItemDanger { color: var(--mx-danger); }
+.menuItem :global(svg) { width: var(--mx-icon-sm); height: var(--mx-icon-sm); flex-shrink: 0; }
+
+/* ≤768px: Sidebar's fixed hamburger (sidebar.module.css .toggleBtn, 42px at
+   left:14px) overlays the header's top-left corner, so the dark app bar
+   reserves that space and the back button starts right after it. */
+@media (max-width: 768px) {
+  .dark { padding-left: 62px; padding-right: 14px; }
+  .dark.noNavToggle { padding-left: 14px; }
+  .actions { gap: 8px; }
+  .search { width: 160px; }
+}
+@media (max-width: 480px) {
+  .brandCollapsible { display: none; }
+  .title { font-size: 17px; }
+  .lead { gap: 8px; flex-basis: 100%; }
+}

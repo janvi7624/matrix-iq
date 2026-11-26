@@ -1,7 +1,10 @@
 'use client';
 
 import { ReactNode } from 'react';
-import { ChevronDown, Search, SlidersHorizontal, X } from 'lucide-react';
+import { ChevronDown, SlidersHorizontal } from 'lucide-react';
+import CommonButton from './CommonButton';
+import CommonChip from './CommonChip';
+import SearchInput from './SearchInput';
 import styles from './filterPanel.module.css';
 
 // A labelled, collapsible filter surface for views with too many filters to
@@ -21,7 +24,7 @@ export function FilterPrimaryRow({ children }: { children: ReactNode }) {
   return <div className={styles.primaryRow}>{children}</div>;
 }
 
-/** Search box with a leading magnifier and a clear button once it has a value. */
+/** Search box — the shared SearchInput (icon, clear ✕, focus glow). Props unchanged. */
 export function FilterSearch({
   value,
   onChange,
@@ -35,27 +38,7 @@ export function FilterSearch({
   label: string;
   id: string;
 }) {
-  return (
-    <div className={styles.searchWrap}>
-      <span className={styles.searchIcon}><Search size={16} /></span>
-      <label className={styles.srOnly} htmlFor={id}>{label}</label>
-      <input
-        id={id}
-        className={styles.searchInput}
-        // type="search" rather than "text" so mobile keyboards show a search
-        // key; the native clear affordance is suppressed by the custom button.
-        type="search"
-        placeholder={placeholder}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-      />
-      {value && (
-        <button type="button" className={styles.searchClear} onClick={() => onChange('')} aria-label={`Clear ${label.toLowerCase()}`}>
-          <X size={15} />
-        </button>
-      )}
-    </div>
-  );
+  return <SearchInput id={id} value={value} onChange={onChange} placeholder={placeholder} aria-label={label} className={styles.searchWrap} />;
 }
 
 /**
@@ -166,16 +149,21 @@ export function FilterMeta({
     <div className={styles.metaRow}>
       <span className={styles.resultCount} role="status" aria-live="polite">{count}</span>
       {activeFilters.map((f) => (
-        <span key={f.key} className={styles.chip}>
-          <span className={styles.chipLabel}>{f.label}:</span>
-          <span className={styles.chipValue} title={f.value}>{f.value}</span>
-          <button type="button" className={styles.chipClear} onClick={f.clear} aria-label={`Clear ${f.label} filter`}>
-            <X size={12} />
-          </button>
-        </span>
+        <CommonChip
+          key={f.key}
+          size="sm"
+          onRemove={f.clear}
+          removeLabel={`Clear ${f.label} filter`}
+          label={
+            <>
+              <span className={styles.chipLabel}>{f.label}:</span>{' '}
+              <span className={styles.chipValue} title={f.value}>{f.value}</span>
+            </>
+          }
+        />
       ))}
       {activeFilters.length > 1 && (
-        <button type="button" className={styles.clearAllBtn} onClick={onClearAll}>Clear all</button>
+        <CommonButton variant="link" size="sm" onClick={onClearAll}>Clear all</CommonButton>
       )}
     </div>
   );

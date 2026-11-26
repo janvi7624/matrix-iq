@@ -1,5 +1,6 @@
 import { Op } from 'sequelize';
 import { db } from './db';
+import { matchesList } from './listParam';
 import { resolveVisibilityScope } from './departmentScope';
 import {
   BillingRow,
@@ -25,8 +26,8 @@ export interface BillingFilters {
   /** Inclusive IST date bounds on when the deal closed. */
   from?: string;
   to?: string;
-  /** Narrow to one salesperson, within the viewer's scope. */
-  owner?: string;
+  /** Narrow to one salesperson or several (any of them), within the viewer's scope. */
+  owner?: string | string[];
   query?: string;
 }
 
@@ -131,8 +132,9 @@ export async function getBilling(viewerUsername: string, filters: BillingFilters
   // Filters are applied AFTER the fold, so narrowing by date or salesperson
   // can never split a deal away from its own quotation.
   const q = (filters.query ?? '').trim().toLowerCase();
+  const ownerList = (Array.isArray(filters.owner) ? filters.owner : filters.owner ? [filters.owner] : []).filter(Boolean);
   const filtered = rows.filter((row) => {
-    if (filters.owner && row.ownerUsername !== filters.owner) return false;
+    if (!matchesList(row.ownerUsername, ownerList)) return false;
     // A deal with no close date is kept out of a date-bounded view rather
     // than guessed into it.
     if (filters.from && (!row.closedOn || row.closedOn < filters.from)) return false;

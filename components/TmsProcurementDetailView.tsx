@@ -1,11 +1,12 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import Link from 'next/link';
 import { Paperclip } from 'lucide-react';
 import { TmsDeliveryStatus, TmsProcurementRecord, TmsPurchaseStatus, UserRole } from '@/lib/types';
 import { TMS_DELIVERY_STATUS_LABEL, TMS_DELIVERY_STATUS_TONE, TMS_PURCHASE_STATUS_LABEL, TMS_PURCHASE_STATUS_TONE } from '@/lib/tmsLabels';
 import AppShell from './AppShell';
+import CommonButton from './ui/CommonButton';
+import PageBackButton from './ui/PageBackButton';
 import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
 import StatusBadge from './ui/StatusBadge';
@@ -16,6 +17,7 @@ import Input from './ui/Input';
 import Select from './ui/Select';
 import Textarea from './ui/Textarea';
 import styles from './tmsDetail.module.css';
+import { SkeletonDetail } from './ui/Skeleton';
 
 function formatDate(iso: string): string {
   if (!iso) return '-';
@@ -143,18 +145,25 @@ export default function TmsProcurementDetailView({ procurementId, currentUser }:
 
   if (!record) {
     return (
-      <AppShell title="Procurement" subtitle="" showBackLink>
-        <div className={historyStyles.status}>{status || 'Loading...'}</div>
+      <AppShell title="Procurement" subtitle="">
+        <div className={styles.headerRow}>
+          <PageBackButton fallbackRoute="/tms/procurement" />
+        </div>
+        {!status || status === 'Loading...' ? (
+          <SkeletonDetail panels={2} pairs={6} withTopRow={false} />
+        ) : (
+          <div className={historyStyles.status}>{status}</div>
+        )}
       </AppShell>
     );
   }
 
   return (
-    <AppShell title={record.item_name} subtitle={`${record.procurement_code} · ${record.project_name}`} showBackLink>
+    <AppShell title={record.item_name} subtitle={`${record.procurement_code} · ${record.project_name}`}>
       <div className={styles.headerRow}>
+        <PageBackButton fallbackRoute="/tms/procurement" />
         <StatusBadge tone={TMS_PURCHASE_STATUS_TONE[record.purchase_status]} label={TMS_PURCHASE_STATUS_LABEL[record.purchase_status]} />
         <StatusBadge tone={TMS_DELIVERY_STATUS_TONE[record.delivery_status]} label={TMS_DELIVERY_STATUS_LABEL[record.delivery_status]} />
-        <Link className={historyStyles.button} href="/tms/procurement">Back to Procurement</Link>
       </div>
 
       <div className={calcStyles.sectionPanel}>
@@ -209,9 +218,9 @@ export default function TmsProcurementDetailView({ procurementId, currentUser }:
         <Field label="Remarks">
           <Textarea rows={2} value={form.remarks} onChange={(e) => setForm((f) => ({ ...f, remarks: e.target.value }))} />
         </Field>
-        <button type="button" className={calcStyles.btn} disabled={saving} onClick={handleSaveDetails}>
-          {saving ? 'Saving…' : 'Save details'}
-        </button>
+        <CommonButton variant="primary" size="md" loading={saving} loadingLabel="Saving…" onClick={handleSaveDetails}>
+          Save details
+        </CommonButton>
       </div>
 
       <div className={`${calcStyles.sectionPanel} ${styles.panelSpacedTop18}`}>

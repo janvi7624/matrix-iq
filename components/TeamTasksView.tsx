@@ -1,11 +1,11 @@
 'use client';
 
 import { FormEvent, useEffect, useMemo, useState } from 'react';
-import Link from 'next/link';
 import { ClipboardList } from 'lucide-react';
 import { DepartmentRecord, GeneralTaskPriority, GeneralTaskRecord } from '@/lib/types';
 import { GENERAL_TASK_PRIORITY_LABEL, GENERAL_TASK_PRIORITY_TONE, GENERAL_TASK_STATUS_LABEL, GENERAL_TASK_STATUS_TONE, todayIso } from '@/lib/generalTaskLabels';
 import AppShell from './AppShell';
+import CommonButton from './ui/CommonButton';
 import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
 import detailStyles from './tmsDetail.module.css';
@@ -14,7 +14,7 @@ import PriorityBadge from './ui/PriorityBadge';
 import { useToast } from './ui/ToastProvider';
 import EmptyState from './ui/EmptyState';
 import ErrorState from './ui/ErrorState';
-import { SkeletonRows } from './ui/Skeleton';
+import { SkeletonPage } from './ui/Skeleton';
 import { Field, FieldRow } from './ui/Field';
 import Input from './ui/Input';
 import Select from './ui/Select';
@@ -182,13 +182,13 @@ export default function TeamTasksView({ currentUser }: TeamTasksViewProps) {
     { key: 'priority', header: 'Priority', render: (t) => <PriorityBadge tone={GENERAL_TASK_PRIORITY_TONE[t.priority]} label={GENERAL_TASK_PRIORITY_LABEL[t.priority]} /> },
     { key: 'status', header: 'Status', render: (t) => <StatusBadge tone={GENERAL_TASK_STATUS_TONE[t.status]} label={GENERAL_TASK_STATUS_LABEL[t.status]} /> },
     { key: 'deadline', header: 'Deadline', render: (t) => formatDate(t.deadline) },
-    { key: 'actions', header: '', render: (t) => <Link className={historyStyles.button} href={`/my-tasks/${t.id}`}>Open</Link> }
+    { key: 'actions', header: '', render: (t) => <CommonButton variant="secondary" size="sm" href={`/my-tasks/${t.id}`}>Open</CommonButton> }
   ];
 
   if (loading) {
     return (
       <AppShell title="Team Tasks" subtitle="Assign and track tasks within your own department.">
-        <div className={historyStyles.tableWrap}><SkeletonRows rows={6} columns={7} /></div>
+        <SkeletonPage columns={7} rows={6} />
       </AppShell>
     );
   }
@@ -201,7 +201,7 @@ export default function TeamTasksView({ currentUser }: TeamTasksViewProps) {
   }
 
   return (
-    <AppShell title="Team Tasks" subtitle="Assign and track tasks within your own department.">
+    <AppShell fillPage={tab === 'daily' || tab === 'mine' || tab === 'review'} title="Team Tasks" subtitle="Assign and track tasks within your own department.">
       <div className={detailStyles.tabRow}>
         {TABS.map((t) => (
           <ToolbarButton key={t.key} primary={tab === t.key} onClick={() => setTab(t.key)}>{t.label}</ToolbarButton>

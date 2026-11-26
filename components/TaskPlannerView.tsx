@@ -1,7 +1,7 @@
 'use client';
 
 import { FormEvent, useEffect, useMemo, useState } from 'react';
-import { Plus, Search, X, KanbanSquare, ChevronDown, ListTodo, Circle, Loader, Eye, RotateCcw, AlertTriangle, CalendarClock, CheckCircle2, CalendarDays, type LucideIcon } from 'lucide-react';
+import { Plus, Search, KanbanSquare, ChevronDown, ListTodo, Circle, Loader, Eye, RotateCcw, AlertTriangle, CalendarClock, CheckCircle2, CalendarDays, type LucideIcon } from 'lucide-react';
 import { DepartmentRecord, GeneralTaskPriority, GeneralTaskRecord, GeneralTaskStatus, ProjectRecord, TmsProjectRecord, UserRole } from '@/lib/types';
 import { GENERAL_TASK_PRIORITY_LABEL, GENERAL_TASK_PRIORITY_TONE, GENERAL_TASK_STATUS_LABEL, GENERAL_TASK_STATUS_TONE, todayIso } from '@/lib/generalTaskLabels';
 import AppShell from './AppShell';
@@ -12,14 +12,19 @@ import planner from './taskPlanner.module.css';
 import StatusBadge from './ui/StatusBadge';
 import PriorityBadge from './ui/PriorityBadge';
 import { useToast } from './ui/ToastProvider';
-import { SkeletonRows } from './ui/Skeleton';
+import { Skeleton, SkeletonPage } from './ui/Skeleton';
 import EmptyState from './ui/EmptyState';
 import ErrorState from './ui/ErrorState';
 import { Field, FieldRow } from './ui/Field';
 import Input from './ui/Input';
 import Select from './ui/Select';
+import Dropdown, { inSelection } from './ui/Dropdown';
+import SearchInput from './ui/SearchInput';
 import Textarea from './ui/Textarea';
 import ToolbarButton from './ui/ToolbarButton';
+import CommonButton from './ui/CommonButton';
+import CommonChip from './ui/CommonChip';
+import StatCard, { StatCardGrid } from './ui/StatCard';
 import SubmitButton from './ui/SubmitButton';
 import Table, { TableColumn } from './ui/Table';
 import Drawer from './ui/Drawer';
@@ -120,15 +125,15 @@ const GROUP_OPTIONS = [
 type GroupKey = (typeof GROUP_OPTIONS)[number]['key'];
 
 interface Filters {
-  departmentId: string;
+  departmentId: string[];
   assigneeUsername: string;
-  status: GeneralTaskStatus | '';
-  priority: GeneralTaskPriority | '';
-  category: string;
+  status: GeneralTaskStatus[];
+  priority: GeneralTaskPriority[];
+  category: string[];
   overdue: boolean;
   dueToday: boolean;
 }
-const EMPTY_FILTERS: Filters = { departmentId: '', assigneeUsername: '', status: '', priority: '', category: '', overdue: false, dueToday: false };
+const EMPTY_FILTERS: Filters = { departmentId: [], assigneeUsername: '', status: [], priority: [], category: [], overdue: false, dueToday: false };
 
 function formatDate(iso: string): string {
   if (!iso) return '-';
@@ -240,7 +245,7 @@ export default function TaskPlannerView({ currentUser }: TaskPlannerViewProps) {
     const base = { ...EMPTY_FILTERS };
     if (key === 'overdue') setFilters({ ...base, overdue: true });
     else if (key === 'due_today') setFilters({ ...base, dueToday: true });
-    else if (key === 'pending' || key === 'in_progress' || key === 'rework_required' || key === 'under_review') setFilters({ ...base, status: key as GeneralTaskStatus });
+    else if (key === 'pending' || key === 'in_progress' || key === 'rework_required' || key === 'under_review') setFilters({ ...base, status: [key as GeneralTaskStatus] });
     else setFilters(base);
   }
 
@@ -248,11 +253,11 @@ export default function TaskPlannerView({ currentUser }: TaskPlannerViewProps) {
     const q = search.trim().toLowerCase();
     return visibleTasks.filter((t) => {
       if (activeKpi === 'done' && !(t.status === 'completed' || t.status === 'approved')) return false;
-      if (filters.departmentId && t.department_id !== filters.departmentId) return false;
+      if (!inSelection(t.department_id, filters.departmentId)) return false;
       if (filters.assigneeUsername && t.assignee_username !== filters.assigneeUsername) return false;
-      if (filters.status && t.status !== filters.status) return false;
-      if (filters.priority && t.priority !== filters.priority) return false;
-      if (filters.category && t.category !== filters.category) return false;
+      if (!inSelection(t.status, filters.status)) return false;
+      if (!inSelection(t.priority, filters.priority)) return false;
+      if (!inSelection(t.category, filters.category)) return false;
       if (filters.overdue && !isOverdue(t, today)) return false;
       if (filters.dueToday && !isDueToday(t, today)) return false;
       if (q) {
@@ -265,11 +270,11 @@ export default function TaskPlannerView({ currentUser }: TaskPlannerViewProps) {
 
   const activeChips = useMemo(() => {
     const chips: { key: string; label: string }[] = [];
-    if (filters.departmentId) chips.push({ key: 'departmentId', label: departments.find((d) => d.id === filters.departmentId)?.name || 'Department' });
+    if (filters.departmentId.length) chips.push({ key: 'departmentId', label: filters.departmentId.map((id) => departments.find((d) => d.id === id)?.name || 'Department').join(', ') });
     if (filters.assigneeUsername) chips.push({ key: 'assigneeUsername', label: tasks.find((t) => t.assignee_username === filters.assigneeUsername)?.assignee_name || filters.assigneeUsername });
-    if (filters.status) chips.push({ key: 'status', label: GENERAL_TASK_STATUS_LABEL[filters.status] });
-    if (filters.priority) chips.push({ key: 'priority', label: GENERAL_TASK_PRIORITY_LABEL[filters.priority] });
-    if (filters.category) chips.push({ key: 'category', label: filters.category });
+    if (filters.status.length) chips.push({ key: 'status', label: filters.status.map((s) => GENERAL_TASK_STATUS_LABEL[s]).join(', ') });
+    if (filters.priority.length) chips.push({ key: 'priority', label: filters.priority.map((p) => GENERAL_TASK_PRIORITY_LABEL[p]).join(', ') });
+    if (filters.category.length) chips.push({ key: 'category', label: filters.category.join(', ') });
     if (filters.overdue) chips.push({ key: 'overdue', label: 'Overdue' });
     if (filters.dueToday) chips.push({ key: 'dueToday', label: 'Due Today' });
     return chips;
@@ -277,7 +282,7 @@ export default function TaskPlannerView({ currentUser }: TaskPlannerViewProps) {
 
   function removeChip(key: string) {
     setActiveKpi(null);
-    setFilters((f) => ({ ...f, [key]: key === 'overdue' || key === 'dueToday' ? false : '' }));
+    setFilters((f) => ({ ...f, [key]: key === 'overdue' || key === 'dueToday' ? false : key === 'assigneeUsername' ? '' : [] }));
   }
   function clearAllFilters() {
     setActiveKpi(null);
@@ -308,7 +313,7 @@ export default function TaskPlannerView({ currentUser }: TaskPlannerViewProps) {
   }, [filteredTasks, groupBy]);
 
   const columns: TableColumn<GeneralTaskRecord>[] = [
-    { key: 'title', header: 'Task', render: (t) => <button type="button" onClick={() => setSelectedTaskId(t.id)} style={{ background: 'none', border: 'none', color: 'var(--mx-brand)', cursor: 'pointer', textDecoration: 'underline', padding: 0, font: 'inherit' }}>{t.title}</button> },
+    { key: 'title', header: 'Task', render: (t) => <CommonButton variant="link" size="sm" onClick={() => setSelectedTaskId(t.id)}>{t.title}</CommonButton> },
     { key: 'department', header: 'Department', render: (t) => t.department_name },
     { key: 'assignee', header: 'Assigned To', render: (t) => t.assignee_name || 'Unassigned' },
     { key: 'priority', header: 'Priority', render: (t) => <PriorityBadge tone={GENERAL_TASK_PRIORITY_TONE[t.priority]} label={GENERAL_TASK_PRIORITY_LABEL[t.priority]} /> },
@@ -525,7 +530,7 @@ export default function TaskPlannerView({ currentUser }: TaskPlannerViewProps) {
   if (loading) {
     return (
       <AppShell title="Task Planner" subtitle="Plan, assign and track work across departments and employees.">
-        <div className={historyStyles.tableWrap}><SkeletonRows rows={6} columns={8} /></div>
+        <SkeletonPage stats={8} columns={9} />
       </AppShell>
     );
   }
@@ -538,21 +543,25 @@ export default function TaskPlannerView({ currentUser }: TaskPlannerViewProps) {
   }
 
   return (
-    <AppShell title="Task Planner" subtitle="Plan, assign and track work across departments and employees.">
-      <div className={planner.kpiBar}>
+    <AppShell fillPage={view === 'list' && groupedForList.length <= 1} title="Task Planner" subtitle="Plan, assign and track work across departments and employees.">
+      <StatCardGrid minWidth={140} style={{ marginBottom: 18 }}>
         {KPI_DEFS.map((k) => {
           const Icon = k.icon;
           return (
-            <button key={k.key} type="button" className={`${planner.kpiCard} ${planner[`tone_${k.tone}`]} ${activeKpi === k.key ? planner.kpiCardActive : ''}`} onClick={() => toggleKpi(k.key)}>
-              <span className={planner.kpiIcon}><Icon size={15} strokeWidth={2.2} /></span>
-              <div>
-                <div className={`${planner.kpiValue} ${k.danger && kpis[k.key] ? planner.kpiValueDanger : k.warning && kpis[k.key] ? planner.kpiValueWarning : ''}`}>{kpis[k.key] ?? 0}</div>
-                <div className={planner.kpiLabel}>{k.label}</div>
-              </div>
-            </button>
+            <StatCard
+              key={k.key}
+              size="compact"
+              icon={<Icon />}
+              value={kpis[k.key] ?? 0}
+              label={k.label}
+              tone={k.danger && kpis[k.key] ? 'danger' : k.warning && kpis[k.key] ? 'warning' : 'default'}
+              selected={activeKpi === k.key}
+              onClick={() => toggleKpi(k.key)}
+              actionLabel={`Filter by ${k.label}`}
+            />
           );
         })}
-      </div>
+      </StatCardGrid>
 
       <div className={planner.toolRow}>
         <div className={planner.toolLeft}>
@@ -583,9 +592,9 @@ export default function TaskPlannerView({ currentUser }: TaskPlannerViewProps) {
             Show completed {kpis.done ? `(${kpis.done})` : ''}
           </label>
         </div>
-        <button type="button" className={planner.newTaskBtn} onClick={() => openCreate()}>
-          <Plus size={16} strokeWidth={2.4} /> New Task
-        </button>
+        <CommonButton variant="primary" leadingIcon={<Plus />} onClick={() => openCreate()}>
+          New Task
+        </CommonButton>
       </div>
 
       <FilterBarRow
@@ -603,12 +612,9 @@ export default function TaskPlannerView({ currentUser }: TaskPlannerViewProps) {
       {activeChips.length > 0 && (
         <div className={planner.chipRow}>
           {activeChips.map((c) => (
-            <span key={c.key} className={planner.chip}>
-              {c.label}
-              <button type="button" className={planner.chipRemove} onClick={() => removeChip(c.key)} aria-label={`Remove ${c.label} filter`}><X size={12} /></button>
-            </span>
+            <CommonChip key={c.key} size="sm" label={c.label} onRemove={() => removeChip(c.key)} removeLabel={`Remove ${c.label} filter`} />
           ))}
-          <button type="button" className={planner.clearAll} onClick={clearAllFilters}>Clear All</button>
+          <CommonButton variant="link" size="sm" onClick={clearAllFilters}>Clear All</CommonButton>
         </div>
       )}
 
@@ -676,7 +682,7 @@ export default function TaskPlannerView({ currentUser }: TaskPlannerViewProps) {
                       )}
                     </div>
                   ))}
-                  <ToolbarButton onClick={() => openCreate({ departmentId: filters.departmentId || undefined })}>+ Add Task</ToolbarButton>
+                  <ToolbarButton onClick={() => openCreate({ departmentId: filters.departmentId.length === 1 ? filters.departmentId[0] : undefined })}>+ Add Task</ToolbarButton>
                 </div>
               </div>
             );
@@ -759,13 +765,15 @@ export default function TaskPlannerView({ currentUser }: TaskPlannerViewProps) {
               {form.assignTarget === 'department' && form.assignMode === 'selected' && (
                 <Field label={`Employees (${form.assigneeIds.length} selected)`}>
                   {loadingEmployees ? (
-                    <div className={detailStyles.mutedText13}>Loading…</div>
+                    <div className={planner.employeeChipList}>
+                      {[96, 120, 84, 110].map((w, i) => <Skeleton key={i} width={w} height={28} radius={999} />)}
+                    </div>
                   ) : (
                     <div className={planner.employeeChipList}>
                       {employees.map((emp) => (
-                        <label key={emp.id} className={planner.assignModeOption}>
-                          <input type="checkbox" checked={form.assigneeIds.includes(emp.id)} onChange={() => toggleSelectedEmployee(emp.id)} /> {emp.name}
-                        </label>
+                        <CommonChip key={emp.id} size="sm" selected={form.assigneeIds.includes(emp.id)} onClick={() => toggleSelectedEmployee(emp.id)}>
+                          {emp.name}
+                        </CommonChip>
                       ))}
                       {employees.length === 0 && <span className={detailStyles.mutedText13}>No active employees in this department.</span>}
                     </div>
@@ -912,29 +920,49 @@ function FilterBarRow({
 }) {
   return (
     <div className={historyStyles.toolbar} style={{ marginBottom: 12 }}>
-      <input type="text" placeholder="Search tasks…" value={search} onChange={(e) => setSearch(e.target.value)} />
-      <Select auto value={filters.departmentId} onChange={(e) => setFilters((f) => ({ ...f, departmentId: e.target.value }))}>
-        <option value="">All departments</option>
-        {departments.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
-      </Select>
-      <Select auto value={filters.status} onChange={(e) => setFilters((f) => ({ ...f, status: e.target.value as GeneralTaskStatus | '' }))}>
-        <option value="">All statuses</option>
-        {(Object.keys(GENERAL_TASK_STATUS_LABEL) as GeneralTaskStatus[]).map((s) => <option key={s} value={s}>{GENERAL_TASK_STATUS_LABEL[s]}</option>)}
-      </Select>
-      <Select auto value={filters.priority} onChange={(e) => setFilters((f) => ({ ...f, priority: e.target.value as GeneralTaskPriority | '' }))}>
-        <option value="">All priorities</option>
-        {(Object.keys(GENERAL_TASK_PRIORITY_LABEL) as GeneralTaskPriority[]).map((p) => <option key={p} value={p}>{GENERAL_TASK_PRIORITY_LABEL[p]}</option>)}
-      </Select>
+      <SearchInput placeholder="Search tasks…" value={search} onChange={(v) => setSearch(v)} />
+      <Dropdown
+        multiple
+        value={filters.departmentId}
+        onChange={(v) => setFilters((f) => ({ ...f, departmentId: v }))}
+        placeholder="All departments"
+        label="Department"
+        options={departments.map((d) => ({ value: d.id, label: d.name }))}
+      />
+      <Dropdown<GeneralTaskStatus>
+        multiple
+        value={filters.status}
+        onChange={(v) => setFilters((f) => ({ ...f, status: v }))}
+        placeholder="All statuses"
+        label="Status"
+        options={(Object.keys(GENERAL_TASK_STATUS_LABEL) as GeneralTaskStatus[]).map((s) => ({ value: s, label: GENERAL_TASK_STATUS_LABEL[s] }))}
+      />
+      <Dropdown<GeneralTaskPriority>
+        multiple
+        value={filters.priority}
+        onChange={(v) => setFilters((f) => ({ ...f, priority: v }))}
+        placeholder="All priorities"
+        label="Priority"
+        options={(Object.keys(GENERAL_TASK_PRIORITY_LABEL) as GeneralTaskPriority[]).map((p) => ({ value: p, label: GENERAL_TASK_PRIORITY_LABEL[p] }))}
+      />
       {categories.length > 0 && (
-        <Select auto value={filters.category} onChange={(e) => setFilters((f) => ({ ...f, category: e.target.value }))}>
-          <option value="">All categories</option>
-          {categories.map((c) => <option key={c} value={c}>{c}</option>)}
-        </Select>
+        <Dropdown
+          multiple
+          value={filters.category}
+          onChange={(v) => setFilters((f) => ({ ...f, category: v }))}
+          placeholder="All categories"
+          label="Category"
+          options={categories.map((c) => ({ value: c, label: c }))}
+        />
       )}
       {showGroupBy && (
-        <Select auto value={groupBy} onChange={(e) => setGroupBy(e.target.value as GroupKey)}>
-          {GROUP_OPTIONS.map((g) => <option key={g.key} value={g.key}>Group by {g.label}</option>)}
-        </Select>
+        <Dropdown
+          value={groupBy}
+          onChange={(v) => v && setGroupBy(v)}
+          options={GROUP_OPTIONS.map((g) => ({ value: g.key, label: `Group by ${g.label}` }))}
+          clearable={false}
+          ariaLabel="Group by"
+        />
       )}
     </div>
   );

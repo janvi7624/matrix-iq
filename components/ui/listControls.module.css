@@ -1,0 +1,80 @@
+/* ListControls — the standard header for a list page:
+   [quick-filter chips ………………………………] [refresh ⟳] [primary action]
+   then the filter bar (search / selects / date range / clear). */
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  margin-bottom: 14px;
+  min-width: 0;
+}
+.left {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+.right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+/* Quick filters: one row of chips that scrolls sideways on a phone rather
+   than wrapping into a tall block. */
+.quick { min-width: 0; max-width: 100%; }
+@media (max-width: 640px) {
+  .quick {
+    flex-wrap: nowrap !important;
+    overflow-x: auto;
+    scrollbar-width: none;
+    padding-bottom: 2px;
+  }
+  .quick::-webkit-scrollbar { display: none; }
+  .quick > * { flex-shrink: 0; }
+}
+
+/* Date range: [Due  dd-mm-yyyy → dd-mm-yyyy ×] reads as one control. */
+.range {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: var(--mx-control-h);
+  padding: 0 6px 0 12px;
+  border-radius: var(--mx-radius-sm);
+  background: var(--mx-surface);
+  box-shadow: var(--mx-shadow-xs);
+  max-width: 100%;
+  flex-wrap: wrap;
+}
+.rangeLabel {
+  font-size: var(--mx-text-meta);
+  font-weight: var(--mx-weight-medium);
+  color: var(--mx-text-secondary);
+  white-space: nowrap;
+}
+.rangeInput {
+  border: 1px solid var(--mx-border);
+  border-radius: var(--mx-radius-xs);
+  background: #ffffff;
+  padding: 6px 8px;
+  font: inherit;
+  font-size: var(--mx-text-body);
+  color: var(--mx-ink);
+  min-width: 0;
+}
+.rangeInput:focus-visible { outline: var(--mx-focus-ring-width) solid var(--mx-focus-ring-color); outline-offset: 1px; }
+.rangeSep { color: var(--mx-ink-faint); }
+
+.spin :global(svg) { animation: listControlsSpin 0.8s linear infinite; }
+@keyframes listControlsSpin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .spin :global(svg) { animation: none; } }
+
+.pushRight { margin-left: auto; }

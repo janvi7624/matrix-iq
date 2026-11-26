@@ -8,6 +8,7 @@ import { selectAllOnFocus } from '@/lib/numberInputHelpers';
 import { CostInputs, DomainResult, LineItem } from '@/lib/types';
 import { applyOverride, extraProductKeys, overrideMapKey, OverrideMap } from '@/lib/catalogOverrides';
 import styles from '../calculator.module.css';
+import Select from '@/components/ui/Select';
 
 interface StandeeEstimatorProps {
   active: boolean;
@@ -119,30 +120,30 @@ export default function StandeeEstimator({ active, costInputs, onResultChange, o
       <div className={`${styles.row} ${styles.columns}`}>
         <div className={styles.field}>
           <label className={styles.label} htmlFor="standeeCategory">Standee type</label>
-          <select id="standeeCategory" className={styles.formControl} value={category} onChange={(e) => setCategory(e.target.value)}>
+          <Select id="standeeCategory" value={category} onChange={(e) => setCategory(e.target.value)}>
             {STANDEE_CATEGORIES.map((c) => (
               <option key={c} value={c}>{c}</option>
             ))}
-          </select>
+          </Select>
         </div>
         <div className={styles.field}>
           <label className={styles.label} htmlFor="standeeModel">Standee model</label>
-          <select id="standeeModel" className={styles.formControl} value={modelKey} onChange={(e) => setModelKey(e.target.value)}>
+          <Select id="standeeModel" value={modelKey} onChange={(e) => setModelKey(e.target.value)}>
             {modelKeys
               .filter((key) => effectiveModels[key]?.category === category)
               .map((key) => (
                 <option key={key} value={key}>{key}</option>
               ))}
-          </select>
+          </Select>
         </div>
       </div>
       <div className={`${styles.row} ${styles.columns}`}>
         <div className={styles.field}>
           <label className={styles.label} htmlFor="standeePriceTier">Price tier</label>
-          <select id="standeePriceTier" className={styles.formControl} value={priceTier} onChange={(e) => setPriceTier(e.target.value as 'partner' | 'endUser')}>
+          <Select id="standeePriceTier" value={priceTier} onChange={(e) => setPriceTier(e.target.value as 'partner' | 'endUser')}>
             <option value="partner">Partner price</option>
             <option value="endUser">End-user MRP</option>
-          </select>
+          </Select>
         </div>
         <div className={styles.field}>
           <label className={styles.label} htmlFor="standeeQuantity">Quantity</label>

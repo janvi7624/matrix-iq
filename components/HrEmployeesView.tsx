@@ -4,12 +4,12 @@ import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { Users } from 'lucide-react';
 import { DepartmentRecord } from '@/lib/types';
 import AppShell from './AppShell';
-import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
-import { SkeletonRows } from './ui/Skeleton';
+import { SkeletonPage } from './ui/Skeleton';
 import EmptyState from './ui/EmptyState';
 import ErrorState from './ui/ErrorState';
 import FilterBar from './ui/FilterBar';
+import SearchInput from './ui/SearchInput';
 import Table, { TableColumn } from './ui/Table';
 import { Field, FieldRow } from './ui/Field';
 import Input from './ui/Input';
@@ -209,7 +209,7 @@ export default function HrEmployeesView({ canCreate }: HrEmployeesViewProps) {
   if (loading) {
     return (
       <AppShell title="Employees" subtitle="Active employee directory.">
-        <div className={historyStyles.tableWrap}><SkeletonRows rows={8} columns={6} /></div>
+        <SkeletonPage columns={columns.length} rows={8} />
       </AppShell>
     );
   }
@@ -222,9 +222,9 @@ export default function HrEmployeesView({ canCreate }: HrEmployeesViewProps) {
   }
 
   return (
-    <AppShell title="Employees" subtitle="Active employee directory.">
+    <AppShell fillPage={!showForm} title="Employees" subtitle="Active employee directory.">
       {canCreate && (
-        <div className={historyStyles.tableWrap} style={{ marginBottom: 16 }}>
+        <div style={{ marginBottom: 16 }}>
           <ToolbarButton primary={showForm} onClick={() => setShowForm((v) => !v)}>
             {showForm ? 'Cancel' : 'New Employee'}
           </ToolbarButton>
@@ -290,7 +290,7 @@ export default function HrEmployeesView({ canCreate }: HrEmployeesViewProps) {
       )}
 
       <FilterBar>
-        <input type="text" placeholder="Search name, department, role…" value={search} onChange={(e) => setSearch(e.target.value)} />
+        <SearchInput placeholder="Search name, department, role…" value={search} onChange={(v) => setSearch(v)} />
       </FilterBar>
       <Table
         columns={columns}

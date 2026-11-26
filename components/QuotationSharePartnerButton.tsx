@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Share2, Loader2 } from 'lucide-react';
 import { useToast } from './ui/ToastProvider';
 import { useConfirm } from './ui/ConfirmDialog';
+import CommonButton from './ui/CommonButton';
 import styles from './quotationHistory.module.css';
 
 interface Props {
@@ -104,22 +105,23 @@ export default function QuotationSharePartnerButton({
   // went on this one quotation.
   if (!shareable && !live) {
     return (
-      <button
-        type="button"
-        className={styles.rowAction}
+      <CommonButton
+        variant="secondary"
+        size="sm"
+        leadingIcon={<Share2 size={14} aria-hidden />}
         disabled
         title={`Finalise ${quotationNumber} before sharing it with ${partnerName}.`}
       >
-        <Share2 size={14} aria-hidden />
         <span className={styles.rowActionLabel}>Share</span>
-      </button>
+      </CommonButton>
     );
   }
 
   return (
-    <button
-      type="button"
-      className={styles.rowAction}
+    <CommonButton
+      variant="secondary"
+      size="sm"
+      leadingIcon={busy ? <Loader2 size={14} className={styles.rowActionSpin} aria-hidden /> : <Share2 size={14} aria-hidden />}
       disabled={busy}
       title={
         live
@@ -128,10 +130,9 @@ export default function QuotationSharePartnerButton({
       }
       onClick={live ? revoke : share}
     >
-      {busy ? <Loader2 size={14} className={styles.rowActionSpin} aria-hidden /> : <Share2 size={14} aria-hidden />}
       <span className={`${styles.rowActionLabel} ${styles.rowActionLabelFixed}`}>
         {busy ? 'Working…' : live ? 'Shared' : 'Share'}
       </span>
-    </button>
+    </CommonButton>
   );
 }

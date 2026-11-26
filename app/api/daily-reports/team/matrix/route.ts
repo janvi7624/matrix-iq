@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { dailyReportErrorResponse, guardDailyReport, isGuardFailure } from '@/lib/dailyReportApi';
 import { buildTeamMatrix, MatrixRangeError } from '@/lib/dailyReportMatrix';
 import { canAccessTeamDashboard } from '@/lib/dailyReportAccess';
+import { getListParam } from '@/lib/listParam';
 import { isIsoDate } from '@/lib/dailyReportTime';
 
 // GET /api/daily-reports/team/matrix?from=&to=&departmentId=&search=&expand=
@@ -37,7 +38,9 @@ export async function GET(request: NextRequest) {
       await buildTeamMatrix(viewer, {
         from: from || undefined,
         to: to || undefined,
-        departmentId: params.get('departmentId') || undefined,
+        // Repeated keys from the multi-select filter; each id is checked
+        // against the viewer's scope downstream (narrowDepartmentScope).
+        departmentId: getListParam(params, 'departmentId'),
         search: params.get('search') || undefined,
         expand: params.get('expand') || undefined
       })

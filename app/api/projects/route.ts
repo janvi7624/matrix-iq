@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getViewerContext } from '@/lib/viewerContext';
 import { listLastRemarks, projectStore, ProjectListQuery } from '@/lib/projectStore';
 import { apiErrorResponse } from '@/lib/apiError';
+import { getListParam } from '@/lib/listParam';
 import { ProjectPriority, ProjectRecord, ProjectStage, ProjectStatus, UserRecord } from '@/lib/types';
 import { requestTechnicalPerson } from '@/lib/projectTechnicalRequest';
 import { findSalesPersonCandidate, notifySalesPersonAssigned, SalesOwnerError } from '@/lib/projectSalesOwner';
@@ -55,19 +56,19 @@ export async function GET(request: NextRequest) {
     if (params.has('page')) {
       const query: ProjectListQuery = {
         search: params.get('search') || undefined,
-        stage: (params.get('stage') as ProjectStage) || undefined,
-        status: (params.get('status') as ProjectStatus) || undefined,
-        priority: params.get('priority') || undefined,
-        salesPerson: params.get('salesPerson') || undefined,
-        source: params.get('source') || undefined,
-        department: params.get('department') || undefined,
-        type: params.get('type') || undefined,
-        lead: params.get('lead') || undefined,
+        stage: getListParam(params, 'stage') as ProjectStage[],
+        status: getListParam(params, 'status') as ProjectStatus[],
+        priority: getListParam(params, 'priority'),
+        salesPerson: getListParam(params, 'salesPerson'),
+        source: getListParam(params, 'source'),
+        department: getListParam(params, 'department'),
+        type: getListParam(params, 'type'),
+        lead: getListParam(params, 'lead'),
         from: params.get('from') || undefined,
         to: params.get('to') || undefined,
         closingFrom: params.get('closingFrom') || undefined,
         closingTo: params.get('closingTo') || undefined,
-        confirmation: params.get('confirmation') || undefined,
+        confirmation: getListParam(params, 'confirmation'),
         awaitingMine: params.get('awaitingMine') === '1',
         awaitingTeam: params.get('awaitingTeam') === '1',
         includeClosed: params.get('includeClosed') === '1',

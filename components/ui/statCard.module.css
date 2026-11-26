@@ -1,0 +1,332 @@
+/* StatCard — the one KPI / summary / count card for the whole app.
+
+   Clean, neutral resting state: white card, soft shadow, a grey icon tile
+   top-left, a quiet → arrow top-right (only on cards that open something),
+   a big ink value and a muted label. No coloured backgrounds or coloured
+   numbers — colour appears only as interaction feedback (hover/focus/
+   selected: accent line along the top, dark icon tile, red arrow) and as a
+   small tint on the icon tile for danger/warning cards. */
+
+.card {
+  box-sizing: border-box;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  width: 100%;
+  min-width: 0;
+  margin: 0;
+  padding: 18px 20px;
+  border: 1px solid transparent;
+  border-radius: var(--mx-radius-lg);
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgba(17, 24, 39, 0.04), 0 4px 14px rgba(17, 24, 39, 0.06);
+  color: var(--mx-text-primary);
+  font: inherit;
+  text-align: left;
+  text-decoration: none;
+}
+
+/* Accent line along the top edge — shown on hover/focus/selected. */
+.card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--mx-brand), var(--mx-ink));
+  opacity: 0;
+  transition: opacity var(--mx-duration-base) var(--mx-ease);
+}
+
+.compact { padding: 12px 14px; border-radius: var(--mx-radius-md); }
+.center { text-align: center; align-items: center; }
+
+/* ---------- Head: icon tile + open arrow ---------- */
+.head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+  min-width: 0;
+}
+.compact .head { margin-bottom: 8px; }
+.center .head { align-self: stretch; }
+
+.icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--mx-radius-xs);
+  border: 1px solid var(--mx-border);
+  background: var(--mx-gray-100);
+  color: var(--mx-ink);
+  transition:
+    background var(--mx-duration-base) var(--mx-ease),
+    color var(--mx-duration-base) var(--mx-ease),
+    border-color var(--mx-duration-base) var(--mx-ease);
+}
+.compact .icon { width: 32px; height: 32px; }
+.icon :global(svg) { width: var(--mx-icon-md); height: var(--mx-icon-md); }
+.compact .icon :global(svg) { width: var(--mx-icon-sm); height: var(--mx-icon-sm); }
+
+/* The "you can open this" cue — a plain arrow, no chip. */
+.affordance {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: var(--mx-ink-faint);
+  transition:
+    color var(--mx-duration-base) var(--mx-ease),
+    transform var(--mx-duration-base) var(--mx-ease);
+}
+.affordance :global(svg) { width: var(--mx-icon-md); height: var(--mx-icon-md); }
+
+/* ---------- Content ---------- */
+.value {
+  min-width: 0;
+  max-width: 100%;
+  font-size: 1.75rem;
+  font-weight: var(--mx-weight-bold);
+  line-height: var(--mx-leading-tight);
+  letter-spacing: -0.01em;
+  color: var(--mx-ink);
+  font-variant-numeric: tabular-nums;
+  /* Never break INSIDE a number/amount ("1,268", "₹54,50,66,872.07").
+     break-word (unlike `anywhere`) doesn't lower the min-content width, so
+     the card grows to fit the whole value instead; text values with spaces
+     can still wrap between words. */
+  overflow-wrap: break-word;
+  word-break: normal;
+}
+.compact .value { font-size: 1.3rem; }
+/* Text values (names, departments) — readable, not shouty. */
+.value.valueSm,
+.compact .value.valueSm { font-size: var(--mx-text-control); font-weight: var(--mx-weight-semibold); }
+
+.label {
+  margin-top: 6px;
+  font-size: var(--mx-text-body);
+  font-weight: var(--mx-weight-medium);
+  color: var(--mx-text-secondary);
+  line-height: var(--mx-leading-normal);
+}
+.compact .label { margin-top: 2px; font-size: var(--mx-text-meta); }
+.sub {
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--mx-ink-faint);
+  line-height: var(--mx-leading-normal);
+}
+.extra { margin-top: 8px; min-width: 0; }
+
+/* ---------- Interactive ---------- */
+.interactive {
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    transform var(--mx-duration-base) var(--mx-ease),
+    box-shadow var(--mx-duration-base) var(--mx-ease),
+    border-color var(--mx-duration-base) var(--mx-ease);
+}
+/* Cards without an icon: the arrow floats top-right, clear of the value. */
+.interactive:not(:has(.icon)) .head { position: absolute; top: 18px; right: 20px; margin: 0; }
+.interactive.compact:not(:has(.icon)) .head { top: 12px; right: 14px; }
+.interactive:not(:has(.icon)) { padding-right: 48px; }
+
+.interactive:hover,
+.interactive:focus-visible,
+.selected {
+  transform: translateY(-2px);
+  box-shadow: 0 2px 4px rgba(17, 24, 39, 0.06), 0 12px 28px rgba(17, 24, 39, 0.12);
+}
+.interactive:hover::before,
+.interactive:focus-visible::before,
+.selected::before { opacity: 1; }
+.interactive:hover .icon,
+.interactive:focus-visible .icon,
+.selected .icon {
+  background: var(--mx-ink);
+  border-color: var(--mx-ink);
+  color: #ffffff;
+}
+.interactive:hover .affordance,
+.interactive:focus-visible .affordance,
+.selected .affordance {
+  color: var(--mx-brand);
+  transform: translateX(3px);
+}
+.interactive:active { transform: translateY(0); }
+.interactive:focus-visible {
+  outline: var(--mx-focus-ring-width) solid var(--mx-focus-ring-color);
+  outline-offset: var(--mx-focus-ring-offset);
+}
+
+/* Selected (a card acting as a filter) also keeps a thin ink outline so
+   it stays distinguishable from a merely hovered neighbour. */
+.selected { border-color: var(--mx-ink); }
+
+.disabled {
+  opacity: var(--mx-disabled-opacity);
+  cursor: not-allowed;
+  transform: none !important;
+}
+
+/* ---------- Tones ----------
+   Deliberately subtle: only the icon tile carries meaning. Values, labels
+   and backgrounds stay neutral. */
+.danger .icon { background: var(--mx-red-50); border-color: var(--mx-red-200); color: var(--mx-danger); }
+.warning .icon { background: var(--mx-amber-50); border-color: var(--mx-amber-200); color: var(--mx-warning); }
+.success .icon { color: var(--mx-success); }
+.info .icon,
+.accent .icon { color: var(--mx-info); }
+.brand .icon { color: var(--mx-brand); }
+/* Interaction state wins over tone. */
+.interactive.interactive:hover .icon,
+.interactive.interactive:focus-visible .icon,
+.selected.selected .icon {
+  background: var(--mx-ink);
+  border-color: var(--mx-ink);
+  color: #ffffff;
+}
+
+/* ---------- Grid ----------
+   Not a fixed-column grid: a fixed track width squeezed long values
+   ("₹54,50,66,872.07") into a narrow card and broke them across lines.
+   A wrapping flex row lets each card start at its content's width, grow to
+   share the row, and never shrink below its value.
+   Doubled class on purpose: callers may pass a legacy wrapper class (for
+   its margins) that still declares display:grid — this must win regardless
+   of stylesheet load order. */
+/* Default breathing room above/below a row of cards, so it never butts
+   against the panel before or after it (the old per-page wrappers —
+   .kpiRow, .kpiGrid, .summaryCardGrid… — each carried this margin).
+   :where() keeps it at zero specificity: a caller's own className or
+   inline style margin always wins. No extra space at a container's edges. */
+:where(.grid) { margin-block: var(--mx-space-4); }
+:where(.grid):first-child { margin-top: 0; }
+:where(.grid):last-child { margin-bottom: 0; }
+
+.grid.grid {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: 16px;
+  min-width: 0;
+}
+.grid.grid > * {
+  flex: 1 1 auto;
+  width: auto;
+  min-width: var(--stat-card-min, 180px);
+}
+
+@media (max-width: 480px) {
+  .grid.grid { gap: 10px; }
+  .grid.grid > * { min-width: var(--stat-card-min-phone, 140px); }
+  .card { padding: 14px 16px; }
+  .value { font-size: 1.4rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card::before, .interactive, .affordance, .icon { transition: none; }
+  .interactive:hover, .interactive:focus-visible, .selected { transform: none; }
+  .interactive:hover .affordance { transform: none; }
+}
+
+/* ---------- Interactions: make "this card opens something" obvious ----------
+   Hover: the card lifts with a brand-tinted border; the icon tile turns dark,
+   grows and tilts; the → grows into a red "View →" pill whose arrow keeps
+   nudging forward. Press: the icon tile bounces with a ripple ring and the
+   card dips slightly. All off under prefers-reduced-motion. */
+.affordance {
+  gap: 4px;
+  padding: 4px;
+  border-radius: var(--mx-radius-full);
+  transition:
+    background var(--mx-duration-base) var(--mx-ease),
+    color var(--mx-duration-base) var(--mx-ease),
+    padding var(--mx-duration-base) var(--mx-ease),
+    box-shadow var(--mx-duration-base) var(--mx-ease);
+}
+.affordanceText {
+  max-width: 0;
+  overflow: hidden;
+  opacity: 0;
+  white-space: nowrap;
+  font-size: 12px;
+  font-weight: var(--mx-weight-semibold);
+  line-height: 1;
+  transition:
+    max-width var(--mx-duration-slow) var(--mx-ease),
+    opacity var(--mx-duration-base) var(--mx-ease);
+}
+.affordanceIcon { display: inline-flex; }
+.affordanceIcon :global(svg) { width: var(--mx-icon-sm); height: var(--mx-icon-sm); }
+
+.interactive:hover,
+.interactive:focus-visible { border-color: rgba(220, 38, 38, 0.28); }
+
+.interactive:hover .affordance,
+.interactive:focus-visible .affordance {
+  background: var(--mx-brand);
+  color: #ffffff;
+  padding: 5px 10px 5px 12px;
+  transform: none;
+  box-shadow: 0 4px 12px rgba(220, 38, 38, 0.3);
+}
+.interactive:hover .affordanceText,
+.interactive:focus-visible .affordanceText { max-width: 64px; opacity: 1; }
+.interactive:hover .affordanceIcon { animation: statCardNudge 0.9s var(--mx-ease) infinite; }
+@keyframes statCardNudge {
+  0%, 100% { transform: translateX(0); }
+  50% { transform: translateX(3px); }
+}
+
+/* The left icon tile stays still (only its colour changes on hover, above). */
+
+/* Press: the card dips slightly and the "View →" pill bounces with a ripple. */
+.interactive:active { transform: translateY(0) scale(0.985); }
+.affordance { position: relative; }
+.affordancePressed { animation: statCardPress 0.42s var(--mx-ease); }
+.affordancePressed::after {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: inherit;
+  border: 2px solid var(--mx-brand);
+  animation: statCardRipple 0.55s var(--mx-ease) forwards;
+  pointer-events: none;
+}
+@keyframes statCardPress {
+  0% { transform: scale(1); }
+  35% { transform: scale(0.86); }
+  70% { transform: scale(1.08); }
+  100% { transform: scale(1); }
+}
+@keyframes statCardRipple {
+  from { opacity: 0.9; transform: scale(1); }
+  to { opacity: 0; transform: scale(1.6); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .affordance, .affordanceText { transition: none; }
+  .interactive:hover .affordanceIcon, .affordancePressed, .affordancePressed::after { animation: none; }
+  .interactive:active { transform: none; }
+}
+
+/* A number/amount never wraps ("₹52,68,843.7 / 0" on a laptop); instead the
+   size scales gently with the screen width — full size on a wide monitor,
+   a little smaller on a 1366px laptop. Text values (valueSm) still wrap. */
+.value {
+  white-space: nowrap;
+  font-size: clamp(1.3rem, 0.95rem + 0.85vw, 1.75rem);
+}
+.compact .value { font-size: clamp(1.1rem, 0.9rem + 0.5vw, 1.3rem); }
+.value.valueSm { white-space: normal; }

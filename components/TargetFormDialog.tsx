@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Modal, { ModalCancelButton, ModalOkButton } from './ui/Modal';
+import CommonButton from './ui/CommonButton';
+import { Skeleton } from './ui/Skeleton';
 import { useToast } from './ui/ToastProvider';
 import { fiscalYearOptions, TargetPeriodType } from '@/lib/targetPeriod';
 import { fiscalYearMonthKeys, MonthAmounts, rollupSummary } from '@/lib/targetRollup';
@@ -9,6 +11,7 @@ import { formatMoney } from '@/lib/format';
 import calcStyles from './calculator.module.css';
 import historyStyles from './quotationHistory.module.css';
 import styles from './targetDetails.module.css';
+import Select from '@/components/ui/Select';
 
 interface TargetFormDialogProps {
   employeeId: string;
@@ -164,11 +167,11 @@ export default function TargetFormDialog({
 
       <div className={calcStyles.field}>
         <label>Fiscal Year</label>
-        <select className={calcStyles.formControl} value={fiscalYear} onChange={(e) => setFiscalYear(e.target.value)}>
+        <Select value={fiscalYear} onChange={(e) => setFiscalYear(e.target.value)}>
           {fiscalYearOptions().map((fy) => (
             <option key={fy} value={fy}>FY {fy}</option>
           ))}
-        </select>
+        </Select>
       </div>
 
       {/* Each month its own figure — the whole point of this form. Quarters,
@@ -177,7 +180,14 @@ export default function TargetFormDialog({
       <div className={calcStyles.field}>
         <label>Monthly Targets (₹)</label>
         {loading ? (
-          <div className={calcStyles.small}>Loading existing targets…</div>
+          <div className={styles.monthGrid} role="status" aria-busy="true" aria-label="Loading existing targets">
+            {monthKeys.map((key) => (
+              <div key={key} className={styles.monthCell}>
+                <Skeleton width="50%" height={11} />
+                <Skeleton height={44} radius={12} />
+              </div>
+            ))}
+          </div>
         ) : (
           <div className={styles.monthGrid}>
             {monthKeys.map((key) => (
@@ -193,15 +203,16 @@ export default function TargetFormDialog({
                   onChange={(e) => setMonth(key, e.target.value)}
                   aria-label={`Target for ${MONTH_LABEL_FROM_KEY(key)}`}
                 />
-                <button
-                  type="button"
-                  className={styles.monthFillBtn}
+                <CommonButton
+                  variant="link"
+                  size="sm"
+                  style={{ alignSelf: 'flex-start' }}
                   onClick={() => fillAllFrom(key)}
                   disabled={!monthInputs[key]}
                   title="Copy this figure to every month of the year"
                 >
                   Apply to all
-                </button>
+                </CommonButton>
               </div>
             ))}
           </div>

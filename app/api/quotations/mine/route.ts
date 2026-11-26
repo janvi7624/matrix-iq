@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getViewerContext } from '@/lib/viewerContext';
 import { searchQuotationsFiltered } from '@/lib/quotationStore';
 import { apiErrorResponse } from '@/lib/apiError';
+import { getListParam } from '@/lib/listParam';
 import { QuotationEffectiveStatus } from '@/lib/types';
 
 const VALID_STATUSES: QuotationEffectiveStatus[] = ['draft', 'sent', 'approved', 'rejected', 'expired'];
@@ -17,10 +18,14 @@ export async function GET(request: NextRequest) {
   if (!viewer) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const params = request.nextUrl.searchParams;
-  const status = params.get('status');
-  const salesPersonParam = params.get('salesPerson')?.trim();
+  // Several statuses / sales people may be picked (repeated params); unknown
+  // statuses are dropped, as a single unknown one always was.
+  const statuses = getListParam(params, 'status').filter((s): s is QuotationEffectiveStatus => VALID_STATUSES.includes(s as QuotationEffectiveStatus));
+  const salesPeople = getListParam(params, 'salesPerson');
 
-  const ownerUsername = viewer.isPrivileged ? (salesPersonParam || undefined) : viewer.username;
+  // A non-privileged viewer's own username always wins — the salesPerson
+  // param is ignored for them, whatever it lists.
+  const ownerUsername = viewer.isPrivileged ? (salesPeople.length ? salesPeople : undefined) : viewer.username;
 
   try {
     const rows = await searchQuotationsFiltered({
@@ -28,7 +33,7 @@ export async function GET(request: NextRequest) {
       viewerUsername: viewer.username,
       query: params.get('q') || undefined,
       projectId: params.get('projectId') || undefined,
-      status: status && VALID_STATUSES.includes(status as QuotationEffectiveStatus) ? (status as QuotationEffectiveStatus) : undefined,
+      status: statuses.length ? statuses : undefined,
       dateFrom: params.get('dateFrom') || undefined,
       dateTo: params.get('dateTo') || undefined
     });

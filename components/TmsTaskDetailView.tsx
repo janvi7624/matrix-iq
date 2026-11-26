@@ -1,13 +1,15 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import Link from 'next/link';
+import Link from '@/components/ui/AppLink';
 import TaskAttachments from './TaskAttachments';
 import { AuditLogEntry, TmsPriority, TmsTaskRecord, TmsTaskStatus, TmsTaskUpdateRecord, UserRole } from '@/lib/types';
 import { EngineerTaskAction, TMS_PRIORITY_LABEL, TMS_PRIORITY_TONE, TMS_TASK_ACTION_LABEL, TMS_TASK_STATUS_LABEL, TMS_TASK_STATUS_TONE } from '@/lib/tmsLabels';
 import { ENGINEER_ACTIONS_BY_STATUS } from '@/lib/aiTmsStatusMapping';
 import { TMS_MANAGER_TIER_ROLES } from '@/lib/tmsConstants';
 import AppShell from './AppShell';
+import CommonButton from './ui/CommonButton';
+import PageBackButton from './ui/PageBackButton';
 import DecisionModal from './ui/DecisionModal';
 import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
@@ -20,6 +22,7 @@ import ToolbarButton from './ui/ToolbarButton';
 import TmsTaskDeadlineExtendModal from './TmsTaskDeadlineExtendModal';
 import { TmsTaskDeadlineExtensionRecord } from '@/lib/types';
 import styles from './tmsDetail.module.css';
+import { SkeletonDetail } from './ui/Skeleton';
 
 interface TaskDetailResponse {
   task: TmsTaskRecord;
@@ -275,8 +278,15 @@ export default function TmsTaskDetailView({ taskId, currentUser }: TmsTaskDetail
 
   if (!data) {
     return (
-      <AppShell title="Task" subtitle="" showBackLink>
-        <div className={historyStyles.status}>{status || 'Loading...'}</div>
+      <AppShell title="Task" subtitle="">
+        <div className={styles.headerRow}>
+          <PageBackButton fallbackRoute="/tms/tasks" />
+        </div>
+        {!status || status === 'Loading...' ? (
+          <SkeletonDetail panels={2} pairs={6} withTopRow={false} />
+        ) : (
+          <div className={historyStyles.status}>{status}</div>
+        )}
       </AppShell>
     );
   }
@@ -287,12 +297,12 @@ export default function TmsTaskDetailView({ taskId, currentUser }: TmsTaskDetail
   const extensions = data.extensions ?? [];
 
   return (
-    <AppShell title={task.name} subtitle={`Task on ${task.project_name}`} showBackLink>
+    <AppShell title={task.name} subtitle={`Task on ${task.project_name}`}>
       <div className={styles.headerRow}>
+        <PageBackButton fallbackRoute="/tms/tasks" />
         <StatusBadge tone={TMS_TASK_STATUS_TONE[task.status]} label={TMS_TASK_STATUS_LABEL[task.status]} />
         <PriorityBadge tone={TMS_PRIORITY_TONE[task.priority]} label={TMS_PRIORITY_LABEL[task.priority]} />
-        <Link className={historyStyles.button} href={`/tms/projects/${task.project_id}`}>View Project</Link>
-        <Link className={historyStyles.button} href="/tms/tasks">Back to Tasks</Link>
+        <CommonButton href={`/tms/projects/${task.project_id}`}>View Project</CommonButton>
       </div>
 
       <div className={`${calcStyles.sectionPanel} ${styles.panelSpaced16}`}>
@@ -316,14 +326,15 @@ export default function TmsTaskDetailView({ taskId, currentUser }: TmsTaskDetail
                 ever be to rewrite its on-time record, which is exactly what
                 departmentScoring.ts measures. */}
             {task.status !== 'completed' && task.status !== 'cancelled' && (
-              <button
-                type="button"
-                className={styles.extendDueBtn}
+              <CommonButton
+                variant="outlined"
+                size="sm"
+                style={{ marginLeft: 8 }}
                 onClick={() => setShowExtendDeadline(true)}
                 title={task.due_date ? 'Request a later due date' : 'Set a due date'}
               >
                 {task.due_date ? 'Extend' : 'Set date'}
-              </button>
+              </CommonButton>
             )}
           </div>
         </div>
@@ -372,22 +383,22 @@ export default function TmsTaskDetailView({ taskId, currentUser }: TmsTaskDetail
                     re-resolves the tier and owns the real rule. */}
                 {pending && isManagerTier && (
                   <div className={styles.actionButtonsRow}>
-                    <button
-                      type="button"
-                      className={calcStyles.btn}
+                    <CommonButton
+                      variant="success"
+                      size="sm"
                       disabled={deciding}
                       onClick={() => { setDecidingExtension({ id: ext.id, decision: 'approve' }); setDecisionRemark(''); }}
                     >
                       Approve
-                    </button>
-                    <button
-                      type="button"
-                      className={calcStyles.btn}
+                    </CommonButton>
+                    <CommonButton
+                      variant="destructive"
+                      size="sm"
                       disabled={deciding}
                       onClick={() => { setDecidingExtension({ id: ext.id, decision: 'reject' }); setDecisionRemark(''); }}
                     >
                       Reject
-                    </button>
+                    </CommonButton>
                   </div>
                 )}
               </div>
@@ -423,13 +434,13 @@ export default function TmsTaskDetailView({ taskId, currentUser }: TmsTaskDetail
           <div className={`${calcStyles.h2} ${calcStyles.h2Flush}`}>Update Status</div>
           <div className={styles.actionButtonsRow}>
             {task.status === 'to_do' && (
-              <button type="button" className={calcStyles.btn} disabled={saving} onClick={() => changeStatus('in_progress')}>Start Task</button>
+              <CommonButton variant="primary" disabled={saving} onClick={() => changeStatus('in_progress')}>Start Task</CommonButton>
             )}
             {task.status === 'ready_for_review' && (
-              <button type="button" className={calcStyles.btn} disabled={saving} onClick={() => changeStatus('completed')}>Approve &amp; Complete</button>
+              <CommonButton variant="success" disabled={saving} onClick={() => changeStatus('completed')}>Approve &amp; Complete</CommonButton>
             )}
             {task.status !== 'completed' && task.status !== 'cancelled' && (
-              <button type="button" className={calcStyles.btn} disabled={saving} onClick={() => changeStatus('completed')}>Mark Complete</button>
+              <CommonButton variant="primary" disabled={saving} onClick={() => changeStatus('completed')}>Mark Complete</CommonButton>
             )}
             {task.status !== 'on_hold' && task.status !== 'completed' && task.status !== 'cancelled' && (
               <ToolbarButton disabled={saving} onClick={() => changeStatus('on_hold')}>Put On Hold</ToolbarButton>
@@ -454,9 +465,9 @@ export default function TmsTaskDetailView({ taskId, currentUser }: TmsTaskDetail
           <div className={`${calcStyles.h2} ${calcStyles.h2Flush}`}>Update Task</div>
           <div className={styles.actionButtonsRow}>
             {(ENGINEER_ACTIONS[task.status] || []).map((action) => (
-              <button key={action} type="button" className={calcStyles.btn} disabled={acting} onClick={() => startAction(action)}>
+              <CommonButton key={action} variant="primary" disabled={acting} onClick={() => startAction(action)}>
                 {TMS_TASK_ACTION_LABEL[action]}
-              </button>
+              </CommonButton>
             ))}
             {(ENGINEER_ACTIONS[task.status] || []).length === 0 && (
               <span className={styles.mutedText13}>
@@ -492,9 +503,9 @@ export default function TmsTaskDetailView({ taskId, currentUser }: TmsTaskDetail
                 onChange={(e) => setActionRemark(e.target.value)}
               />
               <div className={`${styles.actionButtonsRow} ${calcStyles.mt10}`}>
-                <button type="button" className={calcStyles.btn} disabled={acting} onClick={submitAction}>
-                  {acting ? 'Saving…' : `Confirm: ${TMS_TASK_ACTION_LABEL[actingAction]}`}
-                </button>
+                <CommonButton variant="primary" loading={acting} loadingLabel="Saving…" onClick={submitAction}>
+                  {`Confirm: ${TMS_TASK_ACTION_LABEL[actingAction]}`}
+                </CommonButton>
                 <ToolbarButton disabled={acting} onClick={() => setActingAction(null)}>Cancel</ToolbarButton>
               </div>
             </div>
@@ -548,9 +559,9 @@ export default function TmsTaskDetailView({ taskId, currentUser }: TmsTaskDetail
             value={comment}
             onChange={(e) => setComment(e.target.value)}
           />
-          <button type="button" className={`${calcStyles.btn} ${calcStyles.mt8}`} disabled={postingComment || !comment.trim()} onClick={postComment}>
-            {postingComment ? 'Posting…' : 'Add Comment'}
-          </button>
+          <CommonButton variant="primary" className={calcStyles.mt8} loading={postingComment} loadingLabel="Posting…" disabled={!comment.trim()} onClick={postComment}>
+            Add Comment
+          </CommonButton>
         </div>
         {activity.length === 0 ? (
           <div className={styles.mutedText13}>No activity yet.</div>

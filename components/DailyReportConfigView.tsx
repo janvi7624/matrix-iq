@@ -9,13 +9,14 @@ import calcStyles from './calculator.module.css';
 import historyStyles from './quotationHistory.module.css';
 import styles from './dailyReport.module.css';
 import Button from './ui/Button';
+import CommonChip from './ui/CommonChip';
 import Input from './ui/Input';
 import Select from './ui/Select';
 import Textarea from './ui/Textarea';
 import StatTile from './ui/StatTile';
 import EmptyState from './ui/EmptyState';
 import ErrorState from './ui/ErrorState';
-import { SkeletonRows } from './ui/Skeleton';
+import { Skeleton, SkeletonStatCards, SkeletonTable } from './ui/Skeleton';
 import { useToast } from './ui/ToastProvider';
 import { useConfirm } from './ui/ConfirmDialog';
 import { formatIstDateTime } from '@/lib/dailyReportTime';
@@ -244,7 +245,11 @@ export default function DailyReportConfigView() {
   if (loading && !data) {
     return (
       <AppShell title={title} subtitle={subtitle}>
-        <div className={calcStyles.sectionPanel}><SkeletonRows rows={6} columns={3} /></div>
+        <div style={{ display: 'grid', gap: 16 }}>
+          <Skeleton height={64} radius={12} />
+          <SkeletonStatCards count={4} withIcon={false} />
+          <SkeletonTable columns={7} rows={6} />
+        </div>
       </AppShell>
     );
   }
@@ -389,15 +394,13 @@ export default function DailyReportConfigView() {
           <label className={calcStyles.label}>Working days</label>
           <div className={styles.dayToggleRow}>
             {DAY_LABELS.map((label, day) => (
-              <button
+              <CommonChip
                 key={label}
-                type="button"
-                className={`${styles.dayToggle} ${config.working_days.includes(day) ? styles.dayToggleOn : ''}`}
-                aria-pressed={config.working_days.includes(day)}
+                selected={config.working_days.includes(day)}
                 onClick={() => toggleDay(day)}
               >
                 {label}
-              </button>
+              </CommonChip>
             ))}
           </div>
           <div className={calcStyles.small}>
@@ -413,16 +416,14 @@ export default function DailyReportConfigView() {
               const nth = i + 1;
               const on = saturdaysOff().includes(nth);
               return (
-                <button
+                <CommonChip
                   key={label}
-                  type="button"
-                  className={`${styles.dayToggle} ${on ? styles.dayToggleOn : ''}`}
-                  aria-pressed={on}
+                  selected={on}
                   disabled={!config.working_days.includes(SATURDAY)}
                   onClick={() => toggleSaturdayOff(nth)}
                 >
                   {label}
-                </button>
+                </CommonChip>
               );
             })}
           </div>

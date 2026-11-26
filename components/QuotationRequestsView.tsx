@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import Link from 'next/link';
+import Link from '@/components/ui/AppLink';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
   QUOTATION_REQUEST_STATUS_LABEL,
@@ -9,11 +9,16 @@ import {
   canTransition,
   isOpenRequest
 } from '@/lib/partnerQuotationRequestStages';
+import {  } from 'lucide-react';
 import AppShell from './AppShell';
+import CommonButton from './ui/CommonButton';
 import { useToast } from './ui/ToastProvider';
+import { SkeletonList } from './ui/Skeleton';
 import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
 import styles from './quotationRequests.module.css';
+import { RefreshButton } from './ui/ListControls';
+import CommonChip from './ui/CommonChip';
 
 // The sales-side queue of partner quotation requests.
 //
@@ -172,19 +177,21 @@ export default function QuotationRequestsView({ embedded }: { embedded?: boolean
   const body = (
     <>
       <div className={historyStyles.toolbar}>
-        <label className={calcStyles.small} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <input type="checkbox" checked={openOnly} onChange={(e) => setOpenOnly(e.target.checked)} />
+        {/* A filter, so it looks like one: a toggle chip with its count. */}
+        <CommonChip selected={openOnly} onSelectedChange={setOpenOnly} count={counts.open}>
           Open requests only
-        </label>
+        </CommonChip>
         <span className={calcStyles.small}>
           {counts.open} open · {counts.total} shown
         </span>
-        <button type="button" className={historyStyles.button} onClick={() => setReloadKey((k) => k + 1)}>
-          Refresh
-        </button>
+        <RefreshButton onRefresh={() => setReloadKey((k) => k + 1)} loading={status === 'Loading…'} label="Refresh requests" pushRight />
       </div>
 
-      {status && <div className={historyStyles.status}>{status}</div>}
+      {status === 'Loading…' ? (
+        <SkeletonList rows={4} avatar={false} />
+      ) : (
+        status && <div className={historyStyles.status}>{status}</div>
+      )}
 
       {rows.map((row) => {
         const activeNext = acting?.startsWith(`${row.id}|`) ? (acting.split('|')[1] as QuotationRequestStatus) : null;
@@ -234,41 +241,41 @@ export default function QuotationRequestsView({ embedded }: { embedded?: boolean
             {!activeNext ? (
               <div style={{ display: 'flex', gap: 10, marginTop: 10, flexWrap: 'wrap' }}>
                 {canTransition(row.status, 'in_progress') && (
-                  <button type="button" className={historyStyles.button} onClick={() => openAction(row, 'in_progress')}>
+                  <CommonButton size="sm" onClick={() => openAction(row, 'in_progress')}>
                     Start preparing
-                  </button>
+                  </CommonButton>
                 )}
                 {/* Which of these two leads depends on whether anything is
                     ready to send. With a shareable quotation on the project,
                     sending it IS the next step; without one, there is
                     nothing to send and the builder is. */}
                 {canTransition(row.status, 'quoted') && (
-                  <button
-                    type="button"
-                    className={hasSendable ? calcStyles.btn : historyStyles.button}
+                  <CommonButton
+                    size="sm"
+                    variant={hasSendable ? 'primary' : 'secondary'}
                     onClick={() => openAction(row, 'quoted')}
                     disabled={row.project_quotations.length === 0}
                     title={row.project_quotations.length === 0 ? 'No quotations on this project yet' : undefined}
                   >
                     Send quotation to partner
-                  </button>
+                  </CommonButton>
                 )}
                 {/* Straight into the builder with the project already
                     selected — the calculator reads ?projectId= on mount, so
                     the customer, company and on-behalf options come with it. */}
                 {isOpenRequest(row.status) && (
-                  <button
-                    type="button"
-                    className={hasSendable ? historyStyles.button : calcStyles.btn}
+                  <CommonButton
+                    size="sm"
+                    variant={hasSendable ? 'secondary' : 'primary'}
                     onClick={() => router.push(`/quotation?projectId=${encodeURIComponent(row.project_id)}`)}
                   >
                     Create quotation
-                  </button>
+                  </CommonButton>
                 )}
                 {canTransition(row.status, 'declined') && (
-                  <button type="button" className={historyStyles.button} onClick={() => openAction(row, 'declined')}>
+                  <CommonButton size="sm" variant="destructive" onClick={() => openAction(row, 'declined')}>
                     Decline
-                  </button>
+                  </CommonButton>
                 )}
                 {/* A quoted request is finished — the quotation has its own
                     lifecycle from here, so there is nothing left to do. */}
@@ -282,7 +289,7 @@ export default function QuotationRequestsView({ embedded }: { embedded?: boolean
                   <div className={calcStyles.field}>
                     <label className={calcStyles.label}>Which quotation answers this? *</label>
 
-                    {/* Radio cards, not a <select>. A dropdown can only show
+                    {/* Radio cards, not a dropdown. A dropdown can only show
                         one line per option, and a number plus a status is not
                         enough to choose between revisions of the same
                         quotation or several quotes for different scopes —
@@ -361,17 +368,18 @@ export default function QuotationRequestsView({ embedded }: { embedded?: boolean
                   <textarea className={calcStyles.formControl} rows={3} value={note} onChange={(e) => setNote(e.target.value)} />
                 </div>
                 <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                  <button
-                    type="button"
-                    className={calcStyles.btn}
-                    disabled={busy || (activeNext === 'quoted' && !quotationId) || (activeNext === 'declined' && !note.trim())}
+                  <CommonButton
+                    variant="primary"
+                    loading={busy}
+                    loadingLabel="Saving…"
+                    disabled={(activeNext === 'quoted' && !quotationId) || (activeNext === 'declined' && !note.trim())}
                     onClick={() => send(row, activeNext)}
                   >
-                    {busy ? 'Saving…' : 'Confirm'}
-                  </button>
-                  <button type="button" className={historyStyles.button} disabled={busy} onClick={() => setActing(null)}>
+                    Confirm
+                  </CommonButton>
+                  <CommonButton disabled={busy} onClick={() => setActing(null)}>
                     Cancel
-                  </button>
+                  </CommonButton>
                 </div>
               </div>
             )}

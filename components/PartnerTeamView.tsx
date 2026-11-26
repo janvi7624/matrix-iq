@@ -2,10 +2,13 @@
 
 import { FormEvent, useCallback, useEffect, useState } from 'react';
 import PartnerShell from './PartnerShell';
+import CommonButton from './ui/CommonButton';
+import { SkeletonList } from './ui/Skeleton';
 import { useToast } from './ui/ToastProvider';
 import { PARTNER_ROLE_LABEL } from '@/lib/partnerRoles';
 import calcStyles from './calculator.module.css';
 import styles from './partnerProfile.module.css';
+import Select from './ui/Select';
 
 interface TeamUser {
   id: string;
@@ -124,9 +127,9 @@ export default function PartnerTeamView({ companyName, partnerCode, currentUserI
             They will be asked to set their own password when they first sign in. This is the only time it is shown —
             if it is lost, use “Reset password” below.
           </p>
-          <button type="button" className={calcStyles.btn} onClick={() => setIssued(null)}>
+          <CommonButton variant="primary" size="md" onClick={() => setIssued(null)}>
             Done — I have shared it
-          </button>
+          </CommonButton>
         </div>
       )}
 
@@ -154,21 +157,21 @@ export default function PartnerTeamView({ companyName, partnerCode, currentUserI
         </div>
         <div className={calcStyles.field}>
           <label className={calcStyles.label} htmlFor="role">Access level</label>
-          <select id="role" className={calcStyles.formControl} value={form.role} onChange={(e) => set('role', e.target.value)}>
+          <Select id="role" value={form.role} onChange={(e) => set('role', e.target.value)}>
             <option value="partner-user">{PARTNER_ROLE_LABEL['partner-user'] || 'Partner User'}</option>
             <option value="partner-admin">{PARTNER_ROLE_LABEL['partner-admin'] || 'Partner Admin'}</option>
-          </select>
+          </Select>
           <p className={calcStyles.small}>A Partner Admin can also manage these logins.</p>
         </div>
-        <button type="submit" className={calcStyles.btn} disabled={saving}>
-          {saving ? 'Creating…' : 'Create login'}
-        </button>
+        <CommonButton type="submit" variant="primary" size="md" loading={saving} loadingLabel="Creating…">
+          Create login
+        </CommonButton>
       </form>
 
       <div className={calcStyles.sectionPanel}>
         <h2 className={calcStyles.h2}>Your team</h2>
         {!users ? (
-          <p className={calcStyles.small}>Loading…</p>
+          <SkeletonList rows={3} avatar={false} boxed={false} />
         ) : users.length === 0 ? (
           <p className={calcStyles.small}>No logins yet.</p>
         ) : (
@@ -211,22 +214,22 @@ export default function PartnerTeamView({ companyName, partnerCode, currentUserI
                     on yourself, so offering them would only produce an error. */}
                 {!isSelf && (
                   <div className={styles.teamActions}>
-                    <button
-                      type="button"
-                      className={calcStyles.btnSecondary || calcStyles.btn}
+                    <CommonButton
+                      variant="secondary"
+                      size="sm"
                       disabled={busyId === u.id}
                       onClick={() => void patch(u, { resetPassword: true })}
                     >
                       Reset password
-                    </button>
-                    <button
-                      type="button"
-                      className={calcStyles.btnSecondary || calcStyles.btn}
+                    </CommonButton>
+                    <CommonButton
+                      variant={u.status === 'active' ? 'destructive' : 'secondary'}
+                      size="sm"
                       disabled={busyId === u.id}
                       onClick={() => void patch(u, { status: u.status === 'active' ? 'inactive' : 'active' })}
                     >
                       {u.status === 'active' ? 'Remove access' : 'Restore access'}
-                    </button>
+                    </CommonButton>
                   </div>
                 )}
               </div>

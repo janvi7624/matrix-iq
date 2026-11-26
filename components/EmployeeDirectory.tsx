@@ -1,14 +1,20 @@
 'use client';
 
 import { Fragment, useMemo, useState } from 'react';
-import Link from 'next/link';
-import { ChevronDown, ChevronUp, ChevronsUpDown, Download, Search, Users, X } from 'lucide-react';
+import Link from '@/components/ui/AppLink';
+import { ChevronDown, ChevronUp, ChevronsUpDown, Download, Users } from 'lucide-react';
+import TablePager from './ui/TablePager';
 import { DepartmentRecord, PublicUser, RoleRecord, UserRole } from '@/lib/types';
 import { toCsv } from '@/lib/csv';
 import EmptyState from './ui/EmptyState';
 import ErrorState from './ui/ErrorState';
-import { SkeletonRows } from './ui/Skeleton';
+import { Skeleton, SkeletonStatCards, SkeletonTable } from './ui/Skeleton';
 import Button from './ui/Button';
+import SearchInput from './ui/SearchInput';
+import Dropdown, { inSelection } from './ui/Dropdown';
+import CommonButton from './ui/CommonButton';
+import CommonChip from './ui/CommonChip';
+import StatCard from './ui/StatCard';
 import historyStyles from './quotationHistory.module.css';
 import styles from './employeeDirectory.module.css';
 
@@ -109,10 +115,10 @@ export default function EmployeeDirectory({
   renderRowMenu
 }: EmployeeDirectoryProps) {
   const [q, setQ] = useState('');
-  const [departmentFilter, setDepartmentFilter] = useState('');
-  const [roleFilter, setRoleFilter] = useState('');
+  const [departmentFilter, setDepartmentFilter] = useState<string[]>([]);
+  const [roleFilter, setRoleFilter] = useState<string[]>([]);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('');
-  const [designationFilter, setDesignationFilter] = useState('');
+  const [designationFilter, setDesignationFilter] = useState<string[]>([]);
   const [sortKey, setSortKey] = useState<SortKey>('name');
   const [sortDir, setSortDir] = useState<SortDir>('asc');
   const [page, setPage] = useState(1);
@@ -148,11 +154,11 @@ export default function EmployeeDirectory({
         `${u.name} ${u.employeeId} ${u.email} ${u.username} ${u.designation} ${u.department}`.toLowerCase().includes(needle)
       );
     }
-    if (departmentFilter) rows = rows.filter((u) => u.department === departmentFilter);
-    if (roleFilter) rows = rows.filter((u) => u.role === roleFilter);
+    if (departmentFilter.length) rows = rows.filter((u) => inSelection(u.department, departmentFilter));
+    if (roleFilter.length) rows = rows.filter((u) => inSelection(u.role, roleFilter));
     if (statusFilter === 'pending') rows = rows.filter((u) => u.mustChangePassword);
     else if (statusFilter) rows = rows.filter((u) => u.status === statusFilter);
-    if (designationFilter) rows = rows.filter((u) => u.designation === designationFilter);
+    if (designationFilter.length) rows = rows.filter((u) => inSelection(u.designation, designationFilter));
     return rows;
   }, [users, q, departmentFilter, roleFilter, statusFilter, designationFilter]);
 
@@ -195,31 +201,31 @@ export default function EmployeeDirectory({
   // Every filter change also returns to page 1 — landing on page 4 of a
   // newly-narrowed 1-page list reads as "no results".
   const changeSearch = (value: string) => { setQ(value); setPage(1); };
-  const changeDepartment = (value: string) => { setDepartmentFilter(value); setPage(1); };
-  const changeRole = (value: string) => { setRoleFilter(value); setPage(1); };
+  const changeDepartment = (value: string[]) => { setDepartmentFilter(value); setPage(1); };
+  const changeRole = (value: string[]) => { setRoleFilter(value); setPage(1); };
   const changeStatus = (value: StatusFilter) => { setStatusFilter(value); setPage(1); };
-  const changeDesignation = (value: string) => { setDesignationFilter(value); setPage(1); };
+  const changeDesignation = (value: string[]) => { setDesignationFilter(value); setPage(1); };
   const changePageSize = (value: number) => { setPageSize(value); setPage(1); };
 
   const activeFilters = [
-    departmentFilter && { key: 'department', label: 'Department', value: departmentFilter, clear: () => changeDepartment('') },
-    roleFilter && { key: 'role', label: 'Role', value: roles.find((r) => r.key === roleFilter)?.label || roleFilter, clear: () => changeRole('') },
+    departmentFilter.length > 0 && { key: 'department', label: 'Department', value: departmentFilter.join(', '), clear: () => changeDepartment([]) },
+    roleFilter.length > 0 && { key: 'role', label: 'Role', value: roleFilter.map((k) => roles.find((r) => r.key === k)?.label || k).join(', '), clear: () => changeRole([]) },
     statusFilter && {
       key: 'status',
       label: 'Status',
       value: statusFilter === 'pending' ? 'Pending first login' : statusFilter === 'active' ? 'Active' : 'Inactive',
       clear: () => changeStatus('')
     },
-    designationFilter && { key: 'designation', label: 'Designation', value: designationFilter, clear: () => changeDesignation('') },
+    designationFilter.length > 0 && { key: 'designation', label: 'Designation', value: designationFilter.join(', '), clear: () => changeDesignation([]) },
     q.trim() && { key: 'q', label: 'Search', value: q.trim(), clear: () => changeSearch('') }
   ].filter(Boolean) as { key: string; label: string; value: string; clear: () => void }[];
 
   function clearAllFilters() {
     setQ('');
-    setDepartmentFilter('');
-    setRoleFilter('');
+    setDepartmentFilter([]);
+    setRoleFilter([]);
     setStatusFilter('');
-    setDesignationFilter('');
+    setDesignationFilter([]);
     setPage(1);
   }
 
@@ -322,7 +328,7 @@ export default function EmployeeDirectory({
 
   function ActivityPanel({ user }: { user: PublicUser }) {
     const data = activity[user.id];
-    if (activityLoadingId === user.id && !data) return <SkeletonRows rows={2} columns={4} />;
+    if (activityLoadingId === user.id && !data) return <SkeletonStatCards count={4} withIcon={false} minWidth={120} />;
     if (!data) return <div className={styles.muted}>Could not load activity for this employee.</div>;
     const sections = [
       { label: 'Projects', value: data.projects.total },
@@ -333,10 +339,7 @@ export default function EmployeeDirectory({
     return (
       <div className={styles.activityGrid}>
         {sections.map((s) => (
-          <div key={s.label} className={styles.activityStat}>
-            <div className={styles.activityStatValue}>{s.value}</div>
-            <div className={styles.activityStatLabel}>{s.label}</div>
-          </div>
+          <StatCard key={s.label} size="compact" className={styles.activityStat} value={s.value} label={s.label} />
         ))}
         <div className={styles.activityLogins}>
           <strong>Recent logins:</strong>{' '}
@@ -372,70 +375,56 @@ export default function EmployeeDirectory({
           { key: 'inactive' as StatusFilter, label: 'Inactive', value: stats.inactive },
           { key: 'pending' as StatusFilter, label: 'Pending first login', value: stats.pending }
         ]).map((card) => (
-          <button
+          <StatCard
             key={card.label}
-            type="button"
-            className={`${styles.statCardBtn} ${statusFilter === card.key ? styles.statCardActive : ''}`}
-            aria-pressed={statusFilter === card.key}
+            value={loading ? <Skeleton width={64} height={24} /> : card.value}
+            label={card.label}
+            selected={statusFilter === card.key}
             onClick={() => changeStatus(card.key)}
-          >
-            <div className={styles.statValue}>{loading ? '—' : card.value}</div>
-            <div className={styles.statLabel}>{card.label}</div>
-          </button>
+            actionLabel={`Filter by ${card.label.toLowerCase()}`}
+          />
         ))}
       </div>
 
       <div className={styles.toolbar}>
-        <div className={styles.searchWrap}>
-          <span className={styles.searchIcon}><Search size={16} /></span>
-          <label className={styles.srOnly} htmlFor="empDirSearch">Search employees</label>
-          <input
-            id="empDirSearch"
-            className={styles.searchInput}
-            type="search"
-            placeholder="Search name, ID, email, username, designation…"
-            value={q}
-            onChange={(e) => changeSearch(e.target.value)}
-          />
-          {q && (
-            <button type="button" className={styles.searchClear} onClick={() => changeSearch('')} aria-label="Clear search">
-              <X size={15} />
-            </button>
-          )}
-        </div>
+        <SearchInput
+          id="empDirSearch"
+          className={styles.searchWrap}
+          aria-label="Search employees"
+          placeholder="Search name, ID, email, username, designation…"
+          value={q}
+          onChange={(v) => changeSearch(v)}
+        />
 
-        <label className={styles.srOnly} htmlFor="empDirDept">Filter by department</label>
-        <select
-          id="empDirDept"
-          className={`${styles.filterSelect} ${departmentFilter ? styles.filterSelectActive : ''}`}
+        <Dropdown
+          multiple
           value={departmentFilter}
-          onChange={(e) => changeDepartment(e.target.value)}
-        >
-          <option value="">All departments</option>
-          {[...departments].sort((a, b) => a.name.localeCompare(b.name)).map((d) => <option key={d.id} value={d.name}>{d.name}</option>)}
-        </select>
+          onChange={changeDepartment}
+          placeholder="All departments"
+          label="Department"
+          ariaLabel="Filter by department"
+          options={[...departments].sort((a, b) => a.name.localeCompare(b.name)).map((d) => ({ value: d.name, label: d.name }))}
+        />
 
-        <label className={styles.srOnly} htmlFor="empDirRole">Filter by role</label>
-        <select
-          id="empDirRole"
-          className={`${styles.filterSelect} ${roleFilter ? styles.filterSelectActive : ''}`}
+        <Dropdown
+          multiple
           value={roleFilter}
-          onChange={(e) => changeRole(e.target.value)}
-        >
-          <option value="">All roles</option>
-          {roles.map((r) => <option key={r.key} value={r.key}>{r.label}</option>)}
-        </select>
+          onChange={changeRole}
+          placeholder="All roles"
+          label="Role"
+          ariaLabel="Filter by role"
+          options={roles.map((r) => ({ value: r.key, label: r.label }))}
+        />
 
-        <label className={styles.srOnly} htmlFor="empDirDesignation">Filter by designation</label>
-        <select
-          id="empDirDesignation"
-          className={`${styles.filterSelect} ${designationFilter ? styles.filterSelectActive : ''}`}
+        <Dropdown
+          multiple
           value={designationFilter}
-          onChange={(e) => changeDesignation(e.target.value)}
-        >
-          <option value="">All designations</option>
-          {designations.map((d) => <option key={d} value={d}>{d}</option>)}
-        </select>
+          onChange={changeDesignation}
+          placeholder="All designations"
+          label="Designation"
+          ariaLabel="Filter by designation"
+          options={designations.map((d) => ({ value: d, label: d }))}
+        />
 
         <Button variant="secondary" compact icon={<Download size={15} />} onClick={exportCsv} disabled={sorted.length === 0}>
           Export CSV
@@ -445,22 +434,29 @@ export default function EmployeeDirectory({
       <div className={styles.metaRow}>
         <span className={styles.resultCount} role="status" aria-live="polite">
           {loading
-            ? 'Loading employees…'
+            ? <Skeleton width={180} height={14} />
             : sorted.length === 0
               ? 'No employees match'
               : `Showing ${startIndex + 1}–${Math.min(startIndex + pageSize, sorted.length)} of ${sorted.length}${sorted.length !== users.length ? ` (filtered from ${users.length})` : ''}`}
         </span>
         {activeFilters.map((f) => (
-          <span key={f.key} className={styles.chip}>
-            <span className={styles.chipLabel}>{f.label}:</span>
-            <span className={styles.chipValue} title={f.value}>{f.value}</span>
-            <button type="button" className={styles.chipClear} onClick={f.clear} aria-label={`Clear ${f.label} filter`}>
-              <X size={12} />
-            </button>
-          </span>
+          <CommonChip
+            key={f.key}
+            size="sm"
+            tone="brand"
+            className={styles.chip}
+            label={
+              <>
+                <span className={styles.chipLabel}>{f.label}:</span>{' '}
+                <span title={f.value}>{f.value}</span>
+              </>
+            }
+            onRemove={f.clear}
+            removeLabel={`Clear ${f.label} filter`}
+          />
         ))}
         {activeFilters.length > 1 && (
-          <button type="button" className={styles.clearAllBtn} onClick={clearAllFilters}>Clear all</button>
+          <CommonButton variant="link" size="sm" onClick={clearAllFilters}>Clear all</CommonButton>
         )}
       </div>
 
@@ -469,14 +465,12 @@ export default function EmployeeDirectory({
           <span className={styles.bulkCount}>{selectedUsers.length} selected</span>
           <Button variant="secondary" compact loading={bulkBusy} onClick={() => runBulk('active')}>Activate</Button>
           <Button variant="danger" compact loading={bulkBusy} onClick={() => runBulk('inactive')}>Deactivate</Button>
-          <button type="button" className={styles.clearAllBtn} onClick={() => setSelectedIds(new Set())}>Clear selection</button>
+          <CommonButton variant="link" size="sm" onClick={() => setSelectedIds(new Set())}>Clear selection</CommonButton>
         </div>
       )}
 
       {loading ? (
-        <div className={`${styles.tableWrap} ${styles.tableWrapPadded}`}>
-          <SkeletonRows rows={6} columns={5} />
-        </div>
+        <SkeletonTable rows={6} columns={COLUMNS.length + 2} />
       ) : sorted.length === 0 ? (
         <EmptyState
           icon={Users}
@@ -644,31 +638,16 @@ export default function EmployeeDirectory({
             })}
           </div>
 
-          <div className={`${styles.pager} ${totalPages > 1 ? styles.pagerSticky : ''}`}>
-            <div className={styles.pageSizeWrap}>
-              <label htmlFor="empDirPageSize">Rows<span className={styles.pageSizeLabelRest}> per page</span></label>
-              <select
-                id="empDirPageSize"
-                className={styles.pageSizeSelect}
-                value={pageSize}
-                onChange={(e) => changePageSize(Number(e.target.value))}
-              >
-                {PAGE_SIZE_OPTIONS.map((n) => <option key={n} value={n}>{n}</option>)}
-              </select>
-            </div>
-            {totalPages > 1 && (
-              <div className={styles.pagerControls}>
-                {/* Stepping from safePage, not page — if a delete shrinks the
-                    list while the user sits on a high page, `page` can exceed
-                    totalPages, and `page - 1` would then be a no-op click. */}
-                <button type="button" className={`${styles.pageBtn} ${styles.pageBtnEdge}`} disabled={safePage === 1} onClick={() => setPage(1)} aria-label="First page">«</button>
-                <button type="button" className={styles.pageBtn} disabled={safePage === 1} onClick={() => setPage(safePage - 1)}>← Prev</button>
-                <span className={styles.pageStatus}>Page {safePage} of {totalPages}</span>
-                <button type="button" className={styles.pageBtn} disabled={safePage === totalPages} onClick={() => setPage(safePage + 1)}>Next →</button>
-                <button type="button" className={`${styles.pageBtn} ${styles.pageBtnEdge}`} disabled={safePage === totalPages} onClick={() => setPage(totalPages)} aria-label="Last page">»</button>
-              </div>
-            )}
-          </div>
+          <TablePager
+            page={safePage}
+            pageSize={pageSize}
+            total={sorted.length}
+            onPageChange={setPage}
+            onPageSizeChange={changePageSize}
+            noun="employees"
+            sizes={PAGE_SIZE_OPTIONS}
+            allowAll={false}
+          />
         </>
       )}
     </>

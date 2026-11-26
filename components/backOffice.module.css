@@ -114,3 +114,11 @@
     gap: 12px;
     margin: 14px 0 20px;
 }
+
+/* Responsive: these rows hold controls or a title + actions. They wrap
+   onto a second line when the screen is too narrow for them, instead of
+   overflowing or crushing their neighbours. No effect when they fit. */
+.flagsRow {
+    flex-wrap: wrap;
+    row-gap: 8px;
+}

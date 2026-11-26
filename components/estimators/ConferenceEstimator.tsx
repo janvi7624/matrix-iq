@@ -8,6 +8,7 @@ import { selectAllOnFocus } from '@/lib/numberInputHelpers';
 import { CostInputs, DomainResult, LineItem } from '@/lib/types';
 import { applyOverride, extraProductKeys, overrideMapKey, OverrideMap } from '@/lib/catalogOverrides';
 import styles from '../calculator.module.css';
+import Select from '@/components/ui/Select';
 
 export interface ModelPreset {
   nonce: number;
@@ -110,20 +111,20 @@ export default function ConferenceEstimator({ active, costInputs, onResultChange
       <div className={`${styles.row} ${styles.columns}`}>
         <div className={styles.field}>
           <label className={styles.label} htmlFor="conferenceModel">Device model</label>
-          <select id="conferenceModel" className={styles.formControl} value={modelKey} onChange={(e) => setModelKey(e.target.value)}>
+          <Select id="conferenceModel" value={modelKey} onChange={(e) => setModelKey(e.target.value)}>
             {modelKeys.map((key) => {
               const merged = applyOverride(avCameraProducts[key] || ({} as CameraProduct), overrides.get(overrideMapKey('conference', key)), 'description');
               return <option key={key} value={key}>{key} — {merged.modelTag}</option>;
             })}
-          </select>
+          </Select>
         </div>
         <div className={styles.field}>
           <label className={styles.label} htmlFor="conferencePriceTier">Price tier</label>
-          <select id="conferencePriceTier" className={styles.formControl} value={priceTier} onChange={(e) => setPriceTier(e.target.value as Tier)}>
+          <Select id="conferencePriceTier" value={priceTier} onChange={(e) => setPriceTier(e.target.value as Tier)}>
             <option value="partner">Partner price</option>
             <option value="distributor">Distributor price</option>
             <option value="customer">Customer price</option>
-          </select>
+          </Select>
         </div>
       </div>
       <div className={`${styles.row} ${styles.columns}`}>

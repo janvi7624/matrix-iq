@@ -247,21 +247,24 @@ async function listLeads(viewerUsername: string, _viewerIsPrivileged: boolean): 
   return rows.map((row) => ({ ...toLeadRecord(row), meta_raw_field_data: [] }));
 }
 
+// The multi-select filters below each take one value (the original
+// contract) or a list of values that are OR-ed together; an empty list or
+// undefined means "no filter".
 export interface LeadListQuery {
   search?: string;
-  priority?: LeadPriority;
-  interest?: DomainKey;
-  source?: LeadSource;
-  /** Only applied while source === 'meta_lead_ads', same as the screen's own rule. */
-  metaForm?: string;
-  metaCampaign?: string;
+  priority?: LeadPriority | LeadPriority[];
+  interest?: DomainKey | DomainKey[];
+  source?: LeadSource | LeadSource[];
+  /** Only applied while the source filter is exactly 'meta_lead_ads', same as the screen's own rule. */
+  metaForm?: string | string[];
+  metaCampaign?: string | string[];
   /** A real lead_source value, or lib/leadFilters.ts's FILTER_UNSET. */
   origin?: string;
-  /** A LeadCallOutcome, or 'to-call' / 'callback-due'. */
-  callOutcome?: string;
+  /** LeadCallOutcome values, and/or 'to-call' / 'callback-due'. */
+  callOutcome?: string | string[];
   unattendedOnly?: boolean;
-  /** A user id, or lib/leadFilters.ts's FILTER_UNASSIGNED / FILTER_MINE. */
-  assignee?: string;
+  /** User ids, and/or lib/leadFilters.ts's FILTER_UNASSIGNED / FILTER_MINE. */
+  assignee?: string | string[];
   sortBy?: 'newest' | 'oldest' | 'name';
   page?: number;
   pageSize?: number;
@@ -273,6 +276,12 @@ export interface LeadListPage {
 }
 
 const MAX_LEAD_PAGE_SIZE = 200;
+
+/** One value or a list → a de-duplicated list without blanks. */
+function toFilterList<T extends string>(value: T | T[] | undefined): T[] {
+  const list = Array.isArray(value) ? value : value ? [value] : [];
+  return list.filter((v, i) => !!v && list.indexOf(v) === i);
+}
 
 /** Narrow attributes for the two JS-only derived filters below — same shape as BADGE_ATTRIBUTES, for the same reason. */
 const CALL_DERIVED_ATTRIBUTES = ['id', 'call_outcome', 'assigned_to_id', 'project_id', 'callback_at', 'called_at', 'assigned_at', 'createdAt'];
@@ -309,28 +318,50 @@ async function listLeadsFiltered(
       [Op.or]: ['name', 'company', 'city', 'email', 'mobile', 'alt_mobile'].map((col) => ({ [col]: { [Op.iLike]: needle } }))
     });
   }
-  if (query.priority) and.push({ priority: query.priority });
-  if (query.interest) and.push({ interests: { [Op.contains]: [query.interest] } });
-  if (query.source) and.push({ source: query.source });
-  if (query.source === 'meta_lead_ads') {
-    if (query.metaForm) and.push({ meta_form_name: query.metaForm });
-    if (query.metaCampaign) and.push({ meta_campaign_name: query.metaCampaign });
+  const priorities = toFilterList(query.priority);
+  if (priorities.length) and.push({ priority: { [Op.in]: priorities } });
+  // interests is JSONB, so "any of these" is one @> per value, OR-ed.
+  const interests = toFilterList(query.interest);
+  if (interests.length) and.push({ [Op.or]: interests.map((d) => ({ interests: { [Op.contains]: [d] } })) });
+  const sources = toFilterList(query.source);
+  if (sources.length) and.push({ source: { [Op.in]: sources } });
+  // Form/Campaign only narrow Meta leads, so they apply only while Meta is
+  // the one capture method selected — mixed with another method they would
+  // silently drop every non-Meta lead.
+  if (sources.length === 1 && sources[0] === 'meta_lead_ads') {
+    const metaForms = toFilterList(query.metaForm);
+    const metaCampaigns = toFilterList(query.metaCampaign);
+    if (metaForms.length) and.push({ meta_form_name: { [Op.in]: metaForms } });
+    if (metaCampaigns.length) and.push({ meta_campaign_name: { [Op.in]: metaCampaigns } });
   }
   if (query.origin) {
     and.push(query.origin === FILTER_UNSET ? { lead_source: { [Op.or]: [null, ''] } } : { lead_source: query.origin });
   }
-  if (query.assignee === FILTER_UNASSIGNED) and.push({ assigned_to_id: null });
-  else if (query.assignee === FILTER_MINE) and.push({ assigned_to_id: viewerUserId });
-  else if (query.assignee) and.push({ assigned_to_id: query.assignee });
-
-  const todayKey = todayDateInputValue();
-  if (query.callOutcome === 'callback-due') {
-    and.push({ call_outcome: 'callback', callback_at: { [Op.ne]: null, [Op.lte]: todayKey } });
-  } else if (query.callOutcome && query.callOutcome !== 'to-call') {
-    and.push({ call_outcome: query.callOutcome });
+  const assigneeList = toFilterList(query.assignee);
+  if (assigneeList.length) {
+    // The sentinels keep their meaning and are OR-ed with any real ids.
+    const ids = [...new Set(assigneeList.filter((a) => a !== FILTER_UNASSIGNED).map((a) => (a === FILTER_MINE ? viewerUserId : a)))];
+    const anyOf: Record<string, unknown>[] = [];
+    if (assigneeList.includes(FILTER_UNASSIGNED)) anyOf.push({ assigned_to_id: null });
+    if (ids.length) anyOf.push({ assigned_to_id: { [Op.in]: ids } });
+    and.push(anyOf.length === 1 ? anyOf[0] : { [Op.or]: anyOf });
   }
 
-  if (query.unattendedOnly || query.callOutcome === 'to-call') {
+  // Call outcomes are OR-ed. 'callback-due' and the stored outcomes are SQL;
+  // 'to-call' is the derived rule resolved to ids below.
+  const todayKey = todayDateInputValue();
+  const outcomes = toFilterList(query.callOutcome);
+  const wantsToCall = outcomes.includes('to-call');
+  const outcomeAnyOf: Record<string | symbol, unknown>[] = [];
+  for (const outcome of outcomes) {
+    if (outcome === 'callback-due') outcomeAnyOf.push({ call_outcome: 'callback', callback_at: { [Op.ne]: null, [Op.lte]: todayKey } });
+    else if (outcome !== 'to-call') outcomeAnyOf.push({ call_outcome: outcome });
+  }
+  // Without 'to-call' the outcome condition is pure SQL and can narrow the
+  // candidate pass below; with it, it is applied once the to-call ids are known.
+  if (!wantsToCall && outcomeAnyOf.length) and.push(outcomeAnyOf.length === 1 ? outcomeAnyOf[0] : { [Op.or]: outcomeAnyOf });
+
+  if (query.unattendedOnly || wantsToCall) {
     const candidateWhere = { [Op.and]: [...and] };
     const candidates = await db.Lead.findAll({ where: candidateWhere as never, attributes: CALL_DERIVED_ATTRIBUTES });
     const plain = candidates.map((row) => {
@@ -355,14 +386,16 @@ async function listLeadsFiltered(
         created_at: new Date(p.createdAt).toISOString()
       };
     });
-    const matching = plain.filter((l) => {
-      if (query.unattendedOnly && !isLeadUnattended({ ...l, assigned_to_id: l.assigned_to_id ?? undefined, project_id: l.project_id ?? undefined, callback_at: l.callback_at ?? undefined, follow_up_actions: [] })) return false;
-      if (query.callOutcome === 'to-call' && !isMyCallRow(l, viewerUserId, canAssign)) return false;
-      return true;
-    });
     // An impossible id rather than an empty IN(), which Sequelize/Postgres
     // would otherwise need to special-case — matches 0 rows either way.
-    and.push({ id: { [Op.in]: matching.length ? matching.map((l) => l.id) : ['00000000-0000-0000-0000-000000000000'] } });
+    const idIn = (ids: string[]) => ({ id: { [Op.in]: ids.length ? ids : ['00000000-0000-0000-0000-000000000000'] } });
+    if (query.unattendedOnly) {
+      and.push(idIn(plain.filter((l) => isLeadUnattended({ ...l, assigned_to_id: l.assigned_to_id ?? undefined, project_id: l.project_id ?? undefined, callback_at: l.callback_at ?? undefined, follow_up_actions: [] })).map((l) => l.id)));
+    }
+    if (wantsToCall) {
+      outcomeAnyOf.push(idIn(plain.filter((l) => isMyCallRow(l, viewerUserId, canAssign)).map((l) => l.id)));
+      and.push(outcomeAnyOf.length === 1 ? outcomeAnyOf[0] : { [Op.or]: outcomeAnyOf });
+    }
   }
 
   const where = { [Op.and]: and };

@@ -1,94 +1,309 @@
-/* app/admin/modules/page.tsx — was inline style={{}} objects. */
+/* Module Manager — one card per sidebar section, each a table:
+   order · module (icon + label + link, pinned) · icon · enabled · one checkbox column per role. */
 
-.sectionBlock { margin-bottom: 24px; }
-.centerCell { text-align: center; }
-.reorderRow { display: flex; gap: 4px; }
-.iconSelect { width: 130px; }
-.ml6 { margin-left: 6px; }
+.notice {
+    padding: 12px 14px;
+    border-radius: var(--mx-radius-sm);
+    background: var(--mx-surface);
+    box-shadow: var(--mx-shadow-xs);
+    color: var(--mx-text-secondary);
+    font-size: 13.5px;
+}
 
-/* ---- Save bar --------------------------------------------------------
-   Edits are buffered and written only on Save (see page.tsx). Sticky,
-   because the module table runs well past a screen — a save control at the
-   bottom would be out of sight from whichever row is being edited. */
-
+/* ---- Sticky toolbar + save state ------------------------------------
+   Edits are buffered and written only on Save (see page.tsx). Sticky, so
+   Save is in reach from whichever row is being edited. */
 .saveBar {
     position: sticky;
     top: 0;
-    z-index: 5;
+    z-index: 6;
     display: flex;
     align-items: center;
-    gap: 10px;
-    margin: 12px 0 18px;
-    padding: 10px 14px;
+    flex-wrap: wrap;
+    gap: 12px;
+    padding: 10px 12px;
     border: 1px solid var(--mx-border);
-    border-radius: 10px;
+    border-radius: var(--mx-radius-md);
     background: var(--mx-surface);
+    box-shadow: var(--mx-shadow-xs);
+    transition: border-color var(--mx-duration-base) var(--mx-ease), box-shadow var(--mx-duration-base) var(--mx-ease);
 }
-
 /* Only draws attention once there is something to lose. */
 .saveBarActive {
-    border-color: var(--mx-warning);
-    background: var(--mx-warning-subtle);
+    border-color: rgba(217, 119, 6, 0.45);
+    box-shadow: 0 6px 20px rgba(217, 119, 6, 0.12);
 }
-
 .saveBarText {
-    flex: 1;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
     font-size: 13px;
     font-weight: 600;
     color: var(--mx-ink-muted);
     font-variant-numeric: tabular-nums;
 }
+.saveBarActive .saveBarText { color: var(--mx-warning); }
+.dot { width: 8px; height: 8px; border-radius: 999px; background: var(--mx-warning); box-shadow: 0 0 0 3px var(--mx-warning-subtle); }
+.saveActions { display: flex; gap: 8px; margin-left: auto; }
 
-.saveBarActive .saveBarText {
-    color: var(--mx-ink);
+.hint { margin: 12px 2px 18px; font-size: 13px; line-height: 1.5; color: var(--mx-ink-muted); }
+
+/* ---- Section card ---- */
+.section {
+    margin-bottom: 20px;
+    border-radius: var(--mx-radius-md);
+    background: var(--mx-surface);
+    box-shadow: var(--mx-shadow-xs);
+    overflow: hidden;
 }
-
-.saveBtn {
-    border: 1px solid var(--mx-brand);
-    border-radius: var(--mx-radius-md, 8px);
-    background: var(--mx-brand);
-    color: #fff;
-    font-size: 13px;
-    font-weight: 600;
-    padding: 8px 16px;
-    cursor: pointer;
-    white-space: nowrap;
-    transition: background 180ms var(--mx-ease);
+.sectionHead {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--mx-border);
+    background: linear-gradient(180deg, #fff, var(--mx-gray-50));
 }
-
-.saveBtn:hover:not(:disabled) {
-    background: var(--mx-brand-hover);
+.sectionIcon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    border-radius: 9px;
+    background: var(--mx-brand-subtle);
+    color: var(--mx-brand);
 }
-
-.saveBtn:disabled {
+.sectionIcon svg { width: 16px; height: 16px; }
+.sectionTitle { margin: 0; font-size: 16px; font-weight: 800; color: var(--mx-ink); }
+.sectionCount {
+    padding: 2px 9px;
+    border-radius: 999px;
     background: var(--mx-surface-sunken);
-    border-color: var(--mx-border);
-    color: var(--mx-ink-faint);
-    cursor: default;
+    color: var(--mx-gray-700);
+    font-size: 12px;
+    font-weight: 600;
 }
-
-.saveBtn:focus-visible {
-    outline: 2px solid var(--mx-brand);
-    outline-offset: 2px;
-}
-
-/* Which rows will actually be written when Save is pressed — the same diff
-   that builds the request payload, so the highlight can't disagree with it. */
-.rowDirty td {
-    background: var(--mx-warning-subtle);
-}
-
-.rowDirty td:first-child {
-    box-shadow: inset 3px 0 0 var(--mx-warning);
-}
-
 .pendingChip {
-    margin-left: 8px;
-    padding: 2px 8px;
+    padding: 2px 9px;
     border-radius: 999px;
     background: var(--mx-warning-subtle);
     color: var(--mx-warning);
+    font-size: 11.5px;
+    font-weight: 700;
+}
+
+/* ---- Module table ---- */
+/* This page fits the width — no sideways scrolling. */
+.tableWrap { overflow: visible; }
+.table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    font-size: 12.5px;
+}
+.table th,
+.table td {
+    padding: 9px 10px;
+    border-bottom: 1px solid var(--mx-border);
+    vertical-align: middle;
+    background: var(--mx-surface);
+}
+.table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background: var(--mx-gray-50);
+    color: var(--mx-ink-muted);
     font-size: 11px;
     font-weight: 700;
-    vertical-align: middle;
+    letter-spacing: 0.01em;
+    text-align: left;
+    white-space: nowrap;
 }
+.table tbody tr:last-child td { border-bottom: none; }
+.table tbody tr:hover td { background: var(--mx-gray-50); }
+
+/* Column widths */
+.colOrder { width: 56px; text-align: center !important; }
+.colModule { min-width: 260px; }
+.colEnabled { width: 72px; }
+/* Role columns: small, normal-case names that wrap only between words
+   ("Technical / Manager"), never in the middle of one. */
+.table th.colRole {
+    min-width: 0;
+    max-width: 84px;
+    padding: 8px 4px;
+    text-align: center;
+    white-space: normal;
+    overflow-wrap: normal;
+    word-break: keep-all;
+    hyphens: none;
+    font-size: 10.5px;
+    line-height: 1.2;
+    letter-spacing: 0;
+}
+.table td.colRole { padding-left: 4px; padding-right: 4px; }
+.table td.colRole { text-align: center; }
+
+/* Rows that will be written on Save — the same diff that builds the request. */
+.rowDirty td,
+.table tbody tr.rowDirty:hover td { background: var(--mx-warning-subtle); }
+.rowDirty td:first-child { box-shadow: inset 3px 0 0 var(--mx-warning); }
+/* A switched-off module reads as off at a glance. */
+.rowOff .identity,
+.rowOff .colRole { opacity: 0.5; }
+
+.roleBox { width: 16px; height: 16px; margin: 0; accent-color: var(--mx-brand); cursor: pointer; }
+.roleBox:disabled { cursor: not-allowed; }
+
+/* Order: ↑ 3 ↓ stacked */
+.order { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.orderBtn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 24px;
+    border: 1px solid var(--mx-border);
+    border-radius: 7px;
+    background: var(--mx-surface);
+    color: var(--mx-ink-muted);
+    cursor: pointer;
+}
+.orderBtn svg { width: 14px; height: 14px; }
+.orderBtn:hover:not(:disabled) { border-color: var(--mx-brand); color: var(--mx-brand); }
+.orderBtn:disabled { opacity: 0.35; cursor: not-allowed; }
+.orderBtn:focus-visible { outline: var(--mx-focus-ring-width) solid var(--mx-focus-ring-color); outline-offset: 1px; }
+.orderNum { font-size: 11.5px; font-weight: 700; color: var(--mx-ink-muted); font-variant-numeric: tabular-nums; }
+
+/* Icon + name + link */
+.identity { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.iconTile {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 34px;
+    height: 34px;
+    border-radius: 10px;
+    background: var(--mx-brand-subtle);
+    color: var(--mx-brand);
+    font-size: 18px;
+}
+.iconTile svg { width: 17px; height: 17px; }
+.nameBlock { display: flex; flex-direction: column; gap: 3px; min-width: 0; flex: 1; }
+/* A real, clearly editable input for the module label. */
+.nameField { position: relative; display: flex; align-items: center; min-width: 0; }
+.nameInput {
+    flex: 1;
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+    height: 32px;
+    padding: 0 30px 0 9px;
+    border: 1px solid var(--mx-border);
+    border-radius: 9px;
+    background: #fff;
+    color: var(--mx-ink);
+    font: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    transition: border-color var(--mx-duration-fast) var(--mx-ease), box-shadow var(--mx-duration-fast) var(--mx-ease);
+}
+.nameInput:hover { border-color: var(--mx-border-strong); }
+.nameInput:focus { outline: none; border-color: var(--mx-brand); box-shadow: 0 0 0 3px var(--mx-brand-subtle); }
+.nameEditIcon {
+    position: absolute;
+    right: 10px;
+    width: 14px;
+    height: 14px;
+    color: var(--mx-ink-faint);
+    pointer-events: none;
+}
+.nameField:focus-within .nameEditIcon { color: var(--mx-brand); }
+.href {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 12px;
+    color: var(--mx-ink-muted);
+}
+.customPill,
+.editedPill {
+    flex-shrink: 0;
+    padding: 1px 8px;
+    border-radius: 999px;
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+}
+.customPill { background: #ede9fe; color: #6d28d9; }
+.editedPill { background: var(--mx-warning-subtle); color: var(--mx-warning); }
+
+/* On / off switch */
+.switch {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 6px;
+    border: none;
+    border-radius: 999px;
+    background: transparent;
+    color: var(--mx-ink-muted);
+    font: inherit;
+    font-size: 12.5px;
+    font-weight: 700;
+    cursor: pointer;
+}
+.switch:focus-visible { outline: var(--mx-focus-ring-width) solid var(--mx-focus-ring-color); outline-offset: 2px; }
+.switchTrack {
+    position: relative;
+    width: 40px;
+    height: 22px;
+    flex-shrink: 0;
+    border-radius: 999px;
+    background: var(--mx-gray-300, #d1d5db);
+    transition: background var(--mx-duration-base) var(--mx-ease);
+}
+.switchThumb {
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 16px;
+    height: 16px;
+    border-radius: 999px;
+    background: #fff;
+    box-shadow: 0 1px 3px rgba(17, 24, 39, 0.25);
+    transition: transform var(--mx-duration-base) var(--mx-ease);
+}
+.switchOn { color: #15803d; }
+.switchOn .switchTrack { background: #16a34a; }
+.switchOn .switchThumb { transform: translateX(18px); }
+.switchText { display: inline-flex; align-items: center; gap: 4px; min-width: 34px; }
+.switchText svg { width: 14px; height: 14px; }
+
+/* ---- Responsive ---- */
+@media (max-width: 640px) {
+    .saveBar { padding: 10px; }
+    .saveBar > :first-child { flex-basis: 100%; }
+    .saveActions { width: 100%; }
+    .saveActions > * { flex: 1; }
+    .sectionHead { padding: 12px 14px; }
+    /* Narrow screens: tighter cells so the table still fits. */
+    .colModule { min-width: 200px; }
+    .table th, .table td { padding: 10px; }
+    .switchText { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .switchTrack, .switchThumb, .saveBar, .nameInput { transition: none; }
+}
+
+.metaLine { display: flex; align-items: center; gap: 6px; min-width: 0; }
+
+/* Icon picker sits under the label, next to the link. */
+.metaLine { flex-wrap: wrap; row-gap: 4px; }
+.iconPick { width: 170px; flex-shrink: 0; }

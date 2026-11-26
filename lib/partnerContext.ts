@@ -42,7 +42,7 @@ export async function getPartnerViewer(
   // account, not an unrestricted one — fail closed.
   if (!partner || !isPartnerUsable(partner.status)) return null;
 
-  // Onboarding gate. A partner whose Agreement, NDA and Payment Agreement
+  // Onboarding gate. A partner whose Agreement, NDA, GST and PAN
   // have not all been approved by their account creator reaches only the
   // onboarding routes — which pass allowDuringOnboarding, since refusing
   // those would leave them no way to comply. Every other partner API is

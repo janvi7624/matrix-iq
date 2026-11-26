@@ -2,6 +2,7 @@
 
 import calcStyles from './calculator.module.css';
 import styles from './teamCheckboxes.module.css';
+import CommonChip from './ui/CommonChip';
 
 function toggleInArray(list: string[], value: string): string[] {
   return list.includes(value) ? list.filter((v) => v !== value) : [...list, value];
@@ -41,11 +42,14 @@ export default function TeamCheckboxes({
             return (
               // Keyed by name+index: options are plain display names and two
               // people can share a name.
-              <label key={`${name}-${i}`} className={`${styles.chip} ${on ? styles.on : ''}`}>
-                <input type="checkbox" checked={on} onChange={() => onChange(toggleInArray(selected, name))} />
-                <span className={styles.avatar} aria-hidden="true">{on ? '✓' : initials(name)}</span>
+              <CommonChip
+                key={`${name}-${i}`}
+                selected={on}
+                leadingIcon={<span className={styles.avatar}>{initials(name)}</span>}
+                onClick={() => onChange(toggleInArray(selected, name))}
+              >
                 {name}
-              </label>
+              </CommonChip>
             );
           })}
         </div>

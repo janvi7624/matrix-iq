@@ -81,20 +81,6 @@
 
 .removeBtn {
   flex: 0 0 auto;
-  width: 26px;
-  height: 26px;
-  border: 1px solid var(--mx-border, #e2e8f0);
-  border-radius: 6px;
-  background: var(--mx-surface, #fff);
-  color: var(--mx-text-muted, #64748b);
-  font-size: 15px;
-  line-height: 1;
-  cursor: pointer;
-}
-
-.removeBtn:hover {
-  border-color: #b91c1c;
-  color: #b91c1c;
 }
 
 .readOnlyNote {

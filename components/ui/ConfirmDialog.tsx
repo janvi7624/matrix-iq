@@ -1,6 +1,7 @@
 'use client';
 
 import { createContext, useCallback, useContext, useState } from 'react';
+import CommonButton from './CommonButton';
 import styles from './notify.module.css';
 
 export interface ConfirmOptions {
@@ -39,12 +40,12 @@ export function ConfirmProvider({ children }: { children: React.ReactNode }) {
             <div className={styles.confirmTitle}>{pending.title || 'Are you sure?'}</div>
             <div className={styles.confirmMessage}>{pending.message}</div>
             <div className={styles.confirmActions}>
-              <button type="button" className={styles.confirmCancel} onClick={() => respond(false)}>
+              <CommonButton variant="secondary" size="md" onClick={() => respond(false)}>
                 {pending.cancelLabel || 'Cancel'}
-              </button>
-              <button type="button" className={pending.danger ? styles.confirmDanger : styles.confirmOk} onClick={() => respond(true)}>
+              </CommonButton>
+              <CommonButton variant={pending.danger ? 'destructiveSolid' : 'success'} size="md" onClick={() => respond(true)}>
                 {pending.confirmLabel || 'Yes, continue'}
-              </button>
+              </CommonButton>
             </div>
           </div>
         </div>

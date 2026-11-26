@@ -1,11 +1,11 @@
-// One onboarding document a partner owes — Agreement, NDA or Payment
-// Agreement. See the 20261102090000-partner-onboarding-documents migration
+// One onboarding document a partner owes — Agreement, NDA, GST or PAN.
+// See the 20261102090000-partner-onboarding-documents migration
 // for why this is its own table rather than three columns on partners.
 module.exports = (sequelize, DataTypes) => {
   const PartnerDocument = sequelize.define('PartnerDocument', {
     id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true, allowNull: false },
     partner_id: { type: DataTypes.UUID, allowNull: false },
-    // 'agreement' | 'nda' | 'payment_agreement' — PARTNER_DOCUMENT_KINDS in
+    // 'agreement' | 'nda' | 'gst' | 'pan' — PARTNER_DOCUMENT_KINDS in
     // lib/partnerOnboarding.ts.
     kind: { type: DataTypes.STRING(32), allowNull: false },
     // [{ name, path, size }], stored under the partner's own upload prefix

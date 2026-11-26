@@ -1,18 +1,24 @@
 'use client';
 
 import { FormEvent, useCallback, useEffect, useState } from 'react';
-import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { PartnerRecord, PartnerStatus } from '@/lib/types';
 import { PROJECT_DEPARTMENTS, PROJECT_DEPARTMENT_LABEL } from '@/lib/projectDepartmentOptions';
 import { PARTNER_ROLE_KEYS, PARTNER_ROLE_LABEL } from '@/lib/partnerRoles';
 import { PARTNER_DOCUMENT_KINDS } from '@/lib/partnerOnboarding';
 import PartnerApprovalPanel, { ApprovalInfo } from './PartnerApprovalPanel';
+import StateCitySelect from './ui/StateCitySelect';
+import { Plus, UserX, UserCheck, KeyRound } from 'lucide-react';
 import AppShell from './AppShell';
+import CommonButton from './ui/CommonButton';
+import PageBackButton from './ui/PageBackButton';
+import { SkeletonDetail } from './ui/Skeleton';
 import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
 import pageStyles from './partnerDetail.module.css';
 import { fetchCached } from '@/lib/fetchCached';
+import RowActions from './ui/RowActions';
+import Select from './ui/Select';
 
 export interface PartnerDocumentRow {
   kind: (typeof PARTNER_DOCUMENT_KINDS)[number];
@@ -273,8 +279,10 @@ export default function PartnerDetailView({ id }: { id: string }) {
   if (!partner) {
     return (
       <AppShell title="Partner" subtitle="Sales › partner management">
-        <div className={historyStyles.status}>{status}</div>
-        <Link className={historyStyles.button} href={allPartnersHref}>← All partners</Link>
+        <div className={pageStyles.actionsRow}>
+          <PageBackButton fallbackRoute={allPartnersHref} />
+        </div>
+        {status === 'Loading...' ? <SkeletonDetail panels={3} pairs={6} withTopRow={false} /> : <div className={historyStyles.status}>{status}</div>}
       </AppShell>
     );
   }
@@ -282,7 +290,7 @@ export default function PartnerDetailView({ id }: { id: string }) {
   return (
     <AppShell title={partner.company_name} subtitle={`Sales › partner ${partner.partner_code}`}>
       <div className={pageStyles.actionsRow}>
-        <Link className={historyStyles.button} href={allPartnersHref}>← All partners</Link>
+        <PageBackButton fallbackRoute={allPartnersHref} />
       </div>
 
       {error && <div className={historyStyles.loginError}>{error}</div>}
@@ -295,7 +303,7 @@ export default function PartnerDetailView({ id }: { id: string }) {
             first sign-in.
           </p>
           <code>{credential.password}</code>{' '}
-          <button type="button" className={historyStyles.button} onClick={() => setCredential(null)}>Dismiss</button>
+          <CommonButton size="sm" onClick={() => setCredential(null)}>Dismiss</CommonButton>
         </div>
       )}
 
@@ -328,22 +336,20 @@ export default function PartnerDetailView({ id }: { id: string }) {
               </div>
             </div>
             <div className={`${calcStyles.row} ${calcStyles.columns}`}>
-              <div className={calcStyles.field}>
-                <label className={calcStyles.label}>City</label>
-                <input className={calcStyles.formControl} value={edit.city ?? ''} onChange={(e) => setEdit({ ...edit, city: e.target.value })} />
-              </div>
-              <div className={calcStyles.field}>
-                <label className={calcStyles.label}>State</label>
-                <input className={calcStyles.formControl} value={edit.state ?? ''} onChange={(e) => setEdit({ ...edit, state: e.target.value })} />
-              </div>
+              <StateCitySelect
+                state={edit.state ?? ''}
+                city={edit.city ?? ''}
+                onChange={(patch) => setEdit((prev) => ({ ...prev, ...patch }))}
+                idPrefix="partnerEdit"
+              />
               <div className={calcStyles.field}>
                 <label className={calcStyles.label}>Relationship manager</label>
-                <select className={calcStyles.formControl} value={edit.relationship_manager_id ?? ''} onChange={(e) => setEdit({ ...edit, relationship_manager_id: e.target.value })}>
+                <Select value={edit.relationship_manager_id ?? ''} onChange={(e) => setEdit({ ...edit, relationship_manager_id: e.target.value })}>
                   <option value="">Not assigned</option>
                   {staff.map((u) => (
                     <option key={u.id} value={u.id}>{u.name || u.username}</option>
                   ))}
-                </select>
+                </Select>
               </div>
             </div>
             <div className={calcStyles.field}>
@@ -418,8 +424,8 @@ export default function PartnerDetailView({ id }: { id: string }) {
             </div>
 
             <div className={pageStyles.actionsRow}>
-              <button type="button" className={calcStyles.btn} onClick={saveEdit}>Save</button>
-              <button type="button" className={historyStyles.button} onClick={() => setEditing(false)}>Cancel</button>
+              <CommonButton variant="primary" onClick={saveEdit}>Save</CommonButton>
+              <CommonButton onClick={() => setEditing(false)}>Cancel</CommonButton>
             </div>
           </>
         ) : (
@@ -495,11 +501,11 @@ export default function PartnerDetailView({ id }: { id: string }) {
             {canManageRecord && (
               <>
                 <div className={pageStyles.actionsRow}>
-                  <button type="button" className={calcStyles.btn} onClick={startEdit}>Edit details</button>
+                  <CommonButton variant="primary" onClick={startEdit}>Edit details</CommonButton>
                   {NEXT_STATUSES[partner.status].map((next) => (
-                    <button key={next} type="button" className={historyStyles.button} onClick={() => patch({ status: next })}>
+                    <CommonButton key={next} variant={next === 'active' ? 'secondary' : 'destructive'} onClick={() => patch({ status: next })}>
                       {next === 'active' ? 'Reactivate' : next === 'suspended' ? 'Suspend' : 'Mark inactive'}
-                    </button>
+                    </CommonButton>
                   ))}
                 </div>
                 <p className={calcStyles.small}>
@@ -555,12 +561,19 @@ export default function PartnerDetailView({ id }: { id: string }) {
                     {u.lastLoginAt ? new Date(u.lastLoginAt).toLocaleDateString() : <span className={pageStyles.muted}>{u.mustChangePassword ? 'Never — setup pending' : 'Never'}</span>}
                   </td>
                   <td>
-                    <div className={pageStyles.actionsRow}>
-                      <button type="button" className={historyStyles.button} onClick={() => patchUser(u.id, { status: u.status === 'active' ? 'inactive' : 'active' })}>
-                        {u.status === 'active' ? 'Disable' : 'Enable'}
-                      </button>
-                      <button type="button" className={historyStyles.button} onClick={() => patchUser(u.id, { resetPassword: true })}>Reset password</button>
-                    </div>
+                    <RowActions
+                      label={`Login actions for ${u.username || u.id}`}
+                      actions={[
+                        {
+                          key: 'toggle',
+                          label: u.status === 'active' ? 'Disable login' : 'Enable login',
+                          icon: u.status === 'active' ? <UserX /> : <UserCheck />,
+                          destructive: u.status === 'active',
+                          onClick: () => patchUser(u.id, { status: u.status === 'active' ? 'inactive' : 'active' })
+                        },
+                        { key: 'reset', label: 'Reset password', icon: <KeyRound />, onClick: () => patchUser(u.id, { resetPassword: true }) }
+                      ]}
+                    />
                   </td>
                 </tr>
               ))}
@@ -596,21 +609,21 @@ export default function PartnerDetailView({ id }: { id: string }) {
               </div>
               <div className={calcStyles.field}>
                 <label className={calcStyles.label} htmlFor="puRole">Role</label>
-                <select id="puRole" className={calcStyles.formControl} value={userForm.role} onChange={(e) => setUserForm({ ...userForm, role: e.target.value })}>
+                <Select id="puRole" value={userForm.role} onChange={(e) => setUserForm({ ...userForm, role: e.target.value })}>
                   {PARTNER_ROLE_KEYS.map((r) => (
                     <option key={r} value={r}>{PARTNER_ROLE_LABEL[r]}</option>
                   ))}
-                </select>
+                </Select>
               </div>
             </div>
             <div className={pageStyles.actionsRow}>
-              <button type="submit" className={calcStyles.btn} disabled={issuing}>{issuing ? 'Creating...' : 'Create login'}</button>
-              <button type="button" className={historyStyles.button} onClick={() => setShowUserForm(false)}>Cancel</button>
+              <CommonButton type="submit" variant="primary" loading={issuing} loadingLabel="Creating...">Create login</CommonButton>
+              <CommonButton onClick={() => setShowUserForm(false)}>Cancel</CommonButton>
             </div>
           </form>
         ) : (
           <div className={pageStyles.actionsRow}>
-            <button type="button" className={calcStyles.btn} onClick={() => setShowUserForm(true)}>+ Create portal login</button>
+            <CommonButton variant="primary" leadingIcon={<Plus />} onClick={() => setShowUserForm(true)}>Create portal login</CommonButton>
           </div>
         )}
         </>

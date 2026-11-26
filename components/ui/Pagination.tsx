@@ -1,6 +1,7 @@
 'use client';
 
-import historyStyles from '../quotationHistory.module.css';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
+import CommonButton from './CommonButton';
 import calcStyles from '../calculator.module.css';
 import controlsStyles from './controls.module.css';
 
@@ -14,9 +15,9 @@ export default function Pagination({ page, totalPages, onChange }: PaginationPro
   if (totalPages <= 1) return null;
   return (
     <div className={controlsStyles.pagination}>
-      <button type="button" className={historyStyles.button} disabled={page === 1} onClick={() => onChange(page - 1)}>← Prev</button>
+      <CommonButton variant="secondary" size="sm" leadingIcon={<ChevronLeft />} disabled={page === 1} onClick={() => onChange(page - 1)}>Prev</CommonButton>
       <span className={calcStyles.small}>Page {page} of {totalPages}</span>
-      <button type="button" className={historyStyles.button} disabled={page === totalPages} onClick={() => onChange(page + 1)}>Next →</button>
+      <CommonButton variant="secondary" size="sm" trailingIcon={<ChevronRight />} disabled={page === totalPages} onClick={() => onChange(page + 1)}>Next</CommonButton>
     </div>
   );
 }

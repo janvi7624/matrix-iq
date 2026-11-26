@@ -170,4 +170,6 @@
     .toastStack { left: 16px; right: 16px; top: 12px; max-width: none; }
     .confirmActions { flex-direction: column-reverse; }
     .confirmCancel, .confirmOk, .confirmDanger { width: 100%; text-align: center; }
+    /* The action buttons are CommonButtons now, so target the children, not the old classes. */
+    .confirmActions > * { width: 100%; }
 }

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSessionFromRequest } from '@/lib/auth';
 import { searchAuditLog } from '@/lib/auditLogStore';
+import { getListParam } from '@/lib/listParam';
 import { canViewAuditLog } from '@/lib/permissions';
 import { apiErrorResponse } from '@/lib/apiError';
 import { AuditLogEntry } from '@/lib/types';
@@ -19,11 +20,12 @@ export async function GET(request: NextRequest) {
     // Filtering and paging happen in SQL (lib/auditLogStore.ts). This table
     // only ever grows — it was returning every row on every page load.
     const result = await searchAuditLog({
-      entityType: (params.get('entityType') as AuditLogEntry['entity_type']) || undefined,
+      // Entity / user / role are multi-select: repeated params (lib/listParam); one value still works.
+      entityType: getListParam(params, 'entityType') as AuditLogEntry['entity_type'][],
       entityId: params.get('entityId') || undefined,
       search: params.get('search') || undefined,
-      by: params.get('by') || undefined,
-      role: params.get('role') || undefined,
+      by: getListParam(params, 'by'),
+      role: getListParam(params, 'role'),
       dateFrom: params.get('dateFrom') || undefined,
       dateTo: params.get('dateTo') || undefined,
       page: Number(params.get('page')) || 1,

@@ -4,6 +4,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { formatMoney } from '@/lib/format';
 import { selectAllOnFocus } from '@/lib/numberInputHelpers';
 import { DomainResult, LineItem, SiItem } from '@/lib/types';
+import { Plus, X } from 'lucide-react';
+import CommonButton from '../ui/CommonButton';
 import styles from '../calculator.module.css';
 
 interface SiEstimatorProps {
@@ -76,21 +78,20 @@ export default function SiEstimator({ active, onResultChange }: SiEstimatorProps
                 onFocus={selectAllOnFocus}
                 onChange={(e) => updateItem(item.id, { price: parseFloat(e.target.value) || 0 })}
               />
-              <button type="button" className={styles.removeItemBtn} title="Remove item" onClick={() => setItems((prev) => prev.filter((i) => i.id !== item.id))}>
-                ×
-              </button>
+              <CommonButton variant="destructive" size="sm" iconOnly leadingIcon={<X />} aria-label="Remove item" title="Remove item" onClick={() => setItems((prev) => prev.filter((i) => i.id !== item.id))} />
             </div>
           ))}
         </div>
-        <button
-          type="button"
-          className={styles.secondaryButton}
+        <CommonButton
+          variant="secondary"
+          size="md"
+          leadingIcon={<Plus />}
           onClick={() => {
             setItems((prev) => [...prev, { id: nextId.current++, name: '', qty: 1, price: 0 }]);
           }}
         >
-          + Add SI Item
-        </button>
+          Add SI Item
+        </CommonButton>
       </div>
     </section>
   );

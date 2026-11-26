@@ -1,6 +1,7 @@
 'use client';
 
 import calcStyles from '../calculator.module.css';
+import CommonChip from './CommonChip';
 import {
   DepartmentAmounts,
   PROJECT_DEPARTMENTS,
@@ -64,18 +65,15 @@ export default function ProjectDepartmentField({ departments, amounts, onChange,
         {PROJECT_DEPARTMENTS.map((d) => {
           const on = departments.includes(d);
           return (
-            <button
+            <CommonChip
               key={d}
-              type="button"
-              role="checkbox"
-              aria-checked={on}
+              checkbox
+              selected={on}
               disabled={disabled}
-              className={`${calcStyles.deptPickChip} ${on ? calcStyles.deptPickChipActive : ''}`}
               onClick={() => toggle(d)}
             >
-              <span className={calcStyles.deptPickChipCheck} aria-hidden="true" />
               {PROJECT_DEPARTMENT_LABEL[d]}
-            </button>
+            </CommonChip>
           );
         })}
       </div>

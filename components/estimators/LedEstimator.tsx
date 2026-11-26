@@ -22,6 +22,8 @@ import { selectAllOnFocus } from '@/lib/numberInputHelpers';
 import { CostInputs, DomainResult, LineItem } from '@/lib/types';
 import { applyOverride, extraProductKeys, overrideMapKey, OverrideMap } from '@/lib/catalogOverrides';
 import styles from '../calculator.module.css';
+import CommonButton from '../ui/CommonButton';
+import Select from '@/components/ui/Select';
 
 export interface LedModelPreset {
   nonce: number;
@@ -280,10 +282,10 @@ export default function LedEstimator({ active, costInputs, onResultChange, prese
       <div className={`${styles.row} ${styles.columns}`}>
         <div className={styles.field}>
           <label className={styles.label} htmlFor="ledMode">Series</label>
-          <select id="ledMode" className={styles.formControl} value={ledMode} onChange={(e) => setLedMode(e.target.value as 'cabinet' | 'aio')}>
+          <Select id="ledMode" value={ledMode} onChange={(e) => setLedMode(e.target.value as 'cabinet' | 'aio')}>
             <option value="cabinet">LED Wall (Cabinet Build)</option>
             <option value="aio">AIO Series (All-In-One)</option>
-          </select>
+          </Select>
         </div>
       </div>
 
@@ -292,11 +294,11 @@ export default function LedEstimator({ active, costInputs, onResultChange, prese
           <div className={`${styles.row} ${styles.columns}`}>
             <div className={styles.field}>
               <label className={styles.label} htmlFor="aioModel">AIO size</label>
-              <select id="aioModel" className={styles.formControl} value={aioModelKey} onChange={(e) => setAioModelKey(e.target.value)}>
+              <Select id="aioModel" value={aioModelKey} onChange={(e) => setAioModelKey(e.target.value)}>
                 {aioModelKeys.map((key) => (
                   <option key={key} value={key}>{key}</option>
                 ))}
-              </select>
+              </Select>
             </div>
             <div className={styles.field}>
               <label className={styles.label} htmlFor="aioQty">Quantity</label>
@@ -325,22 +327,22 @@ export default function LedEstimator({ active, costInputs, onResultChange, prese
       <div className={`${styles.row} ${styles.columns}`}>
         <div className={styles.field}>
           <label className={styles.label} htmlFor="ledAspectMode">Aspect ratio</label>
-          <select id="ledAspectMode" className={styles.formControl} value={aspectMode} onChange={(e) => setAspectMode(e.target.value as 'auto' | 'custom')}>
+          <Select id="ledAspectMode" value={aspectMode} onChange={(e) => setAspectMode(e.target.value as 'auto' | 'custom')}>
             <option value="auto">Auto (detect from height/width)</option>
             <option value="custom">Custom (pick or enter a ratio)</option>
-          </select>
+          </Select>
         </div>
         {aspectMode === 'custom' && (
           <div className={styles.field}>
             <label className={styles.label} htmlFor="ledAspectPreset">Target ratio</label>
-            <select id="ledAspectPreset" className={styles.formControl} value={aspectPreset} onChange={(e) => setAspectPreset(e.target.value)}>
+            <Select id="ledAspectPreset" value={aspectPreset} onChange={(e) => setAspectPreset(e.target.value)}>
               <option value="16:9">16:9 (Widescreen)</option>
               <option value="4:3">4:3 (Standard)</option>
               <option value="21:9">21:9 (Cinematic)</option>
               <option value="1:1">1:1 (Square)</option>
               <option value="3:2">3:2</option>
               <option value="custom">Custom W:H…</option>
-            </select>
+            </Select>
           </div>
         )}
       </div>
@@ -355,33 +357,32 @@ export default function LedEstimator({ active, costInputs, onResultChange, prese
       <div className={styles.row}>
         <div className={styles.field}>
           <div className={styles.small}>{aspectSuggestion ? aspectSuggestion.text : 'Enter height and width to see an aspect ratio suggestion.'}</div>
-          <button
-            type="button"
-            className={`${styles.secondaryButton} ${styles.mt8}`}
+          <CommonButton
+            className={styles.mt8}
             onClick={() => {
               if (aspectSuggestion) setHeight(Number(aspectSuggestion.suggestedHeight.toFixed(2)));
             }}
           >
             Apply suggested height
-          </button>
+          </CommonButton>
         </div>
       </div>
       <div className={`${styles.row} ${styles.columns}`}>
         <div className={styles.field}>
           <label className={styles.label} htmlFor="ledUnit">Dimension unit</label>
-          <select id="ledUnit" className={styles.formControl} value={unit} onChange={(e) => handleUnitChange(e.target.value as LedUnit)}>
+          <Select id="ledUnit" value={unit} onChange={(e) => handleUnitChange(e.target.value as LedUnit)}>
             <option value="ft">Feet</option>
             <option value="m">Meters</option>
             <option value="in">Inches</option>
             <option value="mm">Millimeters (cabinet sizing)</option>
-          </select>
+          </Select>
         </div>
         <div className={styles.field}>
           <label className={styles.label} htmlFor="ledCategory">Environment</label>
-          <select id="ledCategory" className={styles.formControl} value={category} onChange={(e) => setCategory(e.target.value as 'indoor' | 'outdoor')}>
+          <Select id="ledCategory" value={category} onChange={(e) => setCategory(e.target.value as 'indoor' | 'outdoor')}>
             <option value="indoor">Indoor</option>
             <option value="outdoor">Outdoor</option>
-          </select>
+          </Select>
         </div>
       </div>
       {unit === 'mm' && (
@@ -389,11 +390,11 @@ export default function LedEstimator({ active, costInputs, onResultChange, prese
           <div className={`${styles.row} ${styles.columns}`}>
             <div className={styles.field}>
               <label className={styles.label} htmlFor="ledPixelPitch">Pixel pitch (mm)</label>
-              <select id="ledPixelPitch" className={styles.formControl} value={pixelPitch} onChange={(e) => setPixelPitch(parseFloat(e.target.value))}>
+              <Select id="ledPixelPitch" value={pixelPitch} onChange={(e) => setPixelPitch(parseFloat(e.target.value))}>
                 {pitchesForCategory(category).map((p) => (
                   <option key={p} value={p}>{p} mm</option>
                 ))}
-              </select>
+              </Select>
             </div>
             {cabinetInfo && (
               <div className={styles.field}>
@@ -428,37 +429,37 @@ export default function LedEstimator({ active, costInputs, onResultChange, prese
       <div className={`${styles.row} ${styles.columns}`}>
         <div className={styles.field}>
           <label className={styles.label} htmlFor="ledModel">LED model</label>
-          <select id="ledModel" className={styles.formControl} value={modelKey} onChange={(e) => setModelKey(e.target.value)}>
+          <Select id="ledModel" value={modelKey} onChange={(e) => setModelKey(e.target.value)}>
             {modelKeys
               .filter((key) => (category === 'indoor' ? ['indoor', 'cob'] : [category]).includes(effectiveModels[key]?.category))
               .map((key) => (
                 <option key={key} value={key}>{key}</option>
               ))}
-          </select>
+          </Select>
         </div>
         <div className={styles.field}>
           <label className={styles.label} htmlFor="ledPriceTier">Price tier</label>
-          <select id="ledPriceTier" className={styles.formControl} value={priceTier} onChange={(e) => setPriceTier(e.target.value as 'b2b' | 'b2c')}>
+          <Select id="ledPriceTier" value={priceTier} onChange={(e) => setPriceTier(e.target.value as 'b2b' | 'b2c')}>
             <option value="b2b">B2B (Partner price)</option>
             <option value="b2c">B2C (End-user price)</option>
-          </select>
+          </Select>
         </div>
       </div>
       <div className={`${styles.row} ${styles.columns}`}>
         <div className={styles.field}>
           <label className={styles.label} htmlFor="ledControlMode">Controller mode</label>
-          <select id="ledControlMode" className={styles.formControl} value={controlMode} onChange={(e) => setControlMode(e.target.value)}>
+          <Select id="ledControlMode" value={controlMode} onChange={(e) => setControlMode(e.target.value)}>
             <option value="Synchronous">Synchronous (video wall, fixed live source)</option>
             <option value="Asynchronous">Asynchronous (PC-free, cloud/standalone signage)</option>
-          </select>
+          </Select>
         </div>
         <div className={styles.field}>
           <label className={styles.label} htmlFor="ledRedundancy">Redundancy</label>
-          <select id="ledRedundancy" className={styles.formControl} value={redundancy} onChange={(e) => setRedundancy(e.target.value as LedRedundancyMode)}>
+          <Select id="ledRedundancy" value={redundancy} onChange={(e) => setRedundancy(e.target.value as LedRedundancyMode)}>
             <option value="auto">Auto (per engineering rules)</option>
             <option value="yes">Force redundant (dual controller)</option>
             <option value="no">No redundancy</option>
-          </select>
+          </Select>
         </div>
       </div>
       <div className={styles.row}>

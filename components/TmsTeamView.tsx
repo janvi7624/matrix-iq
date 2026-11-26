@@ -33,7 +33,7 @@ export default function TmsTeamView({ currentUser, canSeeTabAccess }: TmsTeamVie
   const [tab, setTab] = useState<'users' | 'tab-access'>(initialTab);
 
   return (
-    <AppShell title="Users & Tab Access" subtitle="Manage technical team accounts and which TMS roles can view, create, edit, delete, approve, or manage each tab.">
+    <AppShell fillPage title="Users & Tab Access" subtitle="Manage technical team accounts and which TMS roles can view, create, edit, delete, approve, or manage each tab.">
       {canSeeTabAccess && (
         <div className={historyStyles.tabBar}>
           {TABS.map((t) => (

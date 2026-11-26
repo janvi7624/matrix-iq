@@ -50,16 +50,6 @@
 
 .headerTitle { font-size: 15px; font-weight: 700; color: var(--mx-ink); }
 
-.closeBtn {
-  border: none;
-  background: transparent;
-  color: var(--mx-ink-muted);
-  cursor: pointer;
-  padding: 4px;
-  border-radius: var(--mx-radius-sm);
-  display: flex;
-}
-.closeBtn:hover { background: var(--mx-surface-sunken); color: var(--mx-ink); }
 
 .body {
   composes: mx-nice-scroll from global;

@@ -1,20 +1,21 @@
 'use client';
 
 import { FormEvent, useEffect, useMemo, useState } from 'react';
-import Link from 'next/link';
-import { FileText } from 'lucide-react';
+import Link from '@/components/ui/AppLink';
+import { FileText, Plus } from 'lucide-react';
 import { TmsBomRequestRecord, TmsBomRequestStatus, TmsProjectRecord, UserRole } from '@/lib/types';
 import { TMS_BOM_STATUS_LABEL, TMS_BOM_STATUS_TONE } from '@/lib/tmsLabels';
 import { bomPendingWithLabel } from '@/lib/tmsBomApprovalChain';
 import AppShell from './AppShell';
-import dashboardStyles from './dashboard.module.css';
+import CommonButton from './ui/CommonButton';
+import StatCard, { StatCardGrid } from './ui/StatCard';
 import tmsDashboardStyles from './tmsDashboard.module.css';
 import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
 import StatusBadge from './ui/StatusBadge';
 import Modal from './ui/Modal';
 import { useToast } from './ui/ToastProvider';
-import { SkeletonRows } from './ui/Skeleton';
+import { Skeleton, SkeletonTable } from './ui/Skeleton';
 import EmptyState from './ui/EmptyState';
 import ErrorState from './ui/ErrorState';
 import { Field, FieldRow } from './ui/Field';
@@ -22,8 +23,11 @@ import Input from './ui/Input';
 import Select from './ui/Select';
 import Textarea from './ui/Textarea';
 import FilterBar from './ui/FilterBar';
+import SearchInput from './ui/SearchInput';
+import Dropdown, { inSelection } from './ui/Dropdown';
 import ToolbarButton from './ui/ToolbarButton';
 import Table, { TableColumn } from './ui/Table';
+import { RefreshButton } from './ui/ListControls';
 
 const EMPTY_FORM = {
   projectId: '',
@@ -65,8 +69,8 @@ export default function TmsBomRequestsView({ currentUser }: TmsBomRequestsViewPr
   });
   const [creating, setCreating] = useState(false);
 
-  const [fProject, setFProject] = useState('');
-  const [fStatus, setFStatus] = useState<TmsBomRequestStatus | ''>('');
+  const [fProject, setFProject] = useState<string[]>([]);
+  const [fStatus, setFStatus] = useState<TmsBomRequestStatus[]>([]);
   const [fSearch, setFSearch] = useState('');
 
   async function load() {
@@ -95,8 +99,8 @@ export default function TmsBomRequestsView({ currentUser }: TmsBomRequestsViewPr
   const filtered = useMemo(() => {
     const q = fSearch.trim().toLowerCase();
     return records.filter((r) => {
-      if (fProject && r.project_id !== fProject) return false;
-      if (fStatus && r.status !== fStatus) return false;
+      if (!inSelection(String(r.project_id), fProject)) return false;
+      if (!inSelection(r.status, fStatus)) return false;
       if (q && ![r.bom_request_code, r.item_name, r.part_number].some((v) => (v || '').toLowerCase().includes(q))) return false;
       return true;
     });
@@ -166,25 +170,16 @@ export default function TmsBomRequestsView({ currentUser }: TmsBomRequestsViewPr
       header: 'Pending With',
       render: (r) => bomPendingWithLabel(r, r.finance_stage_enabled !== false).replace(/^Pending: /, '') || '-'
     },
-    { key: 'actions', header: '', render: (r) => <Link className={historyStyles.button} href={`/tms/bom-requests/${r.id}`}>View</Link> }
+    { key: 'actions', header: '', render: (r) => <CommonButton size="sm" href={`/tms/bom-requests/${r.id}`}>View</CommonButton> }
   ];
 
   return (
-    <AppShell title="BOM Request" subtitle="Bill of materials requests, review, and approval.">
-      <div className={dashboardStyles.kpiGrid}>
-        <div className={dashboardStyles.kpiCard}>
-          <div className={dashboardStyles.kpiValue}>{bomStats.pending}</div>
-          <div className={dashboardStyles.kpiLabel}>Pending BOM Requests</div>
-        </div>
-        <button type="button" className={`${dashboardStyles.kpiCard} ${dashboardStyles.kpiCardButton}`} onClick={() => showBom('Approved BOM Requests', bomStats.approvedItems)}>
-          <div className={dashboardStyles.kpiValue}>{bomStats.approved}</div>
-          <div className={dashboardStyles.kpiLabel}>Approved BOM Requests</div>
-        </button>
-        <button type="button" className={`${dashboardStyles.kpiCard} ${dashboardStyles.kpiCardAlert} ${dashboardStyles.kpiCardButton}`} onClick={() => showBom('Awaiting Review', bomStats.awaitingReviewItems)}>
-          <div className={dashboardStyles.kpiValue}>{bomStats.awaitingReview}</div>
-          <div className={dashboardStyles.kpiLabel}>Awaiting Review</div>
-        </button>
-      </div>
+    <AppShell fillPage title="BOM Request" subtitle="Bill of materials requests, review, and approval.">
+      <StatCardGrid>
+        <StatCard value={loading && records.length === 0 ? <Skeleton width={64} height={24} /> : bomStats.pending} label="Pending BOM Requests" />
+        <StatCard value={loading && records.length === 0 ? <Skeleton width={64} height={24} /> : bomStats.approved} label="Approved BOM Requests" onClick={() => showBom('Approved BOM Requests', bomStats.approvedItems)} actionLabel="View approved BOM requests" />
+        <StatCard value={loading && records.length === 0 ? <Skeleton width={64} height={24} /> : bomStats.awaitingReview} label="Awaiting Review" tone="danger" onClick={() => showBom('Awaiting Review', bomStats.awaitingReviewItems)} actionLabel="View BOM requests awaiting review" />
+      </StatCardGrid>
 
       <div className={historyStyles.actionRow}>
         {/* Hidden whenever the table is showing its empty state, because that
@@ -195,11 +190,11 @@ export default function TmsBomRequestsView({ currentUser }: TmsBomRequestsViewPr
             Still shown once the form is open, because this same button is the
             form's Cancel and hiding it would leave no way out. */}
         {(loading || filtered.length > 0 || showForm) && (
-          <button type="button" className={calcStyles.btn} onClick={() => setShowForm((v) => !v)}>
-            {showForm ? 'Cancel' : '+ New BOM Request'}
-          </button>
+          <CommonButton variant={showForm ? 'secondary' : 'primary'} leadingIcon={showForm ? undefined : <Plus />} onClick={() => setShowForm((v) => !v)}>
+            {showForm ? 'Cancel' : 'New BOM Request'}
+          </CommonButton>
         )}
-        <ToolbarButton onClick={load}>Refresh</ToolbarButton>
+        <RefreshButton onRefresh={load} loading={loading} pushRight />
       </div>
 
       {showForm && (
@@ -247,32 +242,36 @@ export default function TmsBomRequestsView({ currentUser }: TmsBomRequestsViewPr
             <ToolbarButton disabled={creating} onClick={(e) => handleCreate(e, false)}>
               {creating ? 'Saving…' : 'Save as draft'}
             </ToolbarButton>
-            <button type="button" className={calcStyles.btn} disabled={creating} onClick={(e) => handleCreate(e, true)}>
+            <CommonButton variant="primary" disabled={creating} onClick={(e) => handleCreate(e, true)}>
               {creating ? 'Submitting…' : 'Submit for review'}
-            </button>
+            </CommonButton>
           </div>
         </form>
       )}
 
       <FilterBar>
-        <input type="text" placeholder="Search request code, item, part number…" value={fSearch} onChange={(e) => setFSearch(e.target.value)} />
-        <Select auto value={fProject} onChange={(e) => setFProject(e.target.value)}>
-          <option value="">All projects</option>
-          {projects.map((p) => (
-            <option key={p.id} value={p.id}>{p.name}</option>
-          ))}
-        </Select>
-        <Select auto value={fStatus} onChange={(e) => setFStatus(e.target.value as TmsBomRequestStatus | '')}>
-          <option value="">All statuses</option>
-          {(Object.keys(TMS_BOM_STATUS_LABEL) as TmsBomRequestStatus[]).map((s) => (
-            <option key={s} value={s}>{TMS_BOM_STATUS_LABEL[s]}</option>
-          ))}
-        </Select>
+        <SearchInput placeholder="Search request code, item, part number…" value={fSearch} onChange={(v) => setFSearch(v)} />
+        <Dropdown
+          multiple
+          value={fProject}
+          onChange={setFProject}
+          placeholder="All projects"
+          label="Project"
+          options={projects.map((p) => ({ value: String(p.id), label: p.name }))}
+        />
+        <Dropdown<TmsBomRequestStatus>
+          multiple
+          value={fStatus}
+          onChange={setFStatus}
+          placeholder="All statuses"
+          label="Status"
+          options={(Object.keys(TMS_BOM_STATUS_LABEL) as TmsBomRequestStatus[]).map((s) => ({ value: s, label: TMS_BOM_STATUS_LABEL[s] }))}
+        />
       </FilterBar>
       {!loading && !loadFailed && <div className={historyStyles.status}>{status}</div>}
 
       {loading ? (
-        <div className={historyStyles.tableWrap}><SkeletonRows rows={8} columns={7} /></div>
+        <SkeletonTable columns={columns.length} rows={8} />
       ) : loadFailed ? (
         <ErrorState message="Could not load BOM requests — check your connection and try again." onRetry={load} />
       ) : (
@@ -285,7 +284,7 @@ export default function TmsBomRequestsView({ currentUser }: TmsBomRequestsViewPr
               icon={FileText}
               title={records.length === 0 ? 'No BOM requests yet' : 'No requests match your filters'}
               message={records.length === 0 ? 'Create a request to start tracking material requirements.' : 'Try clearing a filter or search term.'}
-              action={<button type="button" className={calcStyles.btn} onClick={() => setShowForm(true)}>+ New BOM Request</button>}
+              action={<CommonButton variant="primary" leadingIcon={<Plus />} onClick={() => setShowForm(true)}>New BOM Request</CommonButton>}
             />
           }
         />

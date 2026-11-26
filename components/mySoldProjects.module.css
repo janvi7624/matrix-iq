@@ -1,5 +1,6 @@
 /* components/MySoldProjectsView.tsx, components/MySoldProjectDetailView.tsx */
-.pageWrap { max-width: 1200px; margin: 0 auto; padding: 0 16px; }
+/* Full width of the app content area (the shell caps it at 1440px). */
+.pageWrap { width: 100%; }
 
 .colCode { width: 10%; }
 .colDept { width: 12%; }
@@ -45,7 +46,7 @@
 
 .detailGrid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(200px, 100%), 1fr));
   gap: 16px;
   margin-bottom: 24px;
 }

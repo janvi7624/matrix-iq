@@ -1,29 +1,32 @@
 'use client';
 
 import { FormEvent, useEffect, useMemo, useState } from 'react';
-import Link from 'next/link';
-import { ShoppingCart } from 'lucide-react';
+import Link from '@/components/ui/AppLink';
+import { Plus, ShoppingCart } from 'lucide-react';
 import { TmsProcurementRecord, TmsProjectRecord, TmsPurchaseStatus, UserRole } from '@/lib/types';
 import { TMS_PURCHASE_STATUS_LABEL, TMS_PURCHASE_STATUS_TONE } from '@/lib/tmsLabels';
 import AppShell from './AppShell';
-import dashboardStyles from './dashboard.module.css';
+import CommonButton from './ui/CommonButton';
+import StatCard, { StatCardGrid } from './ui/StatCard';
 import tmsDashboardStyles from './tmsDashboard.module.css';
 import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
 import StatusBadge from './ui/StatusBadge';
 import Modal from './ui/Modal';
 import { useToast } from './ui/ToastProvider';
-import { SkeletonRows } from './ui/Skeleton';
+import { SkeletonTable } from './ui/Skeleton';
 import EmptyState from './ui/EmptyState';
 import ErrorState from './ui/ErrorState';
 import { Field, FieldRow } from './ui/Field';
 import Input from './ui/Input';
 import Select from './ui/Select';
+import Dropdown, { inSelection } from './ui/Dropdown';
+import SearchInput from './ui/SearchInput';
 import Textarea from './ui/Textarea';
 import SubmitButton from './ui/SubmitButton';
 import FilterBar from './ui/FilterBar';
-import ToolbarButton from './ui/ToolbarButton';
 import Table, { TableColumn } from './ui/Table';
+import { RefreshButton } from './ui/ListControls';
 
 const EMPTY_FORM = { projectId: '', itemName: '', partNumber: '', quantity: '1', vendor: '', estimatedCost: '', requiredDate: '', remarks: '' };
 
@@ -54,8 +57,8 @@ export default function TmsProcurementView({ currentUser }: TmsProcurementViewPr
   });
   const [creating, setCreating] = useState(false);
 
-  const [fProject, setFProject] = useState('');
-  const [fStatus, setFStatus] = useState<TmsPurchaseStatus | ''>('');
+  const [fProject, setFProject] = useState<string[]>([]);
+  const [fStatus, setFStatus] = useState<TmsPurchaseStatus[]>([]);
   const [fSearch, setFSearch] = useState('');
 
   async function load() {
@@ -84,8 +87,8 @@ export default function TmsProcurementView({ currentUser }: TmsProcurementViewPr
   const filtered = useMemo(() => {
     const q = fSearch.trim().toLowerCase();
     return records.filter((r) => {
-      if (fProject && r.project_id !== fProject) return false;
-      if (fStatus && r.purchase_status !== fStatus) return false;
+      if (!inSelection(r.project_id, fProject)) return false;
+      if (!inSelection(r.purchase_status, fStatus)) return false;
       if (q && ![r.procurement_code, r.item_name, r.vendor].some((v) => (v || '').toLowerCase().includes(q))) return false;
       return true;
     });
@@ -149,29 +152,17 @@ export default function TmsProcurementView({ currentUser }: TmsProcurementViewPr
     { key: 'vendor', header: 'Vendor', render: (r) => r.vendor || '-' },
     { key: 'bomRequest', header: 'BOM Request', render: (r) => r.bom_request_code || '-' },
     { key: 'purchaseStatus', header: 'Purchase Status', render: (r) => <StatusBadge tone={TMS_PURCHASE_STATUS_TONE[r.purchase_status]} label={TMS_PURCHASE_STATUS_LABEL[r.purchase_status]} /> },
-    { key: 'actions', header: '', render: (r) => <Link className={historyStyles.button} href={`/tms/procurement/${r.id}`}>View</Link> }
+    { key: 'actions', header: '', render: (r) => <CommonButton variant="secondary" size="sm" href={`/tms/procurement/${r.id}`}>View</CommonButton> }
   ];
 
   return (
-    <AppShell title="Procurement" subtitle="Purchase and delivery tracking from approved BOM requests.">
-      <div className={dashboardStyles.kpiGrid}>
-        <div className={dashboardStyles.kpiCard}>
-          <div className={dashboardStyles.kpiValue}>{procurementStats.pending}</div>
-          <div className={dashboardStyles.kpiLabel}>Pending Procurement</div>
-        </div>
-        <button type="button" className={`${dashboardStyles.kpiCard} ${dashboardStyles.kpiCardAlert} ${dashboardStyles.kpiCardButton}`} onClick={() => showProcurement('Approval Pending', procurementStats.approvalPendingItems)}>
-          <div className={dashboardStyles.kpiValue}>{procurementStats.approvalPending}</div>
-          <div className={dashboardStyles.kpiLabel}>Approval Pending</div>
-        </button>
-        <button type="button" className={`${dashboardStyles.kpiCard} ${dashboardStyles.kpiCardButton}`} onClick={() => showProcurement('Ordered', procurementStats.orderedItems)}>
-          <div className={dashboardStyles.kpiValue}>{procurementStats.ordered}</div>
-          <div className={dashboardStyles.kpiLabel}>Ordered</div>
-        </button>
-        <button type="button" className={`${dashboardStyles.kpiCard} ${dashboardStyles.kpiCardButton}`} onClick={() => showProcurement('Awaiting Delivery', procurementStats.awaitingDeliveryItems)}>
-          <div className={dashboardStyles.kpiValue}>{procurementStats.awaitingDelivery}</div>
-          <div className={dashboardStyles.kpiLabel}>Awaiting Delivery</div>
-        </button>
-      </div>
+    <AppShell fillPage title="Procurement" subtitle="Purchase and delivery tracking from approved BOM requests.">
+      <StatCardGrid>
+        <StatCard value={procurementStats.pending} label="Pending Procurement" />
+        <StatCard value={procurementStats.approvalPending} label="Approval Pending" tone="danger" onClick={() => showProcurement('Approval Pending', procurementStats.approvalPendingItems)} actionLabel="View procurement awaiting approval" />
+        <StatCard value={procurementStats.ordered} label="Ordered" onClick={() => showProcurement('Ordered', procurementStats.orderedItems)} actionLabel="View ordered procurement" />
+        <StatCard value={procurementStats.awaitingDelivery} label="Awaiting Delivery" onClick={() => showProcurement('Awaiting Delivery', procurementStats.awaitingDeliveryItems)} actionLabel="View procurement awaiting delivery" />
+      </StatCardGrid>
 
       <div className={historyStyles.actionRow}>
         {/* Hidden whenever the table is showing its empty state, because that
@@ -182,11 +173,11 @@ export default function TmsProcurementView({ currentUser }: TmsProcurementViewPr
             Still shown once the form is open, because this same button is the
             form's Cancel and hiding it would leave no way out. */}
         {(loading || filtered.length > 0 || showForm) && (
-          <button type="button" className={calcStyles.btn} onClick={() => setShowForm((v) => !v)}>
-            {showForm ? 'Cancel' : '+ New Procurement Entry'}
-          </button>
+          <CommonButton variant="primary" size="md" leadingIcon={showForm ? undefined : <Plus />} onClick={() => setShowForm((v) => !v)}>
+            {showForm ? 'Cancel' : 'New Procurement Entry'}
+          </CommonButton>
         )}
-        <ToolbarButton onClick={load}>Refresh</ToolbarButton>
+        <RefreshButton onRefresh={load} loading={loading} pushRight />
       </div>
 
       {showForm && (
@@ -229,24 +220,28 @@ export default function TmsProcurementView({ currentUser }: TmsProcurementViewPr
       )}
 
       <FilterBar>
-        <input type="text" placeholder="Search procurement code, item, vendor…" value={fSearch} onChange={(e) => setFSearch(e.target.value)} />
-        <Select auto value={fProject} onChange={(e) => setFProject(e.target.value)}>
-          <option value="">All projects</option>
-          {projects.map((p) => (
-            <option key={p.id} value={p.id}>{p.name}</option>
-          ))}
-        </Select>
-        <Select auto value={fStatus} onChange={(e) => setFStatus(e.target.value as TmsPurchaseStatus | '')}>
-          <option value="">All purchase statuses</option>
-          {(Object.keys(TMS_PURCHASE_STATUS_LABEL) as TmsPurchaseStatus[]).map((s) => (
-            <option key={s} value={s}>{TMS_PURCHASE_STATUS_LABEL[s]}</option>
-          ))}
-        </Select>
+        <SearchInput placeholder="Search procurement code, item, vendor…" value={fSearch} onChange={(v) => setFSearch(v)} />
+        <Dropdown
+          multiple
+          value={fProject}
+          onChange={setFProject}
+          placeholder="All projects"
+          label="Project"
+          options={projects.map((p) => ({ value: p.id, label: p.name }))}
+        />
+        <Dropdown<TmsPurchaseStatus>
+          multiple
+          value={fStatus}
+          onChange={setFStatus}
+          placeholder="All purchase statuses"
+          label="Status"
+          options={(Object.keys(TMS_PURCHASE_STATUS_LABEL) as TmsPurchaseStatus[]).map((s) => ({ value: s, label: TMS_PURCHASE_STATUS_LABEL[s] }))}
+        />
       </FilterBar>
       {!loading && !loadFailed && <div className={historyStyles.status}>{status}</div>}
 
       {loading ? (
-        <div className={historyStyles.tableWrap}><SkeletonRows rows={8} columns={7} /></div>
+        <SkeletonTable rows={8} columns={columns.length} />
       ) : loadFailed ? (
         <ErrorState message="Could not load procurement records — check your connection and try again." onRetry={load} />
       ) : (
@@ -259,7 +254,7 @@ export default function TmsProcurementView({ currentUser }: TmsProcurementViewPr
               icon={ShoppingCart}
               title={records.length === 0 ? 'No procurement records yet' : 'No records match your filters'}
               message={records.length === 0 ? 'Approved BOM requests sent to procurement will appear here, or add one manually.' : 'Try clearing a filter or search term.'}
-              action={<button type="button" className={calcStyles.btn} onClick={() => setShowForm(true)}>+ New Procurement Entry</button>}
+              action={<CommonButton variant="primary" size="md" leadingIcon={<Plus />} onClick={() => setShowForm(true)}>New Procurement Entry</CommonButton>}
             />
           }
         />

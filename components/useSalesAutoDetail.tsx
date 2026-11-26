@@ -1,9 +1,9 @@
 'use client';
 
 import { useState } from 'react';
-import Link from 'next/link';
-import { Loader2 } from 'lucide-react';
+import Link from '@/components/ui/AppLink';
 import Modal, { ModalCancelButton } from './ui/Modal';
+import { SkeletonList } from './ui/Skeleton';
 import calcStyles from './calculator.module.css';
 import styles from './dailyReport.module.css';
 
@@ -62,11 +62,7 @@ export function useSalesAutoDetail(reportDate: string, employeeId?: string) {
       onClose={() => setAutoDetail(null)}
       footer={<ModalCancelButton onClick={() => setAutoDetail(null)}>Close</ModalCancelButton>}
     >
-      {autoDetail.loading && (
-        <div className={calcStyles.small}>
-          <Loader2 size={14} className={styles.spin} /> Loading…
-        </div>
-      )}
+      {autoDetail.loading && <SkeletonList rows={5} avatar={false} boxed={false} />}
       {!autoDetail.loading && autoDetail.error && <div className={styles.errorText}>{autoDetail.error}</div>}
       {!autoDetail.loading && !autoDetail.error && autoDetail.items && autoDetail.items.length === 0 && (
         <div className={calcStyles.small}>Nothing found — the count may have changed since the page loaded. Refresh to see the latest.</div>

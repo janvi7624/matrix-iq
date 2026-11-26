@@ -4,13 +4,18 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import AppShell from './AppShell';
 import { useToast } from './ui/ToastProvider';
+import { SkeletonTable } from './ui/Skeleton';
 import ExpenseCategoryEditor from './ExpenseCategoryEditor';
 import OfficeOperationExpenseBulkForm from './OfficeOperationExpenseBulkForm';
+import { Plus, Pencil, Trash2 } from 'lucide-react';
+import CommonButton from './ui/CommonButton';
 import { OfficeOperationExpenseRecord } from '@/lib/types';
 import { exportOfficeOperationExpensesXlsx } from '@/lib/officeOperationExpenseXlsx';
 import historyStyles from './quotationHistory.module.css';
-import calcStyles from './calculator.module.css';
 import styles from './officeOperationExpenses.module.css';
+import RowActions from './ui/RowActions';
+import TablePager, { usePagination } from './ui/TablePager';
+import Select from './ui/Select';
 
 const MONTH_NAMES = ['', 'January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
@@ -44,6 +49,8 @@ export default function OfficeOperationExpensesView({ currentUser }: OfficeOpera
   const now = useMemo(() => new Date(), []);
 
   const [records, setRecords] = useState<OfficeOperationExpenseRecord[]>([]);
+  // Rows per page + page number for the table footer (components/ui/TablePager).
+  const pager = usePagination(records, 25);
   const [total, setTotal] = useState(0);
   const [totalInWords, setTotalInWords] = useState('');
   const [year, setYear] = useState(now.getFullYear());
@@ -180,6 +187,8 @@ export default function OfficeOperationExpensesView({ currentUser }: OfficeOpera
 
   return (
     <AppShell title="Office Operation Expenses" subtitle="HR/Admin office operating expense register">
+      {/* Fills the screen: the table scrolls, not the page (app/globals.css → .mx-fill-page). */}
+      <div className="mx-fill-page">
       {categoriesOpen && (
         <ExpenseCategoryEditor
           onClose={() => setCategoriesOpen(false)}
@@ -190,26 +199,26 @@ export default function OfficeOperationExpensesView({ currentUser }: OfficeOpera
         <div className={styles.headerRow}>
           <h2 className={styles.pageTitle}>Office Operation Expenses</h2>
           <div className={styles.filterRow}>
-            <select className={calcStyles.formControl} value={month} onChange={(e) => { setLoading(true); setMonth(Number(e.target.value)); }} aria-label={rangeMode ? 'From month' : 'Month'}>
+            <Select auto value={month} onChange={(e) => { setLoading(true); setMonth(Number(e.target.value)); }} aria-label={rangeMode ? 'From month' : 'Month'}>
               {MONTH_NAMES.slice(1).map((name, i) => <option key={name} value={i + 1}>{name}</option>)}
-            </select>
-            <select className={calcStyles.formControl} value={year} onChange={(e) => { setLoading(true); setYear(Number(e.target.value)); }} aria-label={rangeMode ? 'From year' : 'Year'}>
+            </Select>
+            <Select auto value={year} onChange={(e) => { setLoading(true); setYear(Number(e.target.value)); }} aria-label={rangeMode ? 'From year' : 'Year'}>
               {yearChoices.map((y) => <option key={y} value={y}>{y}</option>)}
-            </select>
+            </Select>
             {rangeMode && (
               <>
                 <span className={styles.mutedText}>to</span>
-                <select className={calcStyles.formControl} value={toMonth} onChange={(e) => { setLoading(true); setToMonth(Number(e.target.value)); }} aria-label="To month">
+                <Select auto value={toMonth} onChange={(e) => { setLoading(true); setToMonth(Number(e.target.value)); }} aria-label="To month">
                   {MONTH_NAMES.slice(1).map((name, i) => <option key={name} value={i + 1}>{name}</option>)}
-                </select>
-                <select className={calcStyles.formControl} value={toYear} onChange={(e) => { setLoading(true); setToYear(Number(e.target.value)); }} aria-label="To year">
+                </Select>
+                <Select auto value={toYear} onChange={(e) => { setLoading(true); setToYear(Number(e.target.value)); }} aria-label="To year">
                   {yearChoices.map((y) => <option key={y} value={y}>{y}</option>)}
-                </select>
+                </Select>
               </>
             )}
-            <button
-              type="button"
-              className={historyStyles.button}
+            <CommonButton
+              variant="secondary"
+              size="md"
               onClick={() => {
                 setLoading(true);
                 if (rangeMode) {
@@ -224,32 +233,34 @@ export default function OfficeOperationExpensesView({ currentUser }: OfficeOpera
                   setRangeMode(true);
                 }
               }}
-              aria-pressed={rangeMode}
+              selected={rangeMode}
             >
               {rangeMode ? 'Single month' : 'Custom range'}
-            </button>
-            <button type="button" className={historyStyles.button} onClick={handleExport} disabled={loading || !records.length}>
+            </CommonButton>
+            <CommonButton variant="secondary" size="md" onClick={handleExport} disabled={loading || !records.length}>
               Export .xlsx
-            </button>
-            <button type="button" className={historyStyles.button} onClick={() => setCategoriesOpen(true)}>
+            </CommonButton>
+            <CommonButton variant="secondary" size="md" onClick={() => setCategoriesOpen(true)}>
               Categories
-            </button>
+            </CommonButton>
             {/* Same pair of entry points reimbursement offers: one expense
                 goes to its own page, several are entered inline here. */}
-            <button
-              type="button"
-              className={historyStyles.button}
+            <CommonButton
+              variant="secondary"
+              size="md"
+              leadingIcon={bulkOpen ? undefined : <Plus />}
               onClick={() => setBulkOpen((v) => !v)}
             >
-              {bulkOpen ? 'Cancel' : '+ Add Multiple'}
-            </button>
-            <button
-              type="button"
-              className={`${historyStyles.button} ${historyStyles.primary}`}
+              {bulkOpen ? 'Cancel' : 'Add Multiple'}
+            </CommonButton>
+            <CommonButton
+              variant="primary"
+              size="md"
+              leadingIcon={<Plus />}
               onClick={() => router.push('/office-operation-expenses/new')}
             >
-              + Add Expense
-            </button>
+              Add Expense
+            </CommonButton>
           </div>
         </div>
 
@@ -274,13 +285,14 @@ export default function OfficeOperationExpensesView({ currentUser }: OfficeOpera
           </div>
         )}
 
-        {loading && !hasLoadedOnce ? (
-          <div className={styles.loadingState}>Loading…</div>
+        {loading && (!hasLoadedOnce || records.length === 0) ? (
+          <SkeletonTable columns={11} rows={6} />
         ) : records.length === 0 ? (
           <div className={styles.emptyState}>
-            {loading ? 'Loading…' : <>No expenses recorded for {MONTH_NAMES[month]} {year}. Click &quot;+ Add Expense&quot; to add the first entry.</>}
+            No expenses recorded for {MONTH_NAMES[month]} {year}. Click &quot;+ Add Expense&quot; to add the first entry.
           </div>
         ) : (
+          <>
           <div className={`${historyStyles.tableWrap} ${styles.actionsStickyWrap}`} style={loading ? { opacity: 0.55, pointerEvents: 'none' } : undefined} aria-busy={loading || undefined}>
             <table className={historyStyles.table}>
               <thead>
@@ -299,7 +311,7 @@ export default function OfficeOperationExpensesView({ currentUser }: OfficeOpera
                 </tr>
               </thead>
               <tbody>
-                {records.map((record) => (
+                {pager.rows.map((record) => (
                   <tr key={record.id}>
                     <td className={styles.srNoCell}>{formatSrNo(record.sr_no)}</td>
                     <td className={styles.nowrap}>{formatDate(record.date)}</td>
@@ -344,31 +356,30 @@ export default function OfficeOperationExpensesView({ currentUser }: OfficeOpera
                     <td style={{ maxWidth: 200 }}>{record.remarks || '—'}</td>
                     <td style={{ whiteSpace: 'nowrap', fontSize: '12.5px', color: 'var(--mx-ink-muted)' }}>{record.creator_name || '—'}</td>
                     <td className={styles.colActions}>
-                      <div className={styles.rowActions}>
-                        <button
-                          type="button"
-                          onClick={() => router.push(`/office-operation-expenses/${record.id}/edit`)}
-                          className={styles.editButton}
-                        >
-                          Edit
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleDelete(record)}
-                          disabled={deleting === record.id}
-                          className={styles.deleteButton}
-                          style={{ opacity: deleting === record.id ? 0.5 : 1 }}
-                        >
-                          {deleting === record.id ? '…' : 'Delete'}
-                        </button>
-                      </div>
+                      <RowActions
+                        label="Expense actions"
+                        actions={[
+                          { key: 'edit', label: 'Edit', icon: <Pencil />, onClick: () => router.push(`/office-operation-expenses/${record.id}/edit`) },
+                          {
+                            key: 'delete',
+                            label: deleting === record.id ? 'Deleting…' : 'Delete',
+                            icon: <Trash2 />,
+                            destructive: true,
+                            disabled: deleting === record.id,
+                            onClick: () => handleDelete(record)
+                          }
+                        ]}
+                      />
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
+          <TablePager {...pager.props} noun="expenses" />
+          </>
         )}
+      </div>
       </div>
     </AppShell>
   );

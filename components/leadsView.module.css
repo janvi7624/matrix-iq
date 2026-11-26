@@ -63,19 +63,7 @@
     white-space: nowrap;
 }
 .bulkSelect {
-    min-height: 38px;
-    box-sizing: border-box;
-    padding: 8px 10px;
-    border-radius: var(--mx-radius-sm);
-    background: var(--mx-surface);
-    box-shadow: var(--mx-shadow-pressed-sm);
-    color: var(--mx-ink);
-    font-size: 13.5px;
-    font-family: inherit;
-    cursor: pointer;
-    /* min-width: 0 so a long rep name can't widen the bar past the page —
-       a select's intrinsic width is its widest option, and min-width:auto on a
-       flex item beats max-width. */
+    /* min-width: 0 so a long rep name can't widen the bar past the page. */
     flex: 0 1 200px;
     min-width: 0;
     max-width: 100%;
@@ -175,24 +163,9 @@
 }
 
 /* Per-row picker — assigning one lead shouldn't need a dialog. */
-.rowSelect {
-    width: 100%;
-    box-sizing: border-box;
-    min-height: 34px;
-    padding: 6px 8px;
-    border-radius: var(--mx-radius-xs);
-    background: var(--mx-surface);
-    box-shadow: var(--mx-shadow-pressed-sm);
-    color: var(--mx-ink);
-    font-size: 12.5px;
-    font-family: inherit;
-    cursor: pointer;
-    max-width: 190px;
-}
-.rowSelect:disabled { opacity: 0.5; cursor: progress; }
+.rowSelect { max-width: 190px; }
 /* Draws the eye to rows still needing a decision. */
 .rowSelectUnassigned {
-    box-shadow: var(--mx-shadow-pressed-sm);
     background: var(--mx-warning-subtle);
     font-weight: 600;
 }
@@ -353,7 +326,6 @@
     overflow-x: auto;
     padding: 2px 0 8px;
     margin-bottom: 4px;
-    scrollbar-width: thin;
 }
 .originChip {
     flex: 0 0 auto;

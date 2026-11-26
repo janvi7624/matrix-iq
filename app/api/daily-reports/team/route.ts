@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { dailyReportErrorResponse, guardDailyReport, isGuardFailure, readDateParam } from '@/lib/dailyReportApi';
 import { buildTeamDailyReports } from '@/lib/dailyReportService';
 import { canAccessTeamDashboard } from '@/lib/dailyReportAccess';
+import { getListParam } from '@/lib/listParam';
 
 // GET /api/daily-reports/team?date=&departmentId=&search=&status=
 //
@@ -41,9 +42,11 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(
       await buildTeamDailyReports(viewer, {
         date: readDateParam(request),
-        departmentId: params.get('departmentId') || undefined,
+        // Repeated keys from the multi-select filters; each department id is
+        // checked against the viewer's scope downstream (narrowDepartmentScope).
+        departmentId: getListParam(params, 'departmentId'),
         search: params.get('search') || undefined,
-        status: params.get('status') || undefined
+        status: getListParam(params, 'status')
       })
     );
   } catch (error) {

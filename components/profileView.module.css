@@ -35,10 +35,7 @@
    (already the app's responsive auto-fit tile grid) — this just tweaks the
    margins for this one placement. */
 .infoGrid { margin-top: 28px; margin-bottom: 0; }
-.infoTile { padding: 16px 20px; border-radius: var(--mx-radius-md); display: flex; flex-direction: column; gap: 10px; }
-.infoTileHead { display: flex; align-items: center; gap: 7px; }
-.infoTileLabel { font-size: 11px; font-weight: var(--mx-weight-medium); text-transform: uppercase; letter-spacing: 0.4px; }
-.infoTileValue { font-size: 15px; font-weight: 700; color: var(--mx-ink); }
+
 
 .detailCard {
     margin-top: 20px;
@@ -48,7 +45,7 @@
     padding: 24px 36px 20px;
 }
 .detailHeading { margin: 0 0 20px; font-size: 14px; font-weight: 700; color: var(--mx-ink); text-transform: uppercase; letter-spacing: 0.5px; }
-.detailGrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 0 32px; }
+.detailGrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr)); gap: 0 32px; }
 .detailRow { display: flex; align-items: center; gap: 14px; padding: 16px 0; border-bottom: 1px solid var(--mx-border); }
 .detailRowNoBorder { border-bottom: none; }
 .detailIcon { width: 40px; height: 40px; border-radius: var(--mx-radius-sm); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
@@ -69,3 +66,11 @@
 .toneSuccessBg { background: var(--mx-success-subtle); }
 .toneWarning { color: var(--mx-warning); }
 .toneWarningBg { background: var(--mx-warning-subtle); }
+
+/* Responsive: these rows hold controls or a title + actions. They wrap
+   onto a second line when the screen is too narrow for them, instead of
+   overflowing or crushing their neighbours. No effect when they fit. */
+.detailRow {
+    flex-wrap: wrap;
+    row-gap: 8px;
+}

@@ -1,5 +1,6 @@
 import { PaymentQueueItem, PaymentSource, PaymentQueueStatus } from './types';
 import { buildPeriod, periodEndExclusive, TargetPeriodType } from './targetPeriod';
+import { getListParam } from './listParam';
 
 // One filter implementation for the whole Accounts Payments module — the
 // queue, the history and the CSV export all run items through this, so an
@@ -23,15 +24,18 @@ export interface PaymentPeriodFilter {
   periodKey: string;
 }
 
+// source / status / department / employee each take one value or a list
+// (multi-select filters); a list matches ANY of its values, and an empty list
+// — like '' or 'all' — means no filter.
 export interface PaymentFilters {
-  source?: PaymentSource | 'all';
-  status?: PaymentQueueStatus | 'all';
+  source?: PaymentSource | 'all' | PaymentSource[];
+  status?: PaymentQueueStatus | 'all' | PaymentQueueStatus[];
   search?: string;
-  department?: string;
+  department?: string | string[];
   // Matched against payee AND requestedBy: for a reimbursement the employee
   // is the payee, for a BOM request they're the requester, and someone
   // filtering by a person's name means "anything to do with them".
-  employee?: string;
+  employee?: string | string[];
   period?: PaymentPeriodFilter | null;
   // Explicit dates, for a range that isn't a whole month/quarter/year. Used
   // only when `period` is absent — a period and a custom range are two ways
@@ -85,6 +89,20 @@ export function periodBounds(period: PaymentPeriodFilter | null | undefined): { 
   }
 }
 
+// One value or a list → a de-duplicated list with '' and 'all' dropped, so an
+// empty result always means "no filter".
+function filterList(value: string | readonly string[] | null | undefined, normalise: (v: string) => string = (v) => v): string[] {
+  const raw = value == null ? [] : typeof value === 'string' ? [value] : value;
+  const out: string[] = [];
+  for (const v of raw) {
+    const trimmed = (v ?? '').trim();
+    if (!trimmed || trimmed === 'all') continue;
+    const n = normalise(trimmed);
+    if (!out.includes(n)) out.push(n);
+  }
+  return out;
+}
+
 export function applyPaymentFilters(
   items: PaymentQueueItem[],
   filters: PaymentFilters,
@@ -92,20 +110,23 @@ export function applyPaymentFilters(
 ): PaymentQueueItem[] {
   const basis = filters.dateBasis ?? 'createdAt';
   const search = (filters.search ?? '').trim().toLowerCase();
-  const department = (filters.department ?? '').trim().toLowerCase();
-  const employee = (filters.employee ?? '').trim().toLowerCase();
+  const sources = filterList(filters.source);
+  const statuses = filterList(filters.status);
+  const lower = (v: string) => v.toLowerCase();
+  const departments = filterList(filters.department, lower);
+  const employees = filterList(filters.employee, lower);
   const bounds = periodBounds(filters.period);
 
   return items.filter((item) => {
-    if (filters.source && filters.source !== 'all' && item.source !== filters.source) return false;
-    if (filters.status && filters.status !== 'all' && item.status !== filters.status) return false;
+    if (sources.length && !sources.includes(item.source)) return false;
+    if (statuses.length && !statuses.includes(item.status)) return false;
 
-    if (department && (item.department ?? '').trim().toLowerCase() !== department) return false;
+    if (departments.length && !departments.includes((item.department ?? '').trim().toLowerCase())) return false;
 
-    if (employee) {
+    if (employees.length) {
       const payee = (item.payee ?? '').trim().toLowerCase();
       const requester = (item.requestedBy ?? '').trim().toLowerCase();
-      if (payee !== employee && requester !== employee) return false;
+      if (!employees.includes(payee) && !employees.includes(requester)) return false;
     }
 
     if (search) {
@@ -209,11 +230,13 @@ export function parsePaymentFilters(params: URLSearchParams, dateBasis: PaymentD
   };
 
   return {
-    source: (params.get('source') as PaymentSource) || 'all',
-    status: (params.get('status') as PaymentQueueStatus) || 'all',
+    // Repeated keys (?status=a&status=b) from the multi-select filters; a
+    // single legacy value still parses to a one-item list.
+    source: getListParam(params, 'source') as PaymentSource[],
+    status: getListParam(params, 'status') as PaymentQueueStatus[],
     search: params.get('search') ?? '',
-    department: params.get('department') ?? '',
-    employee: params.get('employee') ?? '',
+    department: getListParam(params, 'department'),
+    employee: getListParam(params, 'employee'),
     period,
     dateFrom: params.get('dateFrom') ?? '',
     dateTo: params.get('dateTo') ?? '',

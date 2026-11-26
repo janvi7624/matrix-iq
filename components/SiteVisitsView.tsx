@@ -1,19 +1,21 @@
 'use client';
 
 import { FormEvent, Suspense, useEffect, useMemo, useState } from 'react';
-import Link from 'next/link';
+import Link from '@/components/ui/AppLink';
 import { useSearchParams } from 'next/navigation';
-import { MapPin } from 'lucide-react';
+import { MapPin, Eye, FilePlus2, Trash2 } from 'lucide-react';
 import { SiteVisitRecord, UserRole, VisitStage } from '@/lib/types';
 import { TECHNICAL_TEAM, SALES_TEAM } from '@/lib/teamMembers';
 import { DOMAIN_DISPLAY_NAME } from '@/lib/domainLabels';
 import { isReminderDue, STAGE_LABEL, STAGE_HINT } from '@/lib/siteVisitReminder';
 import AppShell from './AppShell';
+import CommonButton from './ui/CommonButton';
+import { SegmentedButton } from './ui/SegmentedToggle';
 import TeamCheckboxes from './TeamCheckboxes';
 import SiteVisitWizard, { SiteVisitWizardForm } from './SiteVisitWizard';
 import { useToast } from './ui/ToastProvider';
 import { useConfirm } from './ui/ConfirmDialog';
-import { SkeletonRows } from './ui/Skeleton';
+import { SkeletonTable } from './ui/Skeleton';
 import Modal, { ModalOkButton } from './ui/Modal';
 import EmptyState from './ui/EmptyState';
 import ErrorState from './ui/ErrorState';
@@ -21,6 +23,10 @@ import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
 import styles from './siteVisitsView.module.css';
 import { todayDateInputValue } from '@/lib/dateHelpers';
+import RowActions from './ui/RowActions';
+import { ListToolbar, QuickFilters, RefreshButton } from './ui/ListControls';
+import { TableWrap } from './ui/Table';
+import Select from './ui/Select';
 
 interface SiteVisitsViewProps {
   currentUser: { username: string; role: UserRole; isPrivileged: boolean };
@@ -200,18 +206,18 @@ function SiteVisitDetail({
       <StagePicker value={stage} onChange={setStage} />
       <div className={calcStyles.field}>
         <label className={calcStyles.label}>Status</label>
-        <select className={calcStyles.formControl} value={status} onChange={(e) => setStatus(e.target.value as SiteVisitRecord['status'])}>
+        <Select value={status} onChange={(e) => setStatus(e.target.value as SiteVisitRecord['status'])}>
           <option value="open">Open</option>
           <option value="closed">Closed</option>
-        </select>
+        </Select>
       </div>
       <div className={calcStyles.field}>
         <label className={calcStyles.label}>Remarks (optional)</label>
         <textarea className={calcStyles.formControl} rows={2} value={remarks} onChange={(e) => setRemarks(e.target.value)} />
       </div>
-      <button type="button" className={calcStyles.btn} disabled={busy} onClick={handleSaveDetails}>
-        {busy ? 'Saving…' : 'Save details'}
-      </button>
+      <CommonButton variant="primary" loading={busy} loadingLabel="Saving…" onClick={handleSaveDetails}>
+        Save details
+      </CommonButton>
 
       <hr className={styles.hrDivider} />
 
@@ -293,9 +299,9 @@ function SiteVisitDetail({
             onChange={(e) => setUpdateForm((f) => ({ ...f, updatedOn: e.target.value }))}
           />
         </div>
-        <button type="submit" className={calcStyles.btn} disabled={addingUpdate}>
-          {addingUpdate ? 'Saving…' : 'Add update'}
-        </button>
+        <CommonButton type="submit" variant="primary" loading={addingUpdate} loadingLabel="Saving…">
+          Add update
+        </CommonButton>
       </form>
     </div>
   );
@@ -396,47 +402,50 @@ function SiteVisitsContent({ currentUser }: SiteVisitsViewProps) {
   }
 
   return (
-    <AppShell title="Site Visit Reports" subtitle="Register a visit, then keep logging project updates over time.">
+    <AppShell fillPage={mode === 'update'} title="Site Visit Reports" subtitle="Register a visit, then keep logging project updates over time.">
         <div className={historyStyles.modeToggle}>
-          <button
-            type="button"
-            className={`${historyStyles.modeToggleBtn} ${mode === 'register' ? historyStyles.modeToggleBtnActive : ''}`}
-            onClick={() => setMode('register')}
-          >
+          <SegmentedButton active={mode === 'register'} onClick={() => setMode('register')}>
             Register new visit
-          </button>
-          <button
-            type="button"
-            className={`${historyStyles.modeToggleBtn} ${mode === 'update' ? historyStyles.modeToggleBtnActive : ''}`}
+          </SegmentedButton>
+          <SegmentedButton
+            active={mode === 'update'}
             onClick={() => {
               setMode('update');
               setOpenOnly(true);
             }}
           >
             Update details of visit
-          </button>
+          </SegmentedButton>
         </div>
 
         {mode === 'register' && (
           <SiteVisitWizard visits={visits} prefillProjectId={prefillProjectId} creating={creating} onSubmit={handleWizardSubmit} />
         )}
 
-        <div className={`${historyStyles.toolbar} ${historyStyles.toolbarSpaced}`}>
-          <label className={styles.checkboxLabelInline}>
-            <input type="checkbox" checked={openOnly} onChange={(e) => setOpenOnly(e.target.checked)} />
-            Open visits only
-          </label>
-          <button type="button" className={historyStyles.button} onClick={load}>
-            Refresh
-          </button>
-        </div>
+        {/* All visits by default; Open is one click. Refresh is an icon on the right. */}
+        <ListToolbar
+          className={historyStyles.toolbarSpaced}
+          left={
+            <QuickFilters<'all' | 'open'>
+              ariaLabel="Site visit quick filters"
+              value={openOnly ? 'open' : 'all'}
+              onChange={(v) => setOpenOnly(v === 'open')}
+              options={[
+                { value: 'all', label: 'All visits', count: visits.length },
+                { value: 'open', label: 'Open', count: visits.filter((v) => v.status === 'open').length }
+              ]}
+            />
+          }
+          right={<RefreshButton onRefresh={load} loading={loading} label="Refresh site visits" />}
+        />
         {!loading && !loadFailed && <div className={historyStyles.status}>{status}</div>}
 
         {loading ? (
-          <div className={historyStyles.tableWrap}><SkeletonRows rows={8} columns={9} /></div>
+          <SkeletonTable rows={8} columns={8} />
         ) : loadFailed ? (
           <ErrorState message="Could not load site visits — check your connection and try again." onRetry={load} />
         ) : (
+          <TableWrap>
           <table className={historyStyles.table}>
             <thead>
               <tr>
@@ -458,7 +467,7 @@ function SiteVisitsContent({ currentUser }: SiteVisitsViewProps) {
                       icon={MapPin}
                       title={visits.length === 0 ? 'No site visits recorded yet' : 'No site visits match your filters'}
                       message={visits.length === 0 ? 'Register a visit to start tracking it here.' : 'Try clearing a filter.'}
-                      action={visits.length === 0 ? <button type="button" className={calcStyles.btn} onClick={() => setMode('register')}>Register a Visit</button> : undefined}
+                      action={visits.length === 0 ? <CommonButton variant="primary" onClick={() => setMode('register')}>Register a Visit</CommonButton> : undefined}
                     />
                   </td>
                 </tr>
@@ -475,24 +484,22 @@ function SiteVisitsContent({ currentUser }: SiteVisitsViewProps) {
                     <td>{v.status === 'open' ? 'Open' : 'Closed'}</td>
                     <td>{isReminderDue(v) ? <span className={historyStyles.reminderBadge}>Reminder due</span> : <span className={historyStyles.followUpOk}>-</span>}</td>
                     <td>{v.created_by}</td>
-                    <td className={historyStyles.rowActionsInline}>
-                      <button type="button" className={historyStyles.button} onClick={() => setOpenId(v.id)}>
-                        View / Edit
-                      </button>
-                      <Link className={historyStyles.button} href={`/quotation${v.project_id ? `?projectId=${v.project_id}` : ''}`}>
-                        Create Quotation
-                      </Link>
-                      {isPrivileged && (
-                        <button type="button" className={historyStyles.deleteBtn} onClick={() => handleDelete(v.id)}>
-                          Delete
-                        </button>
-                      )}
+                    <td>
+                      <RowActions
+                        label="Site visit actions"
+                        actions={[
+                          { key: 'open', label: 'View / Edit', icon: <Eye />, onClick: () => setOpenId(v.id) },
+                          { key: 'quote', label: 'Create Quotation', icon: <FilePlus2 />, href: `/quotation${v.project_id ? `?projectId=${v.project_id}` : ''}` },
+                          { key: 'delete', label: 'Delete', icon: <Trash2 />, destructive: true, hidden: !isPrivileged, onClick: () => handleDelete(v.id) }
+                        ]}
+                      />
                     </td>
                   </tr>
                 ))
               )}
             </tbody>
           </table>
+          </TableWrap>
         )}
 
         {/* A dialog rather than a panel appended after the table: the panel

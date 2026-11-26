@@ -85,3 +85,76 @@
     background: var(--mx-surface-sunken);
     box-shadow: var(--mx-shadow-sm);
 }
+
+/* ---------------------------------------------------------------------------
+   Skeleton layouts (components/ui/Skeleton.tsx) — shaped like the real
+   content they stand in for, so the page doesn't jump when data arrives.
+   --------------------------------------------------------------------------- */
+.skBox {
+    background: #ffffff;
+    border: 1px solid var(--mx-border);
+    border-radius: var(--mx-radius-lg);
+    box-shadow: 0 1px 2px rgba(17, 24, 39, 0.04), 0 4px 14px rgba(17, 24, 39, 0.05);
+}
+.skStack { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.skLines { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+
+/* Table */
+.skTable { overflow: hidden; border-radius: var(--mx-radius-sm); background: var(--mx-surface); box-shadow: var(--mx-shadow-xs); }
+.skTableHead,
+.skTableRow {
+    display: grid;
+    grid-template-columns: var(--sk-cols);
+    gap: 16px;
+    align-items: center;
+    padding: 12px;
+}
+.skTableHead { background: var(--mx-surface-sunken); }
+.skTableHead .skeleton { background: var(--mx-border-strong); opacity: 0.6; }
+.skTableRow { border-top: 1px solid #eef0f2; }
+
+/* Stat cards / generic cards */
+.skGrid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(var(--sk-min, 180px), 100%), 1fr));
+    gap: 16px;
+}
+.skStatCard { padding: 18px 20px; display: flex; flex-direction: column; gap: 10px; }
+.skCard { padding: 16px 18px; display: flex; flex-direction: column; gap: 10px; }
+.skCardFoot { display: flex; gap: 8px; margin-top: 6px; }
+
+/* List */
+.skList { padding: 4px 16px; }
+.skListRow { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-top: 1px solid var(--mx-border); }
+.skListRow:first-child { border-top: none; }
+
+/* Detail page */
+.skDetailTop { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.skPanel { padding: 18px 20px; display: flex; flex-direction: column; gap: 14px; }
+.skPairs { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(240px, 100%), 1fr)); gap: 14px 28px; }
+.skPair { display: flex; flex-direction: column; gap: 6px; }
+
+/* Form */
+.skForm { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(260px, 100%), 1fr)); gap: 16px; }
+.skField { display: flex; flex-direction: column; gap: 8px; }
+
+/* Toolbar */
+.skToolbar { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+
+/* Phone: a table skeleton looks like the real phone card list. */
+@media (max-width: 640px) {
+    .skTableHead { display: none; }
+    .skTable { background: transparent; box-shadow: none; overflow: visible; }
+    .skTableRow {
+        grid-template-columns: 1fr;
+        gap: 10px;
+        margin-bottom: 10px;
+        border: 1px solid var(--mx-border);
+        border-radius: var(--mx-radius-md);
+        background: #ffffff;
+        padding: 14px;
+    }
+}
+
+/* Shared vertical spacing between stacked blocks (app/globals.css → "Stack spacing"). */
+.skTable { composes: mx-block from global; }

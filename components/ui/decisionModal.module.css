@@ -13,3 +13,11 @@
 .approve { background: #16a34a; border-color: #16a34a; }
 .reject { background: #dc2626; border-color: #dc2626; }
 .approve:disabled, .reject:disabled { opacity: 0.55; cursor: default; }
+
+/* Responsive: these rows hold controls or a title + actions. They wrap
+   onto a second line when the screen is too narrow for them, instead of
+   overflowing or crushing their neighbours. No effect when they fit. */
+.summaryRow {
+    flex-wrap: wrap;
+    row-gap: 8px;
+}

@@ -2,11 +2,12 @@
 
 import { ReactNode, useEffect, useState } from 'react';
 import AppShell from './AppShell';
+import CommonButton from './ui/CommonButton';
 import Table from './ui/Table';
 import ToolbarButton, { DeleteButton } from './ui/ToolbarButton';
 import ErrorState from './ui/ErrorState';
 import EmptyState from './ui/EmptyState';
-import { SkeletonRows } from './ui/Skeleton';
+import { Skeleton, SkeletonDetail, SkeletonTable } from './ui/Skeleton';
 import Modal, { ModalOkButton } from './ui/Modal';
 import { useToast } from './ui/ToastProvider';
 import { useConfirm } from './ui/ConfirmDialog';
@@ -16,6 +17,7 @@ import { ProjectRecord, QuotationRecord } from '@/lib/types';
 import calcStyles from './calculator.module.css';
 import historyStyles from './quotationHistory.module.css';
 import styles from './targetDetails.module.css';
+import Select from '@/components/ui/Select';
 
 interface Candidate {
   id: string;
@@ -250,13 +252,9 @@ export default function EmployeeExitView({ embedded, initialEmployeeId, onDone }
                 header: 'Record',
                 render: (row: WorkItem) =>
                   kind ? (
-                    <button
-                      type="button"
-                      onClick={() => openDetail(kind, row.id)}
-                      style={{ background: 'none', border: 'none', padding: 0, color: 'var(--mx-brand)', textDecoration: 'underline', cursor: 'pointer', font: 'inherit', textAlign: 'left' }}
-                    >
+                    <CommonButton variant="link" size="sm" onClick={() => openDetail(kind, row.id)}>
                       {row.label}
-                    </button>
+                    </CommonButton>
                   ) : (
                     row.label
                   )
@@ -280,8 +278,8 @@ export default function EmployeeExitView({ embedded, initialEmployeeId, onDone }
                 key: 'newOwner',
                 header: 'Reassign To',
                 render: (row: WorkItem) => (
-                  <select
-                    className={calcStyles.formControl}
+                  <Select
+                    dropdownSize="sm"
                     value={assignments[row.id] || ''}
                     onChange={(e) => setAssignments((prev) => ({ ...prev, [row.id]: e.target.value }))}
                   >
@@ -289,7 +287,7 @@ export default function EmployeeExitView({ embedded, initialEmployeeId, onDone }
                     {summary.eligibleReplacements.map((c) => (
                       <option key={c.id} value={c.id}>{c.name}</option>
                     ))}
-                  </select>
+                  </Select>
                 )
               }
             ]}
@@ -306,15 +304,17 @@ export default function EmployeeExitView({ embedded, initialEmployeeId, onDone }
       {initialEmployeeId ? null : candidatesError ? (
         <ErrorState message={candidatesError} />
       ) : !candidates ? (
-        <SkeletonRows rows={2} columns={1} />
+        <div className={historyStyles.toolbar}>
+          <Skeleton width={320} height={44} radius={12} style={{ maxWidth: '100%' }} />
+        </div>
       ) : (
         <div className={historyStyles.toolbar}>
-          <select className={calcStyles.formControl} value={selectedId} onChange={(e) => loadSummary(e.target.value)} aria-label="Employee">
+          <Select auto value={selectedId} onChange={(e) => loadSummary(e.target.value)} aria-label="Employee">
             <option value="">Select an employee…</option>
             {candidates.map((c) => (
               <option key={c.id} value={c.id}>{c.name}{c.department ? ` (${c.department})` : ''}</option>
             ))}
-          </select>
+          </Select>
         </div>
       )}
 
@@ -322,7 +322,7 @@ export default function EmployeeExitView({ embedded, initialEmployeeId, onDone }
         <EmptyState title="No employees to manage" message="You don't currently manage any active employees other than yourself." />
       )}
 
-      {summaryLoading && <SkeletonRows rows={4} columns={3} />}
+      {summaryLoading && <SkeletonTable columns={3} rows={4} />}
       {summaryError && <ErrorState message={summaryError} onRetry={() => loadSummary(selectedId)} />}
 
       {summary && !result && (
@@ -336,12 +336,12 @@ export default function EmployeeExitView({ embedded, initialEmployeeId, onDone }
           ) : (
             <>
               <div className={historyStyles.toolbar}>
-                <select className={calcStyles.formControl} value={bulkOwner} onChange={(e) => setBulkOwner(e.target.value)} aria-label="Reassign everything to">
+                <Select auto value={bulkOwner} onChange={(e) => setBulkOwner(e.target.value)} aria-label="Reassign everything to">
                   <option value="">Reassign everything to…</option>
                   {summary.eligibleReplacements.map((c) => (
                     <option key={c.id} value={c.id}>{c.name}</option>
                   ))}
-                </select>
+                </Select>
                 <ToolbarButton onClick={applyToAll} disabled={!bulkOwner}>Apply to all</ToolbarButton>
               </div>
 
@@ -419,7 +419,7 @@ export default function EmployeeExitView({ embedded, initialEmployeeId, onDone }
           footer={<ModalOkButton onClick={() => setDetailTarget(null)}>Close</ModalOkButton>}
         >
           {detailLoading ? (
-            <SkeletonRows rows={4} columns={2} />
+            <SkeletonDetail panels={1} pairs={6} withTopRow={false} />
           ) : detailError ? (
             <ErrorState message={detailError} onRetry={() => openDetail(detailTarget.kind, detailTarget.id)} />
           ) : detailTarget.kind === 'project' ? (

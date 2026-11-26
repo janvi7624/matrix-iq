@@ -1,14 +1,22 @@
 'use client';
 
 import { FormEvent, useEffect, useMemo, useState } from 'react';
-import Link from 'next/link';
+import { Plus } from 'lucide-react';
 import { PartnerRecord, PartnerStatus } from '@/lib/types';
 import { PROJECT_DEPARTMENTS, PROJECT_DEPARTMENT_LABEL } from '@/lib/projectDepartmentOptions';
 import AppShell from '@/components/AppShell';
+import CommonButton from '@/components/ui/CommonButton';
+import StateCitySelect from '@/components/ui/StateCitySelect';
+import SearchInput from '@/components/ui/SearchInput';
+import Dropdown, { inSelection } from '@/components/ui/Dropdown';
+import PartnerGuideModal, { usePartnerGuideAutoShow } from '@/components/PartnerGuideModal';
+import guideStyles from '@/components/partnerGuideModal.module.css';
 import historyStyles from '@/components/quotationHistory.module.css';
 import calcStyles from '@/components/calculator.module.css';
 import pageStyles from './partnersPage.module.css';
 import { fetchCached } from '@/lib/fetchCached';
+import { SkeletonTable } from '@/components/ui/Skeleton';
+import Select from '@/components/ui/Select';
 
 const STATUS_LABEL: Record<PartnerStatus, string> = {
   pending: 'Pending setup',
@@ -28,11 +36,15 @@ export default function PartnerManagementPage() {
   const [partners, setPartners] = useState<PartnerRecord[]>([]);
   const [status, setStatus] = useState('Loading...');
   const [q, setQ] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'all' | PartnerStatus>('all');
+  const [statusFilter, setStatusFilter] = useState<PartnerStatus[]>([]);
   const [users, setUsers] = useState<{ id: string; username: string; name: string }[]>([]);
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState('');
   const [showForm, setShowForm] = useState(false);
+  // Shows once per browser, and stays reachable afterwards from the link
+  // below — same arrangement as TMS.
+  const [autoShowGuide, dismissAutoGuide] = usePartnerGuideAutoShow('internal');
+  const [showGuide, setShowGuide] = useState(false);
 
   const [form, setForm] = useState({
     company_name: '',
@@ -72,7 +84,7 @@ export default function PartnerManagementPage() {
   const visible = useMemo(() => {
     const needle = q.trim().toLowerCase();
     return partners.filter((p) => {
-      if (statusFilter !== 'all' && p.status !== statusFilter) return false;
+      if (!inSelection(p.status, statusFilter)) return false;
       if (!needle) return true;
       return (
         p.company_name.toLowerCase().includes(needle) ||
@@ -116,7 +128,21 @@ export default function PartnerManagementPage() {
   }
 
   return (
-    <AppShell title="Partner Management" subtitle="Sales › channel partners, distributors and dealers who collaborate with us through MatrixIQ.">
+    <AppShell fillPage={!showForm} title="Partner Management" subtitle="Sales › channel partners, distributors and dealers who collaborate with us through MatrixIQ.">
+      <div className={guideStyles.guideLinkRow}>
+        <CommonButton variant="link" size="sm" onClick={() => setShowGuide(true)}>
+          How Partner Management Works
+        </CommonButton>
+      </div>
+      {(autoShowGuide || showGuide) && (
+        <PartnerGuideModal
+          audience="internal"
+          onClose={() => {
+            dismissAutoGuide();
+            setShowGuide(false);
+          }}
+        />
+      )}
       <h2 className={`${calcStyles.h2} ${calcStyles.h2Flush}`}>Add partner</h2>
       {!showForm ? (
         <div className={calcStyles.sectionPanel}>
@@ -124,7 +150,7 @@ export default function PartnerManagementPage() {
             Creating a partner records the company only. Issue their login from the partner&apos;s own page — the account stays
             in <strong>Pending setup</strong> until you do, and partners can never register themselves.
           </p>
-          <button type="button" className={calcStyles.btn} onClick={() => setShowForm(true)}>+ New partner</button>
+          <CommonButton variant="primary" size="md" leadingIcon={<Plus />} onClick={() => setShowForm(true)}>New partner</CommonButton>
         </div>
       ) : (
         <form className={calcStyles.sectionPanel} onSubmit={handleCreate}>
@@ -150,14 +176,12 @@ export default function PartnerManagementPage() {
             </div>
           </div>
           <div className={`${calcStyles.row} ${calcStyles.columns}`}>
-            <div className={calcStyles.field}>
-              <label className={calcStyles.label} htmlFor="partnerCity">City</label>
-              <input id="partnerCity" className={calcStyles.formControl} value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })} />
-            </div>
-            <div className={calcStyles.field}>
-              <label className={calcStyles.label} htmlFor="partnerState">State</label>
-              <input id="partnerState" className={calcStyles.formControl} value={form.state} onChange={(e) => setForm({ ...form, state: e.target.value })} />
-            </div>
+            <StateCitySelect
+              state={form.state}
+              city={form.city}
+              onChange={(patch) => setForm((prev) => ({ ...prev, ...patch }))}
+              idPrefix="partner"
+            />
             <div className={calcStyles.field}>
               <label className={calcStyles.label} htmlFor="partnerGst">GST number</label>
               <input id="partnerGst" className={calcStyles.formControl} value={form.gst_number} onChange={(e) => setForm({ ...form, gst_number: e.target.value })} />
@@ -166,12 +190,12 @@ export default function PartnerManagementPage() {
           <div className={`${calcStyles.row} ${calcStyles.columns}`}>
             <div className={calcStyles.field}>
               <label className={calcStyles.label} htmlFor="partnerRm">Relationship manager</label>
-              <select id="partnerRm" className={calcStyles.formControl} value={form.relationship_manager_id} onChange={(e) => setForm({ ...form, relationship_manager_id: e.target.value })}>
+              <Select id="partnerRm" value={form.relationship_manager_id} onChange={(e) => setForm({ ...form, relationship_manager_id: e.target.value })}>
                 <option value="">Not assigned</option>
                 {users.map((u) => (
                   <option key={u.id} value={u.id}>{u.name || u.username}</option>
                 ))}
-              </select>
+              </Select>
             </div>
             <div className={calcStyles.field}>
               <span className={calcStyles.label}>Departments</span>
@@ -185,22 +209,28 @@ export default function PartnerManagementPage() {
             </div>
           </div>
           <div className={pageStyles.actionsRow}>
-            <button type="submit" className={calcStyles.btn} disabled={creating}>{creating ? 'Adding...' : 'Add partner'}</button>
-            <button type="button" className={historyStyles.button} onClick={() => { setShowForm(false); setCreateError(''); }}>Cancel</button>
+            <CommonButton type="submit" variant="primary" size="md" disabled={creating}>{creating ? 'Adding...' : 'Add partner'}</CommonButton>
+            <CommonButton variant="secondary" size="md" onClick={() => { setShowForm(false); setCreateError(''); }}>Cancel</CommonButton>
           </div>
         </form>
       )}
 
       <h2 className={calcStyles.h2}>Partners</h2>
       <div className={historyStyles.toolbar}>
-        <input type="text" placeholder="Search by company, code, contact or city..." value={q} onChange={(e) => setQ(e.target.value)} />
-        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as 'all' | PartnerStatus)}>
-          <option value="all">All statuses</option>
-          {(Object.keys(STATUS_LABEL) as PartnerStatus[]).map((s) => (
-            <option key={s} value={s}>{STATUS_LABEL[s]}</option>
-          ))}
-        </select>
+        <SearchInput placeholder="Search by company, code, contact or city..." value={q} onChange={(v) => setQ(v)} />
+        <Dropdown<PartnerStatus>
+          multiple
+          value={statusFilter}
+          onChange={setStatusFilter}
+          placeholder="All statuses"
+          label="Status"
+          options={(Object.keys(STATUS_LABEL) as PartnerStatus[]).map((s) => ({ value: s, label: STATUS_LABEL[s] }))}
+        />
       </div>
+      {status === 'Loading...' ? (
+        <SkeletonTable rows={6} columns={7} />
+      ) : (
+      <>
       <div className={historyStyles.status}>{status}</div>
       <div className={historyStyles.tableWrap}>
         <table className={historyStyles.table}>
@@ -227,7 +257,7 @@ export default function PartnerManagementPage() {
                   <span className={`${historyStyles.statusPill} ${statusClass(p.status)}`}>{STATUS_LABEL[p.status]}</span>
                 </td>
                 <td>
-                  <Link className={historyStyles.button} href={`/admin/partners/${p.id}`}>Open</Link>
+                  <CommonButton variant="secondary" size="sm" href={`/admin/partners/${p.id}`}>Open</CommonButton>
                 </td>
               </tr>
             ))}
@@ -241,6 +271,8 @@ export default function PartnerManagementPage() {
           </tbody>
         </table>
       </div>
+      </>
+      )}
     </AppShell>
   );
 }

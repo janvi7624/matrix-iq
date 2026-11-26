@@ -9,6 +9,7 @@ import { CostInputs, DomainResult, LineItem } from '@/lib/types';
 import { ModelPreset } from './ConferenceEstimator';
 import { applyOverride, extraProductKeys, overrideMapKey, OverrideMap } from '@/lib/catalogOverrides';
 import styles from '../calculator.module.css';
+import Select from '../ui/Select';
 
 interface InteractivePanelEstimatorProps {
   active: boolean;
@@ -82,19 +83,19 @@ export default function InteractivePanelEstimator({ active, costInputs, onResult
       <div className={`${styles.row} ${styles.columns}`}>
         <div className={styles.field}>
           <label className={styles.label} htmlFor="ifpModel">Panel model</label>
-          <select id="ifpModel" className={styles.formControl} value={modelKey} onChange={(e) => setModelKey(e.target.value)}>
+          <Select id="ifpModel" value={modelKey} onChange={(e) => setModelKey(e.target.value)}>
             {modelKeys.map((key) => (
               <option key={key} value={key}>{key} — {effectiveProducts[key]?.name}</option>
             ))}
-          </select>
+          </Select>
         </div>
         <div className={styles.field}>
           <label className={styles.label} htmlFor="ifpPriceTier">Price tier</label>
-          <select id="ifpPriceTier" className={styles.formControl} value={priceTier} onChange={(e) => setPriceTier(e.target.value as Tier)}>
+          <Select id="ifpPriceTier" value={priceTier} onChange={(e) => setPriceTier(e.target.value as Tier)}>
             <option value="distributor">Distributor price</option>
             <option value="partner">Partner price</option>
             <option value="customer">Customer price</option>
-          </select>
+          </Select>
         </div>
       </div>
       <div className={`${styles.row} ${styles.columns}`}>

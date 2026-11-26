@@ -10,6 +10,18 @@
 .newProductPanel { padding: 16px; margin-bottom: 16px; }
 .maxWidth320 { max-width: 320px; }
 .maxWidth260 { max-width: 260px; }
-.fieldsGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; margin-top: 10px; }
+.fieldsGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(220px, 100%), 1fr)); gap: 12px; margin-top: 10px; }
 .createActionsRow { display: flex; gap: 8px; margin-top: 14px; }
 .mt24 { margin-top: 24px; }
+
+/* Responsive: these rows hold controls or a title + actions. They wrap
+   onto a second line when the screen is too narrow for them, instead of
+   overflowing or crushing their neighbours. No effect when they fit. */
+.tierRow,
+.createActionsRow {
+    flex-wrap: wrap;
+    row-gap: 8px;
+}
+
+/* "Add New Product" at the far right of the catalog toolbar. */
+.pushRight { margin-left: auto; }

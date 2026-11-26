@@ -1,15 +1,18 @@
 'use client';
 
 import { Fragment, useCallback, useEffect, useState } from 'react';
-import { Download, Loader2 } from 'lucide-react';
+import { Download } from 'lucide-react';
 import { generateQuotationPdf } from '@/lib/pdf';
 import type { LineItem as PdfLineItem, ProductGroup } from '@/lib/types';
 import { PartnerRecord } from '@/lib/types';
 import PartnerQuotationRequestsPanel from './PartnerQuotationRequestsPanel';
 import PartnerShell from './PartnerShell';
+import CommonButton from './ui/CommonButton';
+import { SkeletonTable } from './ui/Skeleton';
 import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
 import styles from './partnerPortal.module.css';
+import { TableWrap } from './ui/Table';
 
 interface SharedQuotation {
   id: string;
@@ -75,6 +78,7 @@ export default function PartnerQuotationsView({ partner }: { partner: PartnerRec
   const [status, setStatus] = useState('Loading...');
   const [openId, setOpenId] = useState<string | null>(null);
   const [lineItems, setLineItems] = useState<LineItem[]>([]);
+  const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState('');
   const [pdf, setPdf] = useState<PdfPayload | null>(null);
   const [isProposal, setIsProposal] = useState(false);
@@ -106,6 +110,7 @@ export default function PartnerQuotationsView({ partner }: { partner: PartnerRec
     setLineItems([]);
     setPdf(null);
     setIsProposal(false);
+    setDetailLoading(true);
     try {
       const response = await fetch(`/api/partner/quotations/${id}`);
       if (!response.ok) {
@@ -118,6 +123,8 @@ export default function PartnerQuotationsView({ partner }: { partner: PartnerRec
       setIsProposal(data.is_proposal === true);
     } catch {
       setDetailError('Could not reach the server.');
+    } finally {
+      setDetailLoading(false);
     }
   }
 
@@ -191,7 +198,11 @@ export default function PartnerQuotationsView({ partner }: { partner: PartnerRec
         </p>
       </section>
 
-      {status && <div className={historyStyles.status}>{status}</div>}
+      {status === 'Loading...' ? (
+        <SkeletonTable columns={6} rows={5} />
+      ) : (
+        status && <div className={historyStyles.status}>{status}</div>
+      )}
 
       {quotations.length > 0 && (
         <div className={historyStyles.tableWrap}>
@@ -222,9 +233,9 @@ export default function PartnerQuotationsView({ partner }: { partner: PartnerRec
                     <td>{money(q.total)}</td>
                     <td>{q.shared_at ? new Date(q.shared_at).toLocaleDateString() : '-'}</td>
                     <td>
-                      <button type="button" className={historyStyles.button} onClick={() => openQuotation(q.id)}>
+                      <CommonButton size="sm" selected={openId === q.id} onClick={() => openQuotation(q.id)}>
                         {openId === q.id ? 'Hide' : 'View'}
-                      </button>
+                      </CommonButton>
                     </td>
                   </tr>
                   {openId === q.id && (
@@ -233,6 +244,7 @@ export default function PartnerQuotationsView({ partner }: { partner: PartnerRec
                         {q.note && <p className={calcStyles.small}><strong>Note from our team:</strong> {q.note}</p>}
                         {detailError && <div className={historyStyles.loginError}>{detailError}</div>}
                         {lineItems.length > 0 ? (
+                          <TableWrap>
                           <table className={historyStyles.table}>
                             <thead>
                               <tr>
@@ -271,17 +283,24 @@ export default function PartnerQuotationsView({ partner }: { partner: PartnerRec
                               </tr>
                             </tbody>
                           </table>
+                          </TableWrap>
                         ) : (
-                          !detailError && <p className={calcStyles.small}>Loading line items…</p>
+                          // Skeleton only while this quotation is loading — a
+                          // quotation that genuinely has no items says so.
+                          !detailError &&
+                          (detailLoading ? (
+                            <SkeletonTable columns={4} rows={3} />
+                          ) : (
+                            <p className={calcStyles.small}>This quotation has no line items.</p>
+                          ))
                         )}
                         <p className={calcStyles.small}>
                           Valid for {q.validity_days} days from {q.created_at ? new Date(q.created_at).toLocaleDateString() : '-'}.
                         </p>
                         {pdf && (
-                          <button type="button" className={calcStyles.btn} disabled={downloading} onClick={download}>
-                            {downloading ? <Loader2 size={14} aria-hidden /> : <Download size={14} aria-hidden />}{' '}
-                            {downloading ? 'Building PDF…' : 'Download PDF'}
-                          </button>
+                          <CommonButton variant="primary" leadingIcon={<Download />} loading={downloading} loadingLabel="Building PDF…" onClick={download}>
+                            Download PDF
+                          </CommonButton>
                         )}
                         {isProposal && (
                           /* A proposal quotation is an uploaded document, not

@@ -29,12 +29,12 @@ function projectLabel(p: ProjectRecord): string {
 
 // Self-fetching shared project picker with a trailing "+ Add New Project"
 // option — replaces every module's own hand-rolled fetch('/api/projects') +
-// local <select>. Selection only: this never edits an already-selected
+// local native select. Selection only: this never edits an already-selected
 // project's fields, that stays exclusive to components/ProjectDetailView.tsx.
 //
 // A type-to-filter combobox (same inline pattern as
-// components/ui/TeamMemberSelect.tsx) rather than a plain native <select> —
-// the project list grows without bound and scrolling a long <select> to find
+// components/ui/TeamMemberSelect.tsx) rather than a plain native select —
+// the project list grows without bound and scrolling a long native select to find
 // one client was the actual complaint. A hidden input carries the real
 // `value` so a caller passing `required` still gets normal native form
 // validation regardless of whatever text happens to be typed in the visible

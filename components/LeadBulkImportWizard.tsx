@@ -7,9 +7,13 @@ import { parseCsv } from '@/lib/csv';
 import { LeadOrigin } from '@/lib/types';
 import { LEAD_ORIGIN_OPTIONS } from '@/lib/leadSources';
 import { useToast } from './ui/ToastProvider';
+import CommonButton from './ui/CommonButton';
+import StatCard, { StatCardGrid } from './ui/StatCard';
 import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
 import styles from './leadBulkImportWizard.module.css';
+import { TableWrap } from './ui/Table';
+import Select from '@/components/ui/Select';
 
 // Bulk lead import — two entry paths (CSV, multiple business-card photos)
 // that both converge on the same preview -> review -> commit flow against
@@ -379,10 +383,10 @@ export default function LeadBulkImportWizard({ onImportComplete, onCancel }: Lea
             </button>
           </div>
           <div className={styles.topActions}>
-            <a className={historyStyles.button} href="/api/leads/bulk-import/template.csv">
-              <Download size={14} className={styles.iconMarginRight} /> Download Sample CSV
-            </a>
-            <button type="button" className={`${historyStyles.button} ${styles.cancelBtnSpaced}`} onClick={onCancel}>Cancel</button>
+            <CommonButton native href="/api/leads/bulk-import/template.csv" variant="secondary" size="md" leadingIcon={<Download size={14} />}>
+              Download Sample CSV
+            </CommonButton>
+            <CommonButton variant="secondary" size="md" className={styles.cancelBtnSpaced} onClick={onCancel}>Cancel</CommonButton>
           </div>
           <input ref={csvFileInputRef} type="file" accept=".csv,.xlsx,.xls" className={styles.hiddenInput} onChange={(e) => handleCsvSelected(e.target.files?.[0])} />
           <input ref={imageFileInputRef} type="file" accept="image/*" multiple className={styles.hiddenInput} onChange={(e) => handleImagesSelected(e.target.files)} />
@@ -399,6 +403,7 @@ export default function LeadBulkImportWizard({ onImportComplete, onCancel }: Lea
               None of your columns are mapped to Name or Company yet — set at least one below, or every row will be rejected as invalid.
             </div>
           )}
+          <TableWrap>
           <table className={`${historyStyles.table} ${styles.mappingTable}`}>
             <thead>
               <tr>
@@ -413,23 +418,24 @@ export default function LeadBulkImportWizard({ onImportComplete, onCancel }: Lea
                   <td className={styles.headerCell}>{header}</td>
                   <td className={calcStyles.small}>{csvDataRows[0]?.[i] || '-'}</td>
                   <td>
-                    <select
-                      className={calcStyles.formControl}
+                    <Select
+                      dropdownSize="sm"
                       value={columnMapping[header] || 'skip'}
                       onChange={(e) => setColumnMapping((prev) => ({ ...prev, [header]: e.target.value as TargetField }))}
                     >
                       {TARGET_FIELD_OPTIONS.map((opt) => (
                         <option key={opt.key} value={opt.key}>{opt.label}</option>
                       ))}
-                    </select>
+                    </Select>
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
+          </TableWrap>
           <div className={styles.actionsRow16}>
-            <button type="button" className={calcStyles.btn} disabled={busy || !hasNameOrCompanyMapped} onClick={handleConfirmMapping}>{busy ? 'Validating...' : 'Preview Records'}</button>
-            <button type="button" className={historyStyles.button} onClick={reset}>Back</button>
+            <CommonButton variant="primary" size="md" disabled={busy || !hasNameOrCompanyMapped} onClick={handleConfirmMapping}>{busy ? 'Validating...' : 'Preview Records'}</CommonButton>
+            <CommonButton variant="secondary" size="md" onClick={reset}>Back</CommonButton>
           </div>
         </>
       )}
@@ -455,15 +461,15 @@ export default function LeadBulkImportWizard({ onImportComplete, onCancel }: Lea
             ))}
           </div>
           <div className={styles.actionsRow16}>
-            <button
-              type="button"
-              className={calcStyles.btn}
+            <CommonButton
+              variant="primary"
+              size="md"
               disabled={busy || imageJobs.some((j) => j.status === 'pending' || j.status === 'processing')}
               onClick={handleImagesContinue}
             >
               {busy ? 'Validating...' : `Continue with ${imageJobs.filter((j) => j.status === 'ready').length} card(s)`}
-            </button>
-            <button type="button" className={historyStyles.button} onClick={reset}>Cancel</button>
+            </CommonButton>
+            <CommonButton variant="secondary" size="md" onClick={reset}>Cancel</CommonButton>
           </div>
         </>
       )}
@@ -471,24 +477,12 @@ export default function LeadBulkImportWizard({ onImportComplete, onCancel }: Lea
       {screen === 'review' && (
         <>
           <h2 className={historyStyles.wizardCardTitle}><CheckCircle2 size={20} /> Preview &amp; Confirm</h2>
-          <div className={`${calcStyles.row} ${styles.summaryRow}`}>
-            <div className={`${calcStyles.sectionPanel} ${styles.summaryTile}`}>
-              <div className={styles.summaryTileValue}>{summaryCounts.total}</div>
-              <div className={calcStyles.small}>Total Records</div>
-            </div>
-            <div className={`${calcStyles.sectionPanel} ${styles.summaryTile}`}>
-              <div className={styles.summaryTileValueSuccess}>{summaryCounts.valid}</div>
-              <div className={calcStyles.small}>Valid</div>
-            </div>
-            <div className={`${calcStyles.sectionPanel} ${styles.summaryTile}`}>
-              <div className={styles.summaryTileValueWarning}>{summaryCounts.duplicates}</div>
-              <div className={calcStyles.small}>Duplicates</div>
-            </div>
-            <div className={`${calcStyles.sectionPanel} ${styles.summaryTile}`}>
-              <div className={styles.summaryTileValueDanger}>{summaryCounts.invalid}</div>
-              <div className={calcStyles.small}>Invalid</div>
-            </div>
-          </div>
+          <StatCardGrid minWidth={100} style={{ marginTop: 8, marginBottom: 16 }}>
+            <StatCard align="center" value={summaryCounts.total} label="Total Records" />
+            <StatCard align="center" tone="success" value={summaryCounts.valid} label="Valid" />
+            <StatCard align="center" tone="warning" value={summaryCounts.duplicates} label="Duplicates" />
+            <StatCard align="center" tone="danger" value={summaryCounts.invalid} label="Invalid" />
+          </StatCardGrid>
           <div className={historyStyles.tableWrap}>
             <table className={historyStyles.table}>
               <thead>
@@ -536,9 +530,8 @@ export default function LeadBulkImportWizard({ onImportComplete, onCancel }: Lea
               person still has that context in mind. */}
           <div className={styles.actionsRow16}>
             <label htmlFor="bulk-lead-source" className={calcStyles.label}>Where did these leads come from? *</label>
-            <select
+            <Select
               id="bulk-lead-source"
-              className={calcStyles.formControl}
               value={leadSource}
               onChange={(e) => setLeadSource(e.target.value as LeadOrigin)}
             >
@@ -546,13 +539,13 @@ export default function LeadBulkImportWizard({ onImportComplete, onCancel }: Lea
               {LEAD_ORIGIN_OPTIONS.map((o) => (
                 <option key={o.value} value={o.value}>{o.label}</option>
               ))}
-            </select>
+            </Select>
           </div>
           <div className={styles.actionsRow16}>
-            <button type="button" className={calcStyles.btn} disabled={busy || !leadSource} onClick={handleCommit}>
+            <CommonButton variant="primary" size="md" disabled={busy || !leadSource} onClick={handleCommit}>
               {busy ? 'Importing...' : `Import ${previewRows.filter((r) => r.selected && r.status !== 'invalid').length} Record(s)`}
-            </button>
-            <button type="button" className={historyStyles.button} onClick={reset}>Start Over</button>
+            </CommonButton>
+            <CommonButton variant="secondary" size="md" onClick={reset}>Start Over</CommonButton>
           </div>
         </>
       )}
@@ -567,8 +560,8 @@ export default function LeadBulkImportWizard({ onImportComplete, onCancel }: Lea
             {commitSummary.failed > 0 && `, ${commitSummary.failed} skipped`}.
           </div>
           <div className={historyStyles.successActions}>
-            <button type="button" className={historyStyles.bigBtn} onClick={onCancel}>View All Leads</button>
-            <button type="button" className={historyStyles.bigBtnGhost} onClick={reset}>Import More</button>
+            <CommonButton variant="primary" size="lg" onClick={onCancel}>View All Leads</CommonButton>
+            <CommonButton variant="outlined" size="lg" onClick={reset}>Import More</CommonButton>
           </div>
         </div>
       )}

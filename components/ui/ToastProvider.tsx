@@ -1,8 +1,9 @@
 'use client';
 
-import { createContext, useCallback, useContext, useRef, useState } from 'react';
+import { createContext, useCallback, useContext, useMemo, useRef, useState } from 'react';
 import { CheckCircle2, AlertTriangle, Info, X } from 'lucide-react';
 import styles from './notify.module.css';
+import CommonButton from './CommonButton';
 
 type ToastType = 'success' | 'error' | 'info';
 interface ToastItem {
@@ -42,7 +43,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
             <div key={t.id} className={`${styles.toast} ${VARIANT_CLASS[t.type]}`}>
               <span className={styles.toastIcon}><Icon size={16} /></span>
               <span className={styles.toastMessage}>{t.message}</span>
-              <button type="button" className={styles.toastClose} onClick={() => dismiss(t.id)} aria-label="Dismiss"><X size={14} /></button>
+              <CommonButton variant="ghost" size="sm" iconOnly leadingIcon={<X />} onClick={() => dismiss(t.id)} aria-label="Dismiss" />
             </div>
           );
         })}
@@ -52,12 +53,21 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
 }
 
 // Replaces alert() everywhere in the app — toast.error(...) for what used to be alert('...').
+//
+// The returned object is STABLE (same identity on every render). It used to be
+// a fresh object each render, so any useCallback/useEffect that listed `toast`
+// as a dependency re-ran on every render — Office Operation Expenses'
+// fetchRecords effect did exactly that: fetch → setRecords → re-render → new
+// `toast` → new fetchRecords → fetch again, an endless request loop.
 export function useToast() {
   const showToast = useContext(ToastContext);
   if (!showToast) throw new Error('useToast must be used within a ToastProvider');
-  return {
-    success: (message: string) => showToast(message, 'success'),
-    error: (message: string) => showToast(message, 'error'),
-    info: (message: string) => showToast(message, 'info')
-  };
+  return useMemo(
+    () => ({
+      success: (message: string) => showToast(message, 'success'),
+      error: (message: string) => showToast(message, 'error'),
+      info: (message: string) => showToast(message, 'info')
+    }),
+    [showToast]
+  );
 }

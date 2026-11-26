@@ -2,6 +2,7 @@
 
 import { Check, X } from 'lucide-react';
 import Modal, { ModalCancelButton } from './Modal';
+import CommonButton from './CommonButton';
 import styles from './decisionModal.module.css';
 
 // Approve / Reject confirmation as a pop-up — opens right where the button
@@ -39,10 +40,15 @@ export default function DecisionModal({
       footer={
         <>
           <ModalCancelButton onClick={onClose} disabled={busy}>Cancel</ModalCancelButton>
-          <button type="button" className={approving ? styles.approve : styles.reject} disabled={busy || blocked} onClick={onConfirm}>
-            {approving ? <Check size={15} /> : <X size={15} />}
+          <CommonButton
+            variant={approving ? 'success' : 'destructiveSolid'}
+            size="md"
+            leadingIcon={approving ? <Check size={15} /> : <X size={15} />}
+            disabled={busy || blocked}
+            onClick={onConfirm}
+          >
             {busy ? 'Saving…' : approving ? 'Approve' : 'Reject'}
-          </button>
+          </CommonButton>
         </>
       }
     >

@@ -5,6 +5,8 @@ import { ProjectPriority, ProjectRecord } from '@/lib/types';
 import { todayDateInputValue } from '@/lib/dateHelpers';
 import { isTechnicalRole } from '@/lib/technicalRoles';
 import { findClosestClient } from '@/lib/clientSimilarity';
+import { ArrowRight } from 'lucide-react';
+import CommonButton from './CommonButton';
 import PhoneInput from './PhoneInput';
 import ProjectSourceField from './ProjectSourceField';
 import ProjectIntakeFields, { EMPTY_PROJECT_INTAKE, ProjectIntakeValues, ProjectLocationFields } from './ProjectIntakeFields';
@@ -19,6 +21,7 @@ import PersonPicker, { PersonPickerOption } from './PersonPicker';
 import notifyStyles from './notify.module.css';
 import calcStyles from '../calculator.module.css';
 import { fetchCached, invalidateProjectCaches, OPTIONS_TTL_MS } from '@/lib/fetchCached';
+import Select from './Select';
 
 // Same field set and same POST /api/projects call as components/ProjectsView.tsx's
 // own "+ New Project" form (its EMPTY_FORM/handleCreate) — one implementation
@@ -298,16 +301,17 @@ export function ProjectQuickCreateProvider({ children }: { children: React.React
                     Are you talking about <strong>{possibleDuplicate.project.clientName || possibleDuplicate.project.company}</strong>
                     {possibleDuplicate.project.company && possibleDuplicate.project.clientName ? ` — ${possibleDuplicate.project.company}` : ''}? A project for them already exists.
                   </span>
-                  <button
-                    type="button"
-                    className={calcStyles.duplicateSuggestionLink}
+                  <CommonButton
+                    variant="link"
+                    size="sm"
+                    trailingIcon={<ArrowRight />}
                     onClick={() => {
                       const existing = existingProjects.find((p) => p.id === possibleDuplicate.project.id);
                       if (existing) close(existing);
                     }}
                   >
-                    Use this project instead →
-                  </button>
+                    Use this project instead
+                  </CommonButton>
                 </div>
               )}
               <div className={`${calcStyles.row} ${calcStyles.columns}`}>
@@ -340,23 +344,23 @@ export function ProjectQuickCreateProvider({ children }: { children: React.React
                 {viewer?.isPrivileged && (
                   <div className={calcStyles.field}>
                     <label className={calcStyles.label}>Sales person</label>
-                    <select className={calcStyles.formControl} value={form.salesPersonId} onChange={(e) => setForm((f) => ({ ...f, salesPersonId: e.target.value }))}>
+                    <Select value={form.salesPersonId} onChange={(e) => setForm((f) => ({ ...f, salesPersonId: e.target.value }))}>
                       <option value="">Defaults to you</option>
                       {assignableUsers.map((u) => (
                         <option key={u.id} value={u.id}>{u.name || u.username}</option>
                       ))}
-                    </select>
+                    </Select>
                   </div>
                 )}
                 {isTechnicalCreator && (
                   <div className={calcStyles.field}>
                     <label className={calcStyles.label}>Sales person *</label>
-                    <select required className={calcStyles.formControl} value={form.salesPersonId} onChange={(e) => setForm((f) => ({ ...f, salesPersonId: e.target.value }))}>
+                    <Select required value={form.salesPersonId} onChange={(e) => setForm((f) => ({ ...f, salesPersonId: e.target.value }))}>
                       <option value="">Select the sales person</option>
                       {assignableUsers.map((u) => (
                         <option key={u.id} value={u.id}>{u.name || u.username}</option>
                       ))}
-                    </select>
+                    </Select>
                     <span className={calcStyles.lockedHint}>The project will be theirs — you&apos;ll be added as its technical person.</span>
                   </div>
                 )}
@@ -389,11 +393,11 @@ export function ProjectQuickCreateProvider({ children }: { children: React.React
                 />
                 <div className={calcStyles.field}>
                   <label className={calcStyles.label}>Priority</label>
-                  <select className={calcStyles.formControl} value={form.priority} onChange={(e) => setForm((f) => ({ ...f, priority: e.target.value as ProjectPriority }))}>
+                  <Select value={form.priority} onChange={(e) => setForm((f) => ({ ...f, priority: e.target.value as ProjectPriority }))}>
                     <option value="low">Low</option>
                     <option value="medium">Medium</option>
                     <option value="high">High</option>
-                  </select>
+                  </Select>
                 </div>
               </div>
               <div className={`${calcStyles.row} ${calcStyles.columns}`}>
@@ -411,8 +415,8 @@ export function ProjectQuickCreateProvider({ children }: { children: React.React
                 <textarea className={calcStyles.formControl} rows={2} value={form.remarks} onChange={(e) => setForm((f) => ({ ...f, remarks: e.target.value }))} />
               </div>
               <div className={`${notifyStyles.confirmActions} ${notifyStyles.confirmActionsSpaced}`}>
-                <button type="button" className={notifyStyles.confirmCancel} onClick={() => close(null)}>Cancel</button>
-                <button type="submit" className={notifyStyles.confirmOk} disabled={creating}>{creating ? 'Creating...' : 'Create Project'}</button>
+                <CommonButton onClick={() => close(null)}>Cancel</CommonButton>
+                <CommonButton type="submit" variant="primary" loading={creating} loadingLabel="Creating...">Create Project</CommonButton>
               </div>
             </form>
           </div>

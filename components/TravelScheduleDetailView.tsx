@@ -1,11 +1,14 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import Link from 'next/link';
+import CommonButton from '@/components/ui/CommonButton';
+import CommonChip from '@/components/ui/CommonChip';
+import PageBackButton from '@/components/ui/PageBackButton';
 import { AuditLogEntry, ProjectRecord, TravelScheduleRecord, TravelScheduleStatus, UserRole } from '@/lib/types';
 import { TRAVEL_STATUS_LABEL, TRAVEL_STATUS_TONE, travelPendingLabel } from '@/lib/travelLabels';
 import AppShell from './AppShell';
 import StatusBadge from './ui/StatusBadge';
+import { SkeletonDetail } from './ui/Skeleton';
 import WorkflowStepper, { StepperStep } from './ui/WorkflowStepper';
 import { useToast } from './ui/ToastProvider';
 import { useConfirm } from './ui/ConfirmDialog';
@@ -15,6 +18,7 @@ import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
 import styles from './travelDetail.module.css';
 import { fetchCached, OPTIONS_TTL_MS } from '@/lib/fetchCached';
+import Select from './ui/Select';
 
 function formatDate(iso: string): string {
   if (!iso) return '-';
@@ -351,8 +355,15 @@ export default function TravelScheduleDetailView({ requestId, currentUser }: Tra
 
   if (!record) {
     return (
-      <AppShell title="Travel Request" subtitle="" showBackLink>
-        <div className={historyStyles.status}>{status || 'Loading...'}</div>
+      <AppShell title="Travel Request" subtitle="">
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+          <PageBackButton fallbackRoute="/travel-schedule" />
+        </div>
+        {!status || status === 'Loading...' ? (
+          <SkeletonDetail panels={2} pairs={6} withTopRow={false} />
+        ) : (
+          <div className={historyStyles.status}>{status}</div>
+        )}
       </AppShell>
     );
   }
@@ -373,46 +384,46 @@ export default function TravelScheduleDetailView({ requestId, currentUser }: Tra
   const canDelete = isOverride;
 
   return (
-    <AppShell title={`Travel Request ${record.request_code}`} subtitle={`${record.origin} → ${record.destination}`} showBackLink>
+    <AppShell title={`Travel Request ${record.request_code}`} subtitle={`${record.origin} → ${record.destination}`}>
       <div className={styles.headerRow}>
+        <PageBackButton fallbackRoute="/travel-schedule" />
         <StatusBadge tone={TRAVEL_STATUS_TONE[record.status] || 'pending'} label={TRAVEL_STATUS_LABEL[record.status]} />
-        <Link className={historyStyles.button} href="/travel-schedule">Back to Travel Schedule</Link>
 
         {canEdit && !editing && (
-          <button type="button" className={historyStyles.button} onClick={startEditing}>Edit</button>
+          <CommonButton variant="secondary" size="md" onClick={startEditing}>Edit</CommonButton>
         )}
         {canSubmit && !editing && (
-          <button type="button" className={calcStyles.btn} disabled={busy} onClick={handleSubmit}>Submit for Approval</button>
+          <CommonButton variant="primary" size="md" disabled={busy} onClick={handleSubmit}>Submit for Approval</CommonButton>
         )}
         {canManagerDecide && (
           <>
-            <button type="button" className={`${historyStyles.button} ${historyStyles.primary}`} disabled={busy} onClick={() => openPanel('manager_approve')}>Manager Approve</button>
-            <button type="button" className={historyStyles.deleteBtn} disabled={busy} onClick={() => openPanel('manager_changes')}>Request Changes</button>
+            <CommonButton variant="success" size="md" disabled={busy} onClick={() => openPanel('manager_approve')}>Manager Approve</CommonButton>
+            <CommonButton variant="destructive" size="md" disabled={busy} onClick={() => openPanel('manager_changes')}>Request Changes</CommonButton>
           </>
         )}
         {canHrReview && (
           <>
-            <button type="button" className={`${historyStyles.button} ${historyStyles.primary}`} disabled={busy} onClick={() => openPanel('hr_approve')}>HR Approve</button>
-            <button type="button" className={historyStyles.deleteBtn} disabled={busy} onClick={() => openPanel('hr_changes')}>Request Changes</button>
+            <CommonButton variant="success" size="md" disabled={busy} onClick={() => openPanel('hr_approve')}>HR Approve</CommonButton>
+            <CommonButton variant="destructive" size="md" disabled={busy} onClick={() => openPanel('hr_changes')}>Request Changes</CommonButton>
           </>
         )}
         {canAdminDecide && (
           <>
-            <button type="button" className={`${historyStyles.button} ${historyStyles.primary}`} disabled={busy} onClick={() => openPanel('admin_approve')}>Admin Approve</button>
-            <button type="button" className={historyStyles.deleteBtn} disabled={busy} onClick={() => openPanel('admin_changes')}>Request Changes</button>
+            <CommonButton variant="success" size="md" disabled={busy} onClick={() => openPanel('admin_approve')}>Admin Approve</CommonButton>
+            <CommonButton variant="destructive" size="md" disabled={busy} onClick={() => openPanel('admin_changes')}>Request Changes</CommonButton>
           </>
         )}
         {canCompleteBooking && (
-          <button type="button" className={`${historyStyles.button} ${historyStyles.primary}`} disabled={busy} onClick={() => openPanel('booking')}>Complete Booking</button>
+          <CommonButton variant="primary" size="md" disabled={busy} onClick={() => openPanel('booking')}>Complete Booking</CommonButton>
         )}
         {canHrFinalVerify && (
           <>
-            <button type="button" className={`${historyStyles.button} ${historyStyles.primary}`} disabled={busy} onClick={() => openPanel('hr_final_approve')}>Verify & Confirm</button>
-            <button type="button" className={historyStyles.deleteBtn} disabled={busy} onClick={() => openPanel('hr_final_changes')}>Send Back</button>
+            <CommonButton variant="success" size="md" disabled={busy} onClick={() => openPanel('hr_final_approve')}>Verify & Confirm</CommonButton>
+            <CommonButton variant="destructive" size="md" disabled={busy} onClick={() => openPanel('hr_final_changes')}>Send Back</CommonButton>
           </>
         )}
         {canDelete && (
-          <button type="button" className={historyStyles.deleteBtn} disabled={busy} onClick={handleDelete}>Delete</button>
+          <CommonButton variant="destructive" size="md" disabled={busy} onClick={handleDelete}>Delete</CommonButton>
         )}
       </div>
 
@@ -431,7 +442,7 @@ export default function TravelScheduleDetailView({ requestId, currentUser }: Tra
               {activePanel === 'hr_final_approve' && 'Final Verification & Confirmation'}
               {activePanel === 'hr_final_changes' && 'Send Back for Corrections'}
             </h4>
-            <button type="button" className={`${historyStyles.button} ${styles.panelCancelBtn}`} onClick={() => setActivePanel(null)}>Cancel</button>
+            <CommonButton variant="ghost" size="sm" onClick={() => setActivePanel(null)}>Cancel</CommonButton>
           </div>
 
           {/* Remarks field - shown for all panels */}
@@ -447,11 +458,11 @@ export default function TravelScheduleDetailView({ requestId, currentUser }: Tra
           {activePanel === 'admin_changes' && (
             <div className={`${calcStyles.field} ${calcStyles.mt8}`}>
               <label className={calcStyles.label}>Send back to *</label>
-              <select className={calcStyles.formControl} value={adminSendBackTo} onChange={(e) => setAdminSendBackTo(e.target.value)}>
+              <Select value={adminSendBackTo} onChange={(e) => setAdminSendBackTo(e.target.value)}>
                 <option value="employee">Employee (for corrections)</option>
                 <option value="manager">Department Manager (re-verify)</option>
                 <option value="hr">HR Department (re-verify)</option>
-              </select>
+              </Select>
             </div>
           )}
 
@@ -501,16 +512,16 @@ export default function TravelScheduleDetailView({ requestId, currentUser }: Tra
           )}
 
           <div className={styles.actionButtonsRow}>
-            {activePanel === 'manager_approve' && <button type="button" className={calcStyles.btn} disabled={busy} onClick={handleManagerApprove}>{busy ? 'Processing...' : 'Approve'}</button>}
-            {activePanel === 'manager_changes' && <button type="button" className={`${calcStyles.btn} ${styles.dangerActionBtn}`} disabled={busy} onClick={handleManagerRequestChanges}>{busy ? 'Processing...' : 'Request Changes'}</button>}
-            {activePanel === 'hr_approve' && <button type="button" className={calcStyles.btn} disabled={busy} onClick={handleHrApprove}>{busy ? 'Processing...' : 'Approve & Forward to Admin'}</button>}
-            {activePanel === 'hr_changes' && <button type="button" className={`${calcStyles.btn} ${styles.dangerActionBtn}`} disabled={busy} onClick={handleHrRequestChanges}>{busy ? 'Processing...' : 'Request Changes'}</button>}
-            {activePanel === 'admin_approve' && <button type="button" className={calcStyles.btn} disabled={busy} onClick={handleAdminApprove}>{busy ? 'Processing...' : 'Approve & Send to Accounts'}</button>}
-            {activePanel === 'admin_changes' && <button type="button" className={`${calcStyles.btn} ${styles.dangerActionBtn}`} disabled={busy} onClick={handleAdminRequestChanges}>{busy ? 'Processing...' : 'Request Changes'}</button>}
-            {activePanel === 'booking' && <button type="button" className={calcStyles.btn} disabled={busy} onClick={handleCompleteBooking}>{busy ? 'Processing...' : 'Complete Booking'}</button>}
-            {activePanel === 'hr_final_approve' && <button type="button" className={calcStyles.btn} disabled={busy} onClick={handleHrFinalApprove}>{busy ? 'Processing...' : 'Verify & Send to Employee'}</button>}
-            {activePanel === 'hr_final_changes' && <button type="button" className={`${calcStyles.btn} ${styles.dangerActionBtn}`} disabled={busy} onClick={handleHrFinalRequestChanges}>{busy ? 'Processing...' : 'Send Back'}</button>}
-            <button type="button" className={historyStyles.button} onClick={() => setActivePanel(null)}>Cancel</button>
+            {activePanel === 'manager_approve' && <CommonButton variant="primary" size="md" disabled={busy} onClick={handleManagerApprove}>{busy ? 'Processing...' : 'Approve'}</CommonButton>}
+            {activePanel === 'manager_changes' && <CommonButton variant="destructiveSolid" size="md" disabled={busy} onClick={handleManagerRequestChanges}>{busy ? 'Processing...' : 'Request Changes'}</CommonButton>}
+            {activePanel === 'hr_approve' && <CommonButton variant="primary" size="md" disabled={busy} onClick={handleHrApprove}>{busy ? 'Processing...' : 'Approve & Forward to Admin'}</CommonButton>}
+            {activePanel === 'hr_changes' && <CommonButton variant="destructiveSolid" size="md" disabled={busy} onClick={handleHrRequestChanges}>{busy ? 'Processing...' : 'Request Changes'}</CommonButton>}
+            {activePanel === 'admin_approve' && <CommonButton variant="primary" size="md" disabled={busy} onClick={handleAdminApprove}>{busy ? 'Processing...' : 'Approve & Send to Accounts'}</CommonButton>}
+            {activePanel === 'admin_changes' && <CommonButton variant="destructiveSolid" size="md" disabled={busy} onClick={handleAdminRequestChanges}>{busy ? 'Processing...' : 'Request Changes'}</CommonButton>}
+            {activePanel === 'booking' && <CommonButton variant="primary" size="md" disabled={busy} onClick={handleCompleteBooking}>{busy ? 'Processing...' : 'Complete Booking'}</CommonButton>}
+            {activePanel === 'hr_final_approve' && <CommonButton variant="primary" size="md" disabled={busy} onClick={handleHrFinalApprove}>{busy ? 'Processing...' : 'Verify & Send to Employee'}</CommonButton>}
+            {activePanel === 'hr_final_changes' && <CommonButton variant="destructiveSolid" size="md" disabled={busy} onClick={handleHrFinalRequestChanges}>{busy ? 'Processing...' : 'Send Back'}</CommonButton>}
+            <CommonButton variant="secondary" size="md" onClick={() => setActivePanel(null)}>Cancel</CommonButton>
           </div>
         </div>
       )}
@@ -567,10 +578,12 @@ export default function TravelScheduleDetailView({ requestId, currentUser }: Tra
                       {editForm.projectIds.map((id) => {
                         const project = allProjects.find((p) => p.id === id);
                         return (
-                          <span key={id} className={styles.pillEditable}>
-                            {project ? projectLabel(project) : id}
-                            <button type="button" onClick={() => setEditForm((f) => ({ ...f, projectIds: f.projectIds.filter((c) => c !== id) }))} className={styles.pillRemoveBtn}>&times;</button>
-                          </span>
+                          <CommonChip
+                            key={id}
+                            size="sm"
+                            label={project ? projectLabel(project) : id}
+                            onRemove={() => setEditForm((f) => ({ ...f, projectIds: f.projectIds.filter((c) => c !== id) }))}
+                          />
                         );
                       })}
                     </div>
@@ -605,38 +618,39 @@ export default function TravelScheduleDetailView({ requestId, currentUser }: Tra
               </div>
               <div className={`${calcStyles.field} ${calcStyles.mt12}`}>
                 <label className={calcStyles.label}>Travel Companions</label>
-                <select
-                  className={calcStyles.formControl}
+                <Select
+                  value=""
                   onChange={(e) => {
                     const id = e.target.value;
                     if (id && !editForm.companionIds.includes(id)) {
                       setEditForm((f) => ({ ...f, companionIds: [...f.companionIds, id] }));
                     }
-                    e.target.value = '';
                   }}
                 >
                   <option value="">— Add companion —</option>
                   {allUsers.filter((u) => u.username !== currentUser.username && !editForm.companionIds.includes(u.id)).map((u) => (
                     <option key={u.id} value={u.id}>{u.name || u.username}</option>
                   ))}
-                </select>
+                </Select>
                 {editForm.companionIds.length > 0 && (
                   <div className={styles.companionPillRow}>
                     {editForm.companionIds.map((id) => {
                       const user = allUsers.find((u) => u.id === id);
                       return (
-                        <span key={id} className={styles.pillEditable}>
-                          {user?.name || user?.username || id}
-                          <button type="button" onClick={() => setEditForm((f) => ({ ...f, companionIds: f.companionIds.filter((c) => c !== id) }))} className={styles.pillRemoveBtn}>&times;</button>
-                        </span>
+                        <CommonChip
+                          key={id}
+                          size="sm"
+                          label={user?.name || user?.username || id}
+                          onRemove={() => setEditForm((f) => ({ ...f, companionIds: f.companionIds.filter((c) => c !== id) }))}
+                        />
                       );
                     })}
                   </div>
                 )}
               </div>
               <div className={styles.actionButtonsRow}>
-                <button type="button" className={calcStyles.btn} disabled={saving} onClick={handleSaveEdit}>{saving ? 'Saving...' : 'Save Changes'}</button>
-                <button type="button" className={historyStyles.button} onClick={() => setEditing(false)}>Cancel</button>
+                <CommonButton variant="primary" size="md" disabled={saving} onClick={handleSaveEdit}>{saving ? 'Saving...' : 'Save Changes'}</CommonButton>
+                <CommonButton variant="secondary" size="md" onClick={() => setEditing(false)}>Cancel</CommonButton>
               </div>
             </div>
           ) : (

@@ -1,12 +1,16 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import Link from 'next/link';
+import Link from '@/components/ui/AppLink';
 import type { PartnerKpis } from '@/lib/partnerAnalyticsCompute';
 import AppShell from '@/components/AppShell';
+import PageBackButton from '@/components/ui/PageBackButton';
+import StatCard, { StatCardGrid } from '@/components/ui/StatCard';
+import { SkeletonStatCards, SkeletonTable } from '@/components/ui/Skeleton';
 import historyStyles from '@/components/quotationHistory.module.css';
 import calcStyles from '@/components/calculator.module.css';
 import pageStyles from '../partnersPage.module.css';
+import Select from '@/components/ui/Select';
 
 interface ComparisonRow {
   partnerId: string;
@@ -101,40 +105,35 @@ export default function PartnerAnalyticsPage() {
   return (
     <AppShell title="Partner Analytics" subtitle="Sales › partner performance, side by side">
       <div className={pageStyles.actionsRow}>
-        <Link className={historyStyles.button} href="/admin/partners">← All partners</Link>
+        <PageBackButton fallbackRoute="/admin/partners" />
       </div>
 
-      {status && <div className={historyStyles.status}>{status}</div>}
+      {status === 'Loading...' ? (
+        <>
+          <SkeletonStatCards count={4} withIcon={false} />
+          <div style={{ marginTop: 16 }}><SkeletonTable columns={10} rows={6} /></div>
+        </>
+      ) : (
+        status && <div className={historyStyles.status}>{status}</div>
+      )}
 
       {rows.length > 0 && (
         <>
-          <div className={pageStyles.detailGrid}>
-            <div className={pageStyles.detailItem}>
-              <span className={pageStyles.detailLabel}>Partners</span>
-              <span className={pageStyles.detailValue}>{rows.length}</span>
-            </div>
-            <div className={pageStyles.detailItem}>
-              <span className={pageStyles.detailLabel}>Submissions</span>
-              <span className={pageStyles.detailValue}>{totals.submitted}</span>
-            </div>
-            <div className={pageStyles.detailItem}>
-              <span className={pageStyles.detailLabel}>Awaiting review</span>
-              <span className={pageStyles.detailValue}>{totals.awaitingReview}</span>
-            </div>
-            <div className={pageStyles.detailItem}>
-              <span className={pageStyles.detailLabel}>Won business</span>
-              <span className={pageStyles.detailValue}>{money(totals.wonValue)}</span>
-            </div>
-          </div>
+          <StatCardGrid>
+            <StatCard value={rows.length} label="Partners" />
+            <StatCard value={totals.submitted} label="Submissions" />
+            <StatCard value={totals.awaitingReview} label="Awaiting review" />
+            <StatCard value={money(totals.wonValue)} label="Won business" />
+          </StatCardGrid>
 
           <div className={historyStyles.toolbar}>
-            <select value={sort} onChange={(e) => setSort(e.target.value as SortKey)}>
+            <Select auto value={sort} onChange={(e) => setSort(e.target.value as SortKey)}>
               <option value="wonValue">Sort by won business</option>
               <option value="won">Sort by deals won</option>
               <option value="winRate">Sort by win rate</option>
               <option value="submitted">Sort by submissions</option>
               <option value="company">Sort by company</option>
-            </select>
+            </Select>
           </div>
 
           <div className={historyStyles.tableWrap}>

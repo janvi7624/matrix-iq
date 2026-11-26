@@ -3,9 +3,13 @@
 import { useEffect, useState } from 'react';
 import { CustomProduct, ProductRecord } from '@/lib/types';
 import { selectAllOnFocus } from '@/lib/numberInputHelpers';
+import { Plus, X } from 'lucide-react';
 import styles from './calculator.module.css';
+import CommonButton from './ui/CommonButton';
 import listStyles from './customProductsList.module.css';
 import { fetchCached } from '@/lib/fetchCached';
+import { Skeleton } from './ui/Skeleton';
+import Select from '@/components/ui/Select';
 
 interface CustomProductsListProps {
   products: CustomProduct[];
@@ -24,11 +28,13 @@ interface CustomProductsListProps {
 export default function CustomProductsList({ products, onAdd, onAddFromCatalog, onChangeItem, onRemove }: CustomProductsListProps) {
   const [catalog, setCatalog] = useState<ProductRecord[]>([]);
   const [pickedId, setPickedId] = useState('');
+  const [catalogLoaded, setCatalogLoaded] = useState(false);
 
   useEffect(() => {
     fetchCached('/api/products')
       .then((data: ProductRecord[]) => setCatalog(data))
-      .catch(() => setCatalog([]));
+      .catch(() => setCatalog([]))
+      .finally(() => setCatalogLoaded(true));
   }, []);
 
   return (
@@ -36,10 +42,15 @@ export default function CustomProductsList({ products, onAdd, onAddFromCatalog, 
       <div className={styles.field}>
         <label className={styles.label}>Custom products</label>
         <div className={styles.small}>Use this to build tailor-made / preplanned AV projects (e.g. auditorium or theatre seating layouts) line by line, or to add any item not in the standard catalogs.</div>
+        {!catalogLoaded && onAddFromCatalog && (
+          <div className={`${styles.lineItemRow} ${listStyles.alignCenter}`}>
+            <Skeleton height={44} radius={12} />
+          </div>
+        )}
         {catalog.length > 0 && onAddFromCatalog && (
           <div className={`${styles.lineItemRow} ${listStyles.alignCenter}`}>
-            <select
-              className={`${styles.formControl} ${styles.lineItemInput} ${listStyles.flex2}`}
+            <Select
+              className={listStyles.flex2}
               value={pickedId}
               onChange={(e) => {
                 const product = catalog.find((p) => p.id === e.target.value);
@@ -55,7 +66,7 @@ export default function CustomProductsList({ products, onAdd, onAddFromCatalog, 
                   {p.name}{p.sku ? ` (${p.sku})` : ''} — {p.sellingPrice}
                 </option>
               ))}
-            </select>
+            </Select>
           </div>
         )}
         <div>
@@ -96,9 +107,7 @@ export default function CustomProductsList({ products, onAdd, onAddFromCatalog, 
                   onFocus={selectAllOnFocus}
                   onChange={(e) => onChangeItem(item.id, { price: parseFloat(e.target.value) || 0 })}
                 />
-                <button type="button" className={styles.removeItemBtn} title="Remove product" onClick={() => onRemove(item.id)}>
-                  ×
-                </button>
+                <CommonButton variant="destructive" size="md" iconOnly leadingIcon={<X />} title="Remove product" aria-label="Remove product" onClick={() => onRemove(item.id)} />
               </div>
               <div className={`${styles.lineItemRow} ${styles.mt6}`}>
                 <input
@@ -119,9 +128,9 @@ export default function CustomProductsList({ products, onAdd, onAddFromCatalog, 
             </div>
           ))}
         </div>
-        <button type="button" className={styles.secondaryButton} onClick={onAdd}>
-          + Add Custom Product
-        </button>
+        <CommonButton variant="secondary" size="md" leadingIcon={<Plus />} onClick={onAdd}>
+          Add Custom Product
+        </CommonButton>
       </div>
     </div>
   );

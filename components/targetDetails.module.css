@@ -113,3 +113,8 @@
     color: var(--mx-ink-muted);
     cursor: default;
 }
+
+/* Phone width: a row of options must scroll inside itself, never widen the page. */
+.tabRow { overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; max-width: 100%; }
+.tabRow::-webkit-scrollbar { display: none; }
+.tabRow > * { flex-shrink: 0; }

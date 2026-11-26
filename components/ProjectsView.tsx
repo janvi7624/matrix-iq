@@ -1,8 +1,7 @@
 'use client';
 
 import { FormEvent, useEffect, useMemo, useState } from 'react';
-import Link from 'next/link';
-import { FolderKanban } from 'lucide-react';
+import { FolderKanban, Plus, Eye, ExternalLink, Trash2 } from 'lucide-react';
 import { ProjectPriority, ProjectRecord, ProjectStage, ProjectStatus, UserRole } from '@/lib/types';
 import { closingProbabilityStyle, FORWARD_STAGES, STAGE_LABEL, stageProgressPercent } from '@/lib/projectStages';
 import { clientDirectoryKey, findClosestClient } from '@/lib/clientSimilarity';
@@ -12,6 +11,7 @@ import { exportListToPdf } from '@/lib/exportPdf';
 import { formatMoneyCompact } from '@/lib/format';
 import { isTechnicalRole } from '@/lib/technicalRoles';
 import AppShell from './AppShell';
+import CommonButton from './ui/CommonButton';
 import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
 import { useToast } from './ui/ToastProvider';
@@ -21,13 +21,14 @@ import ProjectDetailRemindersDialog from './ProjectDetailRemindersDialog';
 import { usePrompt } from './ui/PromptDialog';
 import { useAutoRefresh } from '@/lib/useAutoRefresh';
 import { useConfirm } from './ui/ConfirmDialog';
-import { SkeletonRows } from './ui/Skeleton';
+import { Skeleton, SkeletonTable } from './ui/Skeleton';
 import EmptyState from './ui/EmptyState';
 import ErrorState from './ui/ErrorState';
 import StatusBadge from './ui/StatusBadge';
 import { Field, FieldRow } from './ui/Field';
 import Input from './ui/Input';
 import Select from './ui/Select';
+import Dropdown from './ui/Dropdown';
 import Textarea from './ui/Textarea';
 import SubmitButton from './ui/SubmitButton';
 import FilterPanel, {
@@ -44,7 +45,7 @@ import FilterPanel, {
 } from './ui/FilterPanel';
 import ToolbarButton from './ui/ToolbarButton';
 import Table, { TableColumn } from './ui/Table';
-import Pagination from './ui/Pagination';
+import TablePager from './ui/TablePager';
 import Modal, { ModalCancelButton } from './ui/Modal';
 import ProjectSourceField from './ui/ProjectSourceField';
 import ProjectLeadField from './ui/ProjectLeadField';
@@ -55,18 +56,19 @@ import { useProjectLeads } from './ui/useProjectLeads';
 import { OPPORTUNITY_TYPES, OPPORTUNITY_TYPE_LABEL, OpportunityType, nextLeadOnTypeChange } from '@/lib/projectLeadOptions';
 import ProjectIntakeFields, { EMPTY_PROJECT_INTAKE, ProjectLocationFields } from './ui/ProjectIntakeFields';
 import { fetchCached, invalidateProjectCaches } from '@/lib/fetchCached';
+import { setListParam } from '@/lib/listParam';
 import {
   DepartmentAmounts,
   PROJECT_DEPARTMENTS,
   PROJECT_DEPARTMENT_LABEL,
   ProjectDepartment,
-  ProjectDepartmentFilter,
-  departmentValueOf,
+  departmentsValueOf,
   formatProjectDepartments,
   isProjectDepartment,
   matchesDepartmentFilter,
   sumDepartmentAmounts
 } from '@/lib/projectDepartmentOptions';
+import RowActions from './ui/RowActions';
 
 const EMPTY_FORM = {
   clientName: '',
@@ -221,17 +223,17 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
   // `filtered` below).
   const leadsLoaded = useProjectLeads();
   const leadOptions = useMemo(() => leadsLoaded ?? [], [leadsLoaded]);
-  const [fLead, setFLead] = useState('');
-  const [fType, setFType] = useState<OpportunityType | ''>('');
-  // AI / AV / Robotics, or '' for all — see matchesDepartmentFilter in
+  const [fLead, setFLead] = useState<string[]>([]);
+  const [fType, setFType] = useState<OpportunityType[]>([]);
+  // AI / AV / Robotics — any of the picked ones; empty for all — see matchesDepartmentFilter in
   // lib/projectDepartmentOptions.ts.
   // Seeded from ?department= so the Dashboard's "Projects by Department"
   // card can link straight into a filtered list — read once on mount, same
   // approach (and same reason) as fConfirmation's ?filter= deep link below.
-  const [fDepartment, setFDepartment] = useState<ProjectDepartmentFilter>(() => {
-    if (typeof window === 'undefined') return '';
-    const requested = new URLSearchParams(window.location.search).get('department') ?? '';
-    return isProjectDepartment(requested) ? requested : '';
+  const [fDepartment, setFDepartment] = useState<ProjectDepartment[]>(() => {
+    if (typeof window === 'undefined') return [];
+    // getAll: one ?department= (the Dashboard's link) or several.
+    return Array.from(new Set(new URLSearchParams(window.location.search).getAll('department').filter(isProjectDepartment)));
   });
 
   // The Opportunity Type pre-fills the Project Lead (Distribution -> Manoj,
@@ -242,11 +244,11 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
     setForm((f) => ({ ...f, opportunityType: next, projectLeadId: nextLeadOnTypeChange(f.projectLeadId, leadTouched, next, leadOptions) }));
   }
 
-  const [fSalesPerson, setFSalesPerson] = useState('');
-  const [fSource, setFSource] = useState('');
-  const [fStage, setFStage] = useState<ProjectStage | ''>('');
-  const [fStatus, setFStatus] = useState<ProjectStatus | ''>('');
-  const [fPriority, setFPriority] = useState<ProjectPriority | ''>('');
+  const [fSalesPerson, setFSalesPerson] = useState<string[]>([]);
+  const [fSource, setFSource] = useState<string[]>([]);
+  const [fStage, setFStage] = useState<ProjectStage[]>([]);
+  const [fStatus, setFStatus] = useState<ProjectStatus[]>([]);
+  const [fPriority, setFPriority] = useState<ProjectPriority[]>([]);
   const [fFrom, setFFrom] = useState('');
   const [fTo, setFTo] = useState('');
   // An explicit "show me the finished ones too", independent of the other
@@ -288,10 +290,10 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
   // read once on mount rather than via useSearchParams() (which would force
   // this whole view behind a Suspense boundary just for one-time deep-link
   // support).
-  const [fConfirmation, setFConfirmation] = useState(() => {
-    if (typeof window === 'undefined') return '';
+  const [fConfirmation, setFConfirmation] = useState<string[]>(() => {
+    if (typeof window === 'undefined') return [];
     const params = new URLSearchParams(window.location.search);
-    return params.get('filter') === 'pending_confirmation' ? 'pending_confirmation' : '';
+    return params.get('filter') === 'pending_confirmation' ? ['pending_confirmation'] : [];
   });
   // ?filter=pending_confirmation is only ever produced by the Dashboard's
   // "Projects awaiting YOUR confirmation" item, so it means MINE — not every
@@ -317,7 +319,7 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
     if (typeof window === 'undefined') return false;
     const params = new URLSearchParams(window.location.search);
     const filter = params.get('filter');
-    return isProjectDepartment(params.get('department') ?? '') || filter === 'pending_confirmation' || filter === 'team_pending_confirmation';
+    return params.getAll('department').some(isProjectDepartment) || filter === 'pending_confirmation' || filter === 'team_pending_confirmation';
   });
 
   // Custom Range reveals its own two date inputs; every other preset
@@ -336,7 +338,8 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
   // range and the expected-closing range.
   const dateFilterActive = Boolean(fFrom || fTo || closingRange.from || closingRange.to);
   const showClosed = closedProjectsVisible({
-    statusFilter: fStatus,
+    // Any closed status among the picked ones lets closed projects through.
+    statusFilter: fStatus.find((st) => isClosedProject({ status: st })) ?? '',
     dateFilterActive,
     userOverride: includeClosed
   });
@@ -347,7 +350,10 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
   // for the Last Remark column) no longer round-trips through the browser
   // just to decide what ~20 rows to show.
   const PROJECTS_PAGE_SIZE = 20;
+  // Rows-per-page choices — the API clamps pageSize to 200 (MAX_PROJECT_PAGE_SIZE).
+  const PROJECTS_PAGE_SIZE_CHOICES = [10, 20, 50, 100] as const;
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState<number>(PROJECTS_PAGE_SIZE);
   const [total, setTotal] = useState(0);
   const [facets, setFacets] = useState<{
     statusCounts: Record<ProjectStatus, number>;
@@ -381,21 +387,21 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
   function buildProjectParams(): URLSearchParams {
     const params = new URLSearchParams();
     if (debouncedSearch.trim()) params.set('search', debouncedSearch.trim());
-    if (fStage) params.set('stage', fStage);
-    if (fStatus) params.set('status', fStatus);
-    if (fPriority) params.set('priority', fPriority);
-    if (fSalesPerson) params.set('salesPerson', fSalesPerson);
-    if (fSource) params.set('source', fSource);
-    if (fDepartment) params.set('department', fDepartment);
-    if (fType) params.set('type', fType);
-    if (fLead) params.set('lead', fLead);
+    setListParam(params, 'stage', fStage);
+    setListParam(params, 'status', fStatus);
+    setListParam(params, 'priority', fPriority);
+    setListParam(params, 'salesPerson', fSalesPerson);
+    setListParam(params, 'source', fSource);
+    setListParam(params, 'department', fDepartment);
+    setListParam(params, 'type', fType);
+    setListParam(params, 'lead', fLead);
     if (fFrom) params.set('from', fFrom);
     if (fTo) params.set('to', fTo);
     if (closingRange.from) params.set('closingFrom', closingRange.from);
     if (closingRange.to) params.set('closingTo', closingRange.to);
     if (fAwaitingMine) params.set('awaitingMine', '1');
     else if (fAwaitingTeam) params.set('awaitingTeam', '1');
-    else if (fConfirmation) params.set('confirmation', fConfirmation);
+    else setListParam(params, 'confirmation', fConfirmation);
     if (showClosed) params.set('includeClosed', '1');
     return params;
   }
@@ -415,7 +421,7 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
     try {
       const params = buildProjectParams();
       params.set('page', String(page));
-      params.set('pageSize', String(PROJECTS_PAGE_SIZE));
+      params.set('pageSize', String(pageSize));
       params.set('remarks', '1');
       // Not cached: this is the live list people work from, auto-refreshed
       // on focus.
@@ -462,7 +468,7 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
     load();
     loadFacets();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, debouncedSearch, fStage, fStatus, fPriority, fSalesPerson, fSource, fDepartment, fType, fLead, fFrom, fTo, closingRange.from, closingRange.to, fAwaitingMine, fAwaitingTeam, fConfirmation, showClosed]);
+  }, [page, pageSize, debouncedSearch, fStage, fStatus, fPriority, fSalesPerson, fSource, fDepartment, fType, fLead, fFrom, fTo, closingRange.from, closingRange.to, fAwaitingMine, fAwaitingTeam, fConfirmation, showClosed]);
 
   // Keeps the list current without reloading the page — refetches when the
   // tab regains focus, and slowly while it is visible. See
@@ -481,7 +487,11 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
   const salesPersonNameByUsername = useMemo(() => new Map(filterOptions.salesPeople.map((p) => [p.username, p.name])), [filterOptions]);
   const sources = filterOptions.sources;
 
-  const selectedLead = useMemo(() => leadOptions.find((l) => l.id === fLead) ?? null, [leadOptions, fLead]);
+  const leadNameById = useMemo(() => new Map(leadOptions.map((l) => [l.id, l.name])), [leadOptions]);
+  const selectedLeadNames = useMemo(
+    () => fLead.map((id) => leadNameById.get(id)).filter((name): name is string => !!name),
+    [fLead, leadNameById]
+  );
 
   // One entry per filter that is actually narrowing the list, each able to
   // clear just itself. Rendered as chips under the panel, which is what makes
@@ -490,30 +500,31 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
   const activeFilters = useMemo<ActiveFilter[]>(() => {
     const out: ActiveFilter[] = [];
     if (fSearch.trim()) out.push({ key: 'search', label: 'Search', value: fSearch.trim(), clear: () => setFSearch('') });
-    if (fStage) out.push({ key: 'stage', label: 'Stage', value: STAGE_LABEL[fStage], clear: () => setFStage('') });
-    if (fStatus) out.push({ key: 'status', label: 'Status', value: STATUS_LABEL[fStatus], clear: () => setFStatus('') });
-    if (fSalesPerson) out.push({ key: 'salesPerson', label: 'Sales person', value: salesPersonNameByUsername.get(fSalesPerson) || fSalesPerson, clear: () => setFSalesPerson('') });
-    if (fLead) out.push({ key: 'lead', label: 'Project lead', value: selectedLead?.name ?? fLead, clear: () => setFLead('') });
-    if (fType) out.push({ key: 'type', label: 'Opportunity', value: OPPORTUNITY_TYPE_LABEL[fType], clear: () => setFType('') });
-    if (fDepartment) out.push({ key: 'department', label: 'Department', value: PROJECT_DEPARTMENT_LABEL[fDepartment], clear: () => setFDepartment('') });
-    if (fSource) out.push({ key: 'source', label: 'Source', value: fSource, clear: () => setFSource('') });
-    if (fPriority) out.push({ key: 'priority', label: 'Priority', value: PRIORITY_LABEL[fPriority], clear: () => setFPriority('') });
+    const names = (values: readonly string[], label: (v: string) => string) => values.map(label).join(', ');
+    if (fStage.length) out.push({ key: 'stage', label: 'Stage', value: names(fStage, (v) => STAGE_LABEL[v as ProjectStage] ?? v), clear: () => setFStage([]) });
+    if (fStatus.length) out.push({ key: 'status', label: 'Status', value: names(fStatus, (v) => STATUS_LABEL[v as ProjectStatus] ?? v), clear: () => setFStatus([]) });
+    if (fSalesPerson.length) out.push({ key: 'salesPerson', label: 'Sales person', value: names(fSalesPerson, (v) => salesPersonNameByUsername.get(v) || v), clear: () => setFSalesPerson([]) });
+    if (fLead.length) out.push({ key: 'lead', label: 'Project lead', value: names(fLead, (v) => leadNameById.get(v) ?? v), clear: () => setFLead([]) });
+    if (fType.length) out.push({ key: 'type', label: 'Opportunity', value: names(fType, (v) => OPPORTUNITY_TYPE_LABEL[v as OpportunityType] ?? v), clear: () => setFType([]) });
+    if (fDepartment.length) out.push({ key: 'department', label: 'Department', value: names(fDepartment, (v) => PROJECT_DEPARTMENT_LABEL[v as ProjectDepartment] ?? v), clear: () => setFDepartment([]) });
+    if (fSource.length) out.push({ key: 'source', label: 'Source', value: fSource.join(', '), clear: () => setFSource([]) });
+    if (fPriority.length) out.push({ key: 'priority', label: 'Priority', value: names(fPriority, (v) => PRIORITY_LABEL[v as ProjectPriority] ?? v), clear: () => setFPriority([]) });
     if (fAwaitingTeam) {
       out.push({
         key: 'awaiting-team',
         label: 'Confirmation',
         value: 'Awaiting the team’s confirmation',
-        clear: () => { setFAwaitingTeam(false); setFConfirmation(''); }
+        clear: () => { setFAwaitingTeam(false); setFConfirmation([]); }
       });
     } else if (fAwaitingMine) {
       out.push({
         key: 'awaiting-mine',
         label: 'Confirmation',
         value: 'Awaiting my confirmation',
-        clear: () => { setFAwaitingMine(false); setFConfirmation(''); }
+        clear: () => { setFAwaitingMine(false); setFConfirmation([]); }
       });
-    } else if (fConfirmation) {
-      out.push({ key: 'confirmation', label: 'Confirmation', value: CONFIRMATION_LABEL[fConfirmation] ?? fConfirmation, clear: () => setFConfirmation('') });
+    } else if (fConfirmation.length) {
+      out.push({ key: 'confirmation', label: 'Confirmation', value: names(fConfirmation, (v) => CONFIRMATION_LABEL[v] ?? v), clear: () => setFConfirmation([]) });
     }
     if (fFrom || fTo) out.push({ key: 'created', label: 'Created', value: `${fFrom || 'any'} → ${fTo || 'any'}`, clear: () => { setFFrom(''); setFTo(''); } });
     if (fClosingPreset !== 'all') {
@@ -525,21 +536,21 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
       });
     }
     return out;
-  }, [fSearch, fStage, fStatus, fSalesPerson, salesPersonNameByUsername, fLead, selectedLead, fType, fDepartment, fSource, fPriority, fConfirmation, fAwaitingMine, fAwaitingTeam, fFrom, fTo, fClosingPreset, fClosingFrom, fClosingTo]);
+  }, [fSearch, fStage, fStatus, fSalesPerson, salesPersonNameByUsername, fLead, leadNameById, fType, fDepartment, fSource, fPriority, fConfirmation, fAwaitingMine, fAwaitingTeam, fFrom, fTo, fClosingPreset, fClosingFrom, fClosingTo]);
 
   const advancedActiveCount = activeFilters.filter((f) => !QUICK_FILTER_KEYS.has(f.key)).length;
 
   function clearAllFilters() {
     setFSearch('');
-    setFStage('');
-    setFStatus('');
-    setFSalesPerson('');
-    setFLead('');
-    setFType('');
-    setFDepartment('');
-    setFSource('');
-    setFPriority('');
-    setFConfirmation('');
+    setFStage([]);
+    setFStatus([]);
+    setFSalesPerson([]);
+    setFLead([]);
+    setFType([]);
+    setFDepartment([]);
+    setFSource([]);
+    setFPriority([]);
+    setFConfirmation([]);
     setFFrom('');
     setFTo('');
     setFClosingPreset('all');
@@ -579,6 +590,9 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
     onHold: facets?.statusCounts.on_hold ?? 0,
     totalValue: facets?.totalValue ?? 0
   };
+  // First load only — the facets stay on screen through any refetch.
+  const kpiPending = !facets && (loading || !loaded);
+  const kpiSkeleton = <Skeleton width={64} height={24} />;
 
   // A live, non-blocking nudge while the New Project form is open — the
   // typed client name/company against every project the viewer can see
@@ -924,14 +938,14 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
       // Header names what is actually being shown: filtering to AI turns this
       // column into AI's share, not the project's full value, so the rows add
       // up to the Total Value tile above them.
-      header: fDepartment ? `${PROJECT_DEPARTMENT_LABEL[fDepartment]} Value` : 'Approx. Price',
+      header: fDepartment.length ? `${fDepartment.map((d) => PROJECT_DEPARTMENT_LABEL[d]).join(' + ')} Value` : 'Approx. Price',
       headerClassName: historyStyles.colApproxPrice,
       render: (p) => (
         <>
-          {formatMoney(departmentValueOf(p, fDepartment))}
+          {formatMoney(departmentsValueOf(p, fDepartment))}
           {/* On a split project the full value stays visible, so a filtered
               view never looks like the deal shrank. */}
-          {fDepartment && (p.departments?.length ?? 0) > 1 && (
+          {fDepartment.length > 0 && (p.departments?.length ?? 0) > 1 && (
             <div className={historyStyles.mutedInline}>of {formatMoney(p.approx_price)}</div>
           )}
         </>
@@ -982,15 +996,17 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
               here instead of opening the project and scrolling to the
               timeline box — which is why they were using Notes, where
               nothing outside the project detail ever shows it. */}
-          <button
-            type="button"
-            className={historyStyles.addRemarkBtn}
-            disabled={savingRemarkId === p.id}
+          <CommonButton
+            variant="ghost"
+            size="sm"
+            leadingIcon={<Plus />}
+            loading={savingRemarkId === p.id}
+            loadingLabel="Saving…"
             onClick={() => handleAddRemark(p)}
             title="Add a remark visible on this dashboard"
           >
-            {savingRemarkId === p.id ? 'Saving…' : p.last_remark ? '+ Add' : '+ Add remark'}
-          </button>
+            {p.last_remark ? 'Add' : 'Add remark'}
+          </CommonButton>
         </>
       )
     },
@@ -1015,45 +1031,25 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
     {
       key: 'actions',
       header: '',
-      headerClassName: historyStyles.colActionsWide,
-      cellClassName: historyStyles.rowActionsInline,
+      headerClassName: `${historyStyles.colActionsWide} ${historyStyles.colActionsSticky}`,
+      cellClassName: historyStyles.colActionsSticky,
       render: (p) => (
-        <>
-          {/* Two ways in: a popup for a quick look without losing your place
-              in the list, and the full page for the real work. A menu rather
-              than two side-by-side buttons because this column is 8% of a
-              table that must not scroll sideways — two buttons plus Delete
-              did not fit. */}
-          {/* Two plain buttons rather than a dropdown: both choices are one
-              click, and nothing has to be opened to discover what the options
-              are. Last Updated gave up its column to make room. */}
-          <button
-            type="button"
-            className={`${historyStyles.rowAction} ${historyStyles.rowActionPrimary}`}
-            onClick={() => setQuickView(p)}
-            title={`Quick view — ${p.client_name || 'project'}`}
-          >
-            View
-          </button>
-          <Link
-            className={historyStyles.rowAction}
-            href={`/projects/${p.id}`}
-            title={`Open the full project page for ${p.client_name || 'this project'}`}
-          >
-            Details
-          </Link>
-          {isSuperAdmin && (
-            <button type="button" className={historyStyles.deleteBtn} onClick={() => handleDelete(p.id)}>
-              Delete
-            </button>
-          )}
-        </>
+        // Quick view (a popup, keeps your place in the list) and the full page.
+        // Super admins also get Delete — three actions collapse into the ⋮ menu.
+        <RowActions
+          label={`Actions for ${p.client_name || 'project'}`}
+          actions={[
+            { key: 'view', label: 'Quick view', icon: <Eye size={12} />, variant: 'primary', title: `Quick view — ${p.client_name || 'project'}`, onClick: () => setQuickView(p) },
+            { key: 'details', label: 'Details', icon: <ExternalLink size={12} />, href: `/projects/${p.id}`, title: `Open the full project page for ${p.client_name || 'this project'}` },
+            { key: 'delete', label: 'Delete', icon: <Trash2 size={12} />, destructive: true, hidden: !isSuperAdmin, onClick: () => handleDelete(p.id) }
+          ]}
+        />
       )
     }
   ];
 
   return (
-    <AppShell title="Project Dashboard" subtitle="Every sales project, site visit to close, in one pipeline.">
+    <AppShell fillPage={!showForm} title="Project Dashboard" subtitle="Every sales project, site visit to close, in one pipeline.">
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12, marginBottom: 18 }}>
           {/* Each status tile is the Status filter: clicking sets it, clicking
               the same one again clears it. Total clears it outright. Total
@@ -1061,10 +1057,10 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
               there is nothing for it to filter to. */}
           <StatTile
             label="Total (filtered)"
-            value={dashboardKpis.total}
-            onClick={() => setFStatus('')}
-            active={!fStatus}
-            ariaPressed={!fStatus}
+            value={kpiPending ? kpiSkeleton : dashboardKpis.total}
+            onClick={() => setFStatus([])}
+            active={!fStatus.length}
+            ariaPressed={!fStatus.length}
           />
           {([
             ['active', 'Active', dashboardKpis.active, 'info'],
@@ -1075,18 +1071,18 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
             <StatTile
               key={status}
               label={label}
-              value={value}
+              value={kpiPending ? kpiSkeleton : value}
               tone={tone}
-              onClick={() => setFStatus((current) => (current === status ? '' : status))}
-              active={fStatus === status}
-              ariaPressed={fStatus === status}
+              onClick={() => setFStatus((current) => (current.length === 1 && current[0] === status ? [] : [status]))}
+              active={fStatus.includes(status)}
+              ariaPressed={fStatus.includes(status)}
             />
           ))}
           {/* Short form in the tile, exact figure on hover: the full value runs
               to eighteen characters and used to render outside the box. */}
           <StatTile
             label="Total Value"
-            value={<span title={formatMoney(dashboardKpis.totalValue)}>{formatMoneyCompact(dashboardKpis.totalValue)}</span>}
+            value={kpiPending ? kpiSkeleton : <span title={formatMoney(dashboardKpis.totalValue)}>{formatMoneyCompact(dashboardKpis.totalValue)}</span>}
             tone="brand"
           />
         </div>
@@ -1098,9 +1094,9 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
               shown while loading (the empty state isn't up yet) and whenever
               the form is open, since this same button is its Cancel. */}
           {(loading || filtered.length > 0 || showForm) && (
-            <button type="button" className={calcStyles.btn} onClick={() => setShowForm((v) => !v)}>
-              {showForm ? 'Cancel' : '+ New Project'}
-            </button>
+            <CommonButton variant="primary" size="md" leadingIcon={showForm ? undefined : <Plus />} onClick={() => setShowForm((v) => !v)}>
+              {showForm ? 'Cancel' : 'New Project'}
+            </CommonButton>
           )}
           <ToolbarButton onClick={handleExportPdf} disabled={exportingPdf}>
             {exportingPdf ? 'Exporting…' : 'Export PDF'}
@@ -1139,9 +1135,9 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
             footer={
               <>
                 <ModalCancelButton onClick={() => setQuickView(null)}>Close</ModalCancelButton>
-                <Link className={calcStyles.btn} href={`/projects/${quickView.id}`}>
+                <CommonButton variant="primary" size="md" href={`/projects/${quickView.id}`}>
                   Open full details
-                </Link>
+                </CommonButton>
               </>
             }
           >
@@ -1192,16 +1188,16 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
                     suggested client abandoned the new project you were
                     creating — the common case is a second project for a
                     client we already have, not a mistake. */}
-                <button
-                  type="button"
-                  className={calcStyles.duplicateSuggestionAction}
+                <CommonButton
+                  variant="primary"
+                  size="sm"
                   onClick={() => useExistingClient(possibleDuplicate.project.id)}
                 >
                   Use their details for this new project
-                </button>
-                <Link className={calcStyles.duplicateSuggestionLink} href={`/projects/${possibleDuplicate.project.id}`} target="_blank" rel="noopener noreferrer">
+                </CommonButton>
+                <CommonButton variant="link" size="sm" href={`/projects/${possibleDuplicate.project.id}`} target="_blank" rel="noopener noreferrer">
                   Open the existing one
-                </Link>
+                </CommonButton>
               </div>
             )}
             <FieldRow>
@@ -1348,28 +1344,26 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
             />
             {/* Stage and Status stay out in the open: they are the two this
                 dashboard is driven by day to day. */}
-            <Select
-              aria-label="Filter by stage"
-              className={quickClass(!!fStage)}
+            <Dropdown
+              ariaLabel="Filter by stage"
+              multiselect
+              className={quickClass(fStage.length > 0)}
               value={fStage}
-              onChange={(e) => setFStage(e.target.value as ProjectStage | '')}
-            >
-              <option value="">All stages</option>
-              {FORWARD_STAGES.concat('closed_lost').map((s) => (
-                <option key={s} value={s}>{STAGE_LABEL[s]}</option>
-              ))}
-            </Select>
-            <Select
-              aria-label="Filter by status"
-              className={quickClass(!!fStatus)}
+              onChange={(v) => setFStage(v as ProjectStage[])}
+              placeholder="All stages"
+              label="Stage"
+              options={FORWARD_STAGES.concat('closed_lost').map((s) => ({ value: s, label: STAGE_LABEL[s] }))}
+            />
+            <Dropdown
+              ariaLabel="Filter by status"
+              multiselect
+              className={quickClass(fStatus.length > 0)}
               value={fStatus}
-              onChange={(e) => setFStatus(e.target.value as ProjectStatus | '')}
-            >
-              <option value="">All statuses</option>
-              {(Object.keys(STATUS_LABEL) as ProjectStatus[]).map((s) => (
-                <option key={s} value={s}>{STATUS_LABEL[s]}</option>
-              ))}
-            </Select>
+              onChange={(v) => setFStatus(v as ProjectStatus[])}
+              placeholder="All statuses"
+              label="Status"
+              options={(Object.keys(STATUS_LABEL) as ProjectStatus[]).map((s) => ({ value: s, label: STATUS_LABEL[s] }))}
+            />
             <FilterToggle
               open={showFilters}
               onToggle={() => setShowFilters((open) => !open)}
@@ -1381,61 +1375,86 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
           {showFilters && (
             <FilterGrid id="projectFilterGrid">
               {isPrivileged && (
-                <FilterField label="Sales person" active={!!fSalesPerson} htmlFor="pfSalesPerson">
-                  <Select id="pfSalesPerson" value={fSalesPerson} onChange={(e) => setFSalesPerson(e.target.value)}>
-                    <option value="">All sales people</option>
-                    {salesPeople.map((s) => (
-                      <option key={s} value={s}>{salesPersonNameByUsername.get(s) || s}</option>
-                    ))}
-                  </Select>
+                <FilterField label="Sales person" active={fSalesPerson.length > 0} htmlFor="pfSalesPerson">
+                  <Dropdown
+                    id="pfSalesPerson"
+                    multiselect
+                    fullWidth
+                    value={fSalesPerson}
+                    onChange={setFSalesPerson}
+                    placeholder="All sales people"
+                    options={salesPeople.map((s) => ({ value: s, label: salesPersonNameByUsername.get(s) || s }))}
+                  />
                 </FilterField>
               )}
-              <FilterField label="Project lead" active={!!fLead} htmlFor="pfLead">
-                <Select id="pfLead" value={fLead} onChange={(e) => setFLead(e.target.value)}>
-                  <option value="">All project leads</option>
-                  {leadOptions.map((l) => (
-                    <option key={l.id} value={l.id}>{l.name}</option>
-                  ))}
-                </Select>
+              <FilterField label="Project lead" active={fLead.length > 0} htmlFor="pfLead">
+                <Dropdown
+                  id="pfLead"
+                  multiselect
+                  fullWidth
+                  value={fLead}
+                  onChange={setFLead}
+                  placeholder="All project leads"
+                  options={leadOptions.map((l) => ({ value: l.id, label: l.name }))}
+                />
               </FilterField>
-              <FilterField label="Opportunity type" active={!!fType} htmlFor="pfType">
-                <Select id="pfType" value={fType} onChange={(e) => setFType(e.target.value as OpportunityType | '')}>
-                  <option value="">All opportunity types</option>
-                  {OPPORTUNITY_TYPES.map((t) => (
-                    <option key={t} value={t}>{OPPORTUNITY_TYPE_LABEL[t]}</option>
-                  ))}
-                </Select>
+              <FilterField label="Opportunity type" active={fType.length > 0} htmlFor="pfType">
+                <Dropdown
+                  id="pfType"
+                  multiselect
+                  fullWidth
+                  value={fType}
+                  onChange={(v) => setFType(v as OpportunityType[])}
+                  placeholder="All opportunity types"
+                  options={OPPORTUNITY_TYPES.map((t) => ({ value: t, label: OPPORTUNITY_TYPE_LABEL[t] }))}
+                />
               </FilterField>
-              <FilterField label="Department" active={!!fDepartment} htmlFor="pfDepartment">
-                <Select id="pfDepartment" value={fDepartment} onChange={(e) => setFDepartment(e.target.value as ProjectDepartmentFilter)}>
-                  <option value="">All departments</option>
-                  {PROJECT_DEPARTMENTS.map((d) => (
-                    <option key={d} value={d}>{PROJECT_DEPARTMENT_LABEL[d]}</option>
-                  ))}
-                </Select>
+              <FilterField label="Department" active={fDepartment.length > 0} htmlFor="pfDepartment">
+                <Dropdown
+                  id="pfDepartment"
+                  multiselect
+                  fullWidth
+                  value={fDepartment}
+                  onChange={(v) => setFDepartment(v as ProjectDepartment[])}
+                  placeholder="All departments"
+                  options={PROJECT_DEPARTMENTS.map((d) => ({ value: d, label: PROJECT_DEPARTMENT_LABEL[d] }))}
+                />
               </FilterField>
-              <FilterField label="Source" active={!!fSource} htmlFor="pfSource">
-                <Select id="pfSource" value={fSource} onChange={(e) => setFSource(e.target.value)}>
-                  <option value="">All sources</option>
-                  {sources.map((s) => (
-                    <option key={s} value={s}>{s}</option>
-                  ))}
-                </Select>
+              <FilterField label="Source" active={fSource.length > 0} htmlFor="pfSource">
+                <Dropdown
+                  id="pfSource"
+                  multiselect
+                  fullWidth
+                  value={fSource}
+                  onChange={setFSource}
+                  placeholder="All sources"
+                  options={sources.map((s) => ({ value: s, label: s }))}
+                />
               </FilterField>
-              <FilterField label="Priority" active={!!fPriority} htmlFor="pfPriority">
-                <Select id="pfPriority" value={fPriority} onChange={(e) => setFPriority(e.target.value as ProjectPriority | '')}>
-                  <option value="">All priorities</option>
-                  {(Object.keys(PRIORITY_LABEL) as ProjectPriority[]).map((p) => (
-                    <option key={p} value={p}>{PRIORITY_LABEL[p]}</option>
-                  ))}
-                </Select>
+              <FilterField label="Priority" active={fPriority.length > 0} htmlFor="pfPriority">
+                <Dropdown
+                  id="pfPriority"
+                  multiselect
+                  fullWidth
+                  value={fPriority}
+                  onChange={(v) => setFPriority(v as ProjectPriority[])}
+                  placeholder="All priorities"
+                  options={(Object.keys(PRIORITY_LABEL) as ProjectPriority[]).map((p) => ({ value: p, label: PRIORITY_LABEL[p] }))}
+                />
               </FilterField>
-              <FilterField label="Confirmation" active={!!fConfirmation} htmlFor="pfConfirmation">
-                <Select id="pfConfirmation" value={fConfirmation} onChange={(e) => { setFAwaitingMine(false); setFAwaitingTeam(false); setFConfirmation(e.target.value); }}>
-                  <option value="">All confirmations</option>
-                  <option value="pending_confirmation">Pending Confirmation</option>
-                  <option value="confirmed">Confirmed</option>
-                </Select>
+              <FilterField label="Confirmation" active={fConfirmation.length > 0} htmlFor="pfConfirmation">
+                <Dropdown
+                  id="pfConfirmation"
+                  multiselect
+                  fullWidth
+                  value={fConfirmation}
+                  onChange={(v) => { setFAwaitingMine(false); setFAwaitingTeam(false); setFConfirmation(v); }}
+                  placeholder="All confirmations"
+                  options={[
+                    { value: 'pending_confirmation', label: 'Pending Confirmation' },
+                    { value: 'confirmed', label: 'Confirmed' }
+                  ]}
+                />
               </FilterField>
               {/* Created and Closing each pair their two pickers inside one
                   captioned field, so a range reads as a range — these were
@@ -1447,11 +1466,14 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
                 />
               </FilterField>
               <FilterField label="Closing date" active={fClosingPreset !== 'all'} htmlFor="pfClosing">
-                <Select id="pfClosing" value={fClosingPreset} onChange={(e) => setFClosingPreset(e.target.value as ClosingDatePreset)}>
-                  {(Object.keys(CLOSING_PRESET_LABEL) as ClosingDatePreset[]).map((p) => (
-                    <option key={p} value={p}>{CLOSING_PRESET_LABEL[p]}</option>
-                  ))}
-                </Select>
+                <Dropdown
+                  id="pfClosing"
+                  fullWidth
+                  value={fClosingPreset}
+                  onChange={(v) => v && setFClosingPreset(v)}
+                  clearable={false}
+                  options={(Object.keys(CLOSING_PRESET_LABEL) as ClosingDatePreset[]).map((p) => ({ value: p, label: CLOSING_PRESET_LABEL[p] }))}
+                />
                 {fClosingPreset === 'custom' && (
                   <FilterSubRange>
                     <FilterDatePair
@@ -1483,9 +1505,9 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
             ) : (
               <>
                 Nothing is waiting on the team.{' '}
-                <button type="button" className={historyStyles.linkBtn} onClick={() => { setFAwaitingTeam(false); setFConfirmation(''); }}>
+                <CommonButton variant="link" size="sm" onClick={() => { setFAwaitingTeam(false); setFConfirmation([]); }}>
                   Show all projects
-                </button>
+                </CommonButton>
               </>
             )}
           </div>
@@ -1500,34 +1522,37 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
             ) : (
               <>
                 Nothing is waiting for your confirmation.{' '}
-                <button type="button" className={historyStyles.linkBtn} onClick={() => { setFAwaitingMine(false); setFConfirmation(''); }}>
+                <CommonButton variant="link" size="sm" onClick={() => { setFAwaitingMine(false); setFConfirmation([]); }}>
                   Show all projects
-                </button>
+                </CommonButton>
               </>
             )}
           </div>
         )}
-        {!loading && !loadFailed && selectedLead && (
-          <div className={historyStyles.status}>Showing projects led by {selectedLead.name} and projects {selectedLead.name} owns.</div>
+        {!loading && !loadFailed && selectedLeadNames.length === 1 && (
+          <div className={historyStyles.status}>Showing projects led by {selectedLeadNames[0]} and projects {selectedLeadNames[0]} owns.</div>
+        )}
+        {!loading && !loadFailed && selectedLeadNames.length > 1 && (
+          <div className={historyStyles.status}>Showing projects led or owned by any of {selectedLeadNames.join(', ')}.</div>
         )}
         {!loading && !loadFailed && hiddenClosedCount > 0 && (
           <div className={historyStyles.status}>
             {hiddenClosedCount} closed project{hiddenClosedCount === 1 ? '' : 's'} (Won/Lost) {hiddenClosedCount === 1 ? 'is' : 'are'} hidden.{' '}
-            <button type="button" className={historyStyles.linkBtn} onClick={() => setIncludeClosed(true)}>
+            <CommonButton variant="link" size="sm" onClick={() => setIncludeClosed(true)}>
               Show {hiddenClosedCount === 1 ? 'it' : 'them'}
-            </button>
+            </CommonButton>
             {' '}— or filter Status to Won/Lost, or set any date range.
           </div>
         )}
         {!loading && !loadFailed && includeClosed && (
           <div className={historyStyles.status}>
             Closed projects are shown.{' '}
-            <button type="button" className={historyStyles.linkBtn} onClick={() => setIncludeClosed(false)}>Hide them again</button>
+            <CommonButton variant="link" size="sm" onClick={() => setIncludeClosed(false)}>Hide them again</CommonButton>
           </div>
         )}
 
         {loading ? (
-          <div className={historyStyles.tableWrap}><SkeletonRows rows={8} columns={11} /></div>
+          <SkeletonTable rows={8} columns={columns.length} />
         ) : loadFailed ? (
           <ErrorState message="Could not load projects — check your connection and try again." onRetry={() => load()} />
         ) : (
@@ -1544,11 +1569,23 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
                 icon={FolderKanban}
                 title={(facets?.grandTotal ?? 0) === 0 ? 'No projects yet' : 'No projects match your filters'}
                 message={(facets?.grandTotal ?? 0) === 0 ? (isTechnicalCreator ? "Projects you're assigned to as technical lead show up here — or create one for a sales person when needed." : 'Create your first project to start tracking it through the pipeline.') : 'Try clearing a filter or search term.'}
-                action={<button type="button" className={calcStyles.btn} onClick={() => setShowForm(true)}>+ New Project</button>}
+                action={<CommonButton variant="primary" size="md" leadingIcon={<Plus />} onClick={() => setShowForm(true)}>New Project</CommonButton>}
               />
             }
           />
-          <Pagination page={page} totalPages={Math.max(1, Math.ceil((facets?.total ?? 0) / PROJECTS_PAGE_SIZE))} onChange={setPage} />
+          <TablePager
+            page={Math.min(page, Math.max(1, Math.ceil((facets?.total ?? 0) / pageSize)))}
+            pageSize={pageSize}
+            total={facets?.total ?? 0}
+            noun="projects"
+            sizes={PROJECTS_PAGE_SIZE_CHOICES}
+            allowAll={false}
+            onPageChange={setPage}
+            onPageSizeChange={(size) => {
+              setPageSize(size);
+              setPage(1);
+            }}
+          />
           </>
         )
         )}

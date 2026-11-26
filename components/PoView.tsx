@@ -1,10 +1,11 @@
 'use client';
 
 import { FormEvent, useEffect, useState } from 'react';
-import Link from 'next/link';
+import Link from '@/components/ui/AppLink';
 import { PoRecord, ProjectRecord, UserRole } from '@/lib/types';
 import { exportListToPdf } from '@/lib/exportPdf';
 import AppShell from './AppShell';
+import CommonButton from './ui/CommonButton';
 import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
 import { useToast } from './ui/ToastProvider';
@@ -16,10 +17,14 @@ import SubmitButton from './ui/SubmitButton';
 import FilterBar from './ui/FilterBar';
 import ToolbarButton from './ui/ToolbarButton';
 import Table, { TableColumn } from './ui/Table';
+import { SkeletonTable } from './ui/Skeleton';
 import StatusBadge from './ui/StatusBadge';
 import Modal, { ModalCancelButton, ModalOkButton } from './ui/Modal';
 import { getPoPaymentStatus } from '@/lib/poPaymentStatus';
 import { fetchCached, OPTIONS_TTL_MS } from '@/lib/fetchCached';
+import { Pencil, Trash2 } from 'lucide-react';
+import RowActions from './ui/RowActions';
+import { RefreshButton } from './ui/ListControls';
 
 const EMPTY_FORM = { projectId: '', poNumber: '', poDate: '', amount: '', advanceReceived: '', paymentTerms: '', attachmentUrl: '' };
 
@@ -135,9 +140,9 @@ function EditPoDialog({ po, onClose, onSaved }: { po: PoRecord; onClose: () => v
         {amountNum > 0 && receivedNum < amountNum && (
           <>
             {' · '}
-            <button type="button" className={historyStyles.linkBtn} onClick={() => setAdvanceReceived(String(amountNum))}>
+            <CommonButton variant="link" size="sm" onClick={() => setAdvanceReceived(String(amountNum))}>
               Mark fully received
-            </button>
+            </CommonButton>
           </>
         )}
       </div>
@@ -288,16 +293,19 @@ export default function PoView({ currentUser }: PoViewProps) {
       key: 'actions',
       header: '',
       render: (r) => (
-        <>
-          {canEditPo(r) && <button type="button" className={historyStyles.linkBtn} onClick={() => setEditingPo(r)}>Edit</button>}
-          {isPrivileged && <button type="button" className={historyStyles.deleteBtn} onClick={() => handleDelete(r.id)}>Delete</button>}
-        </>
+        <RowActions
+          label="PO actions"
+          actions={[
+            { key: 'edit', label: 'Edit', icon: <Pencil />, hidden: !canEditPo(r), onClick: () => setEditingPo(r) },
+            { key: 'delete', label: 'Delete', icon: <Trash2 />, destructive: true, hidden: !isPrivileged, onClick: () => handleDelete(r.id) }
+          ]}
+        />
       )
     }
   ];
 
   return (
-    <AppShell title="Purchase Orders" subtitle="PO number, amount, advance received, and payment terms per project.">
+    <AppShell fillPage title="Purchase Orders" subtitle="PO number, amount, advance received, and payment terms per project.">
         <h2 className={`${calcStyles.h2} ${calcStyles.h2Flush}`}>Log a PO</h2>
         <form className={calcStyles.sectionPanel} onSubmit={handleCreate}>
           <FieldRow>
@@ -338,9 +346,13 @@ export default function PoView({ currentUser }: PoViewProps) {
         <FilterBar className={historyStyles.toolbarSpaced}>
           <ToolbarButton onClick={handleExportPdf}>Export PDF</ToolbarButton>
           <ToolbarButton onClick={() => window.print()}>Print</ToolbarButton>
-          <ToolbarButton onClick={load}>Refresh</ToolbarButton>
+          <RefreshButton onRefresh={load} loading={!loaded} pushRight />
         </FilterBar>
-        <div className={historyStyles.status}>{status}</div>
+        {!loaded && status === 'Loading...' ? (
+          <SkeletonTable rows={6} columns={columns.length} />
+        ) : (
+          <div className={historyStyles.status}>{status}</div>
+        )}
         {loaded && (
           <Table
             columns={columns}

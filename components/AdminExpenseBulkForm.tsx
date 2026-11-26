@@ -1,7 +1,10 @@
 'use client';
 
 import { Fragment, useEffect, useState } from 'react';
+import { Plus, X } from 'lucide-react';
 import { useToast } from './ui/ToastProvider';
+import CommonButton from './ui/CommonButton';
+import CommonChip from './ui/CommonChip';
 import { UNALLOCATED_EMPLOYEE_ID } from '@/lib/adminExpenseUnallocated';
 import {
   ADMIN_EXPENSE_TYPES,
@@ -16,9 +19,9 @@ import {
 } from '@/lib/adminExpenseRow';
 import type { UserOption } from './AdminExpensesView';
 import calcStyles from './calculator.module.css';
-import historyStyles from './quotationHistory.module.css';
 import styles from './adminExpenses.module.css';
 import { fetchCached } from '@/lib/fetchCached';
+import Select from '@/components/ui/Select';
 
 // "Add Multiple" for Admin Expenses — the same shape as
 // ReimbursementBulkAddForm and OfficeOperationExpenseBulkForm.
@@ -158,7 +161,9 @@ export default function AdminExpenseBulkForm({ onClose, onSaved }: Props) {
         hotel and tickets usually share both. A row left completely blank is ignored.
       </p>
 
-      <div className={styles.bulkTableWrap}>
+      {/* Plain wrapper: keeps this form at its natural height inside a fill-the-screen list page (app/globals.css → .mx-fill-page) — the table is capped to one screen and scrolls inside on its own. */}
+      <div>
+      <div className={`${styles.bulkTableWrap} mx-rtable-wrap`}>
         <table className={styles.bulkTable}>
           <thead>
             <tr>
@@ -181,15 +186,14 @@ export default function AdminExpenseBulkForm({ onClose, onSaved }: Props) {
                   <tr className={row.status === 'error' ? styles.bulkRowError : undefined}>
                     <td className={styles.bulkColNum}>{index + 1}</td>
                     <td>
-                      <select
-                        className={calcStyles.formControl}
+                      <Select dropdownSize="sm"
                         value={row.type}
                         aria-label={`Row ${index + 1} expense type`}
                         onChange={(e) => setType(row.key, e.target.value)}
                       >
                         <option value="">Select…</option>
                         {ADMIN_EXPENSE_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
-                      </select>
+                      </Select>
                     </td>
                     <td>
                       {/* Hotel has no single date — it has a stay, entered on
@@ -248,15 +252,15 @@ export default function AdminExpenseBulkForm({ onClose, onSaved }: Props) {
                       />
                     </td>
                     <td className={styles.bulkColRemove}>
-                      <button
-                        type="button"
-                        className={styles.bulkRemoveBtn}
+                      <CommonButton
+                        variant="ghost"
+                        size="sm"
+                        iconOnly
+                        leadingIcon={<X />}
                         disabled={rows.length === 1}
                         aria-label={`Remove row ${index + 1}`}
                         onClick={() => removeRow(row.key)}
-                      >
-                        ×
-                      </button>
+                      />
                     </td>
                   </tr>
 
@@ -286,8 +290,7 @@ export default function AdminExpenseBulkForm({ onClose, onSaved }: Props) {
 
                         {flags.isFlight && (
                           <>
-                            <select
-                              className={calcStyles.formControl}
+                            <Select dropdownSize="sm"
                               value={row.flightTripType}
                               aria-label={`Row ${index + 1} trip type`}
                               onChange={(e) =>
@@ -301,7 +304,7 @@ export default function AdminExpenseBulkForm({ onClose, onSaved }: Props) {
                             >
                               <option value="one_way">One way</option>
                               <option value="return">Return</option>
-                            </select>
+                            </Select>
                             {flags.isReturnFlight && (
                               <>
                                 <input
@@ -332,23 +335,22 @@ export default function AdminExpenseBulkForm({ onClose, onSaved }: Props) {
                         )}
 
                         <div className={styles.bulkEmployeeChips}>
-                          <label className={styles.bulkEmployeeChip}>
-                            <input
-                              type="checkbox"
-                              checked={row.employeeIds.includes(UNALLOCATED_EMPLOYEE_ID)}
-                              onChange={() => toggleEmployee(row.key, UNALLOCATED_EMPLOYEE_ID)}
-                            />
+                          <CommonChip
+                            size="sm"
+                            selected={row.employeeIds.includes(UNALLOCATED_EMPLOYEE_ID)}
+                            onClick={() => toggleEmployee(row.key, UNALLOCATED_EMPLOYEE_ID)}
+                          >
                             Other / Unallocated
-                          </label>
+                          </CommonChip>
                           {users.map((u) => (
-                            <label key={u.id} className={styles.bulkEmployeeChip}>
-                              <input
-                                type="checkbox"
-                                checked={row.employeeIds.includes(u.id)}
-                                onChange={() => toggleEmployee(row.key, u.id)}
-                              />
+                            <CommonChip
+                              key={u.id}
+                              size="sm"
+                              selected={row.employeeIds.includes(u.id)}
+                              onClick={() => toggleEmployee(row.key, u.id)}
+                            >
                               {u.name || u.username}
-                            </label>
+                            </CommonChip>
                           ))}
                         </div>
                       </div>
@@ -361,10 +363,11 @@ export default function AdminExpenseBulkForm({ onClose, onSaved }: Props) {
           </tbody>
         </table>
       </div>
+      </div>
 
       <div className={styles.bulkFooterRow}>
-        <button type="button" className={historyStyles.button} onClick={() => addRows(1)}>+ Add Row</button>
-        <button type="button" className={historyStyles.button} onClick={() => addRows(4)}>+ Add 4 Rows</button>
+        <CommonButton leadingIcon={<Plus />} onClick={() => addRows(1)}>Add Row</CommonButton>
+        <CommonButton leadingIcon={<Plus />} onClick={() => addRows(4)}>Add 4 Rows</CommonButton>
         <span className={styles.bulkTotalText}>
           {filled.length > 0 && (
             <>Running total: <strong>₹{total.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong></>
@@ -373,10 +376,10 @@ export default function AdminExpenseBulkForm({ onClose, onSaved }: Props) {
       </div>
 
       <div className={styles.bulkSubmitRow}>
-        <button type="button" className={calcStyles.btn} disabled={saving || filled.length === 0} onClick={handleSaveAll}>
-          {saving ? 'Saving…' : `Save All${filled.length > 0 ? ` (${filled.length})` : ''}`}
-        </button>
-        <button type="button" className={historyStyles.button} disabled={saving} onClick={onClose}>Cancel</button>
+        <CommonButton variant="primary" loading={saving} loadingLabel="Saving…" disabled={filled.length === 0} onClick={handleSaveAll}>
+          {`Save All${filled.length > 0 ? ` (${filled.length})` : ''}`}
+        </CommonButton>
+        <CommonButton disabled={saving} onClick={onClose}>Cancel</CommonButton>
       </div>
     </div>
   );

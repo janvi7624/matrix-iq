@@ -1,11 +1,16 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import Link from 'next/link';
+import Link from '@/components/ui/AppLink';
 import { FolderKanban, FileText, Monitor, Inbox, Library } from 'lucide-react';
 import { PartnerRecord } from '@/lib/types';
 import type { PartnerKpis } from '@/lib/partnerAnalyticsCompute';
 import PartnerShell from './PartnerShell';
+import StatCard, { StatCardGrid } from './ui/StatCard';
+import CommonButton from './ui/CommonButton';
+import { SkeletonStatCards } from './ui/Skeleton';
+import PartnerGuideModal, { usePartnerGuideAutoShow } from './PartnerGuideModal';
+import guideStyles from './partnerGuideModal.module.css';
 import calcStyles from './calculator.module.css';
 import styles from './partnerPortal.module.css';
 
@@ -41,6 +46,13 @@ function pct(value: number | null): string {
 export default function PartnerDashboardView({ viewerName, partner }: PartnerDashboardViewProps) {
   const firstName = viewerName.trim().split(/\s+/)[0] || viewerName;
   const [analytics, setAnalytics] = useState<Analytics | null>(null);
+  // First-visit orientation for the partner, who may use this a few times
+  // a year and will not remember where anything is.
+  const [autoShowGuide, dismissAutoGuide] = usePartnerGuideAutoShow('partner');
+  const [showGuide, setShowGuide] = useState(false);
+  // First-load flag: the KPI sections stay hidden when the fetch fails, so
+  // the skeleton is shown only until the first response settles.
+  const [analyticsLoaded, setAnalyticsLoaded] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -49,7 +61,10 @@ export default function PartnerDashboardView({ viewerName, partner }: PartnerDas
       .then((data) => {
         if (!cancelled && data) setAnalytics(data);
       })
-      .catch(() => undefined);
+      .catch(() => undefined)
+      .finally(() => {
+        if (!cancelled) setAnalyticsLoaded(true);
+      });
     return () => {
       cancelled = true;
     };
@@ -65,6 +80,20 @@ export default function PartnerDashboardView({ viewerName, partner }: PartnerDas
       partnerName={partner.company_name}
       partnerCode={partner.partner_code}
     >
+      <div className={guideStyles.guideLinkRow}>
+        <CommonButton variant="link" size="sm" onClick={() => setShowGuide(true)}>
+          How the Partner Portal Works
+        </CommonButton>
+      </div>
+      {(autoShowGuide || showGuide) && (
+        <PartnerGuideModal
+          audience="partner"
+          onClose={() => {
+            dismissAutoGuide();
+            setShowGuide(false);
+          }}
+        />
+      )}
       <section className={styles.intro}>
         <h2 className={styles.introTitle}>Welcome back, {firstName}</h2>
         <p className={styles.introSub}>
@@ -74,55 +103,37 @@ export default function PartnerDashboardView({ viewerName, partner }: PartnerDas
         <span className={styles.statusChip}>Account active</span>
       </section>
 
+      {!k && !analyticsLoaded && (
+        <>
+          <h3 className={styles.sectionHeading}>Your activity</h3>
+          <SkeletonStatCards count={6} withIcon={false} />
+          <h3 className={styles.sectionHeading}>Value</h3>
+          <SkeletonStatCards count={3} withIcon={false} />
+        </>
+      )}
+
       {k && (
         <>
           <h3 className={styles.sectionHeading}>Your activity</h3>
-          <div className={styles.kpiRow}>
-            <div className={styles.kpi}>
-              <span className={styles.kpiValue}>{k.submitted}</span>
-              <span className={styles.kpiLabel}>Submitted</span>
-            </div>
-            <div className={styles.kpi}>
-              <span className={styles.kpiValue}>{k.awaitingReview}</span>
-              <span className={styles.kpiLabel}>Awaiting review</span>
-            </div>
-            <div className={styles.kpi}>
-              <span className={styles.kpiValue}>{k.active}</span>
-              <span className={styles.kpiLabel}>Active</span>
-            </div>
-            <div className={styles.kpi}>
-              <span className={styles.kpiValue}>{k.won}</span>
-              <span className={styles.kpiLabel}>Won</span>
-            </div>
-            <div className={styles.kpi}>
-              <span className={styles.kpiValue}>{pct(k.winRate)}</span>
-              <span className={styles.kpiLabel}>Win rate</span>
-            </div>
-            <div className={styles.kpi}>
-              <span className={styles.kpiValue}>{k.demosRequested}</span>
-              <span className={styles.kpiLabel}>Demos requested</span>
-            </div>
-          </div>
+          <StatCardGrid>
+            <StatCard value={k.submitted} label="Submitted" />
+            <StatCard value={k.awaitingReview} label="Awaiting review" />
+            <StatCard value={k.active} label="Active" />
+            <StatCard value={k.won} label="Won" />
+            <StatCard value={pct(k.winRate)} label="Win rate" />
+            <StatCard value={k.demosRequested} label="Demos requested" />
+          </StatCardGrid>
 
           {/* Three different kinds of money, never merged into one number —
               see THE MONEY RULE in lib/partnerAnalyticsCompute.ts. The labels
               are long on purpose: "estimated" and "won" must not be mistaken
               for one another. */}
           <h3 className={styles.sectionHeading}>Value</h3>
-          <div className={styles.kpiRow}>
-            <div className={styles.kpi}>
-              <span className={styles.kpiValue}>{money(k.estimatedValueSubmitted)}</span>
-              <span className={styles.kpiLabel}>Your estimates, all submissions</span>
-            </div>
-            <div className={styles.kpi}>
-              <span className={styles.kpiValue}>{money(k.quotedValueApproved)}</span>
-              <span className={styles.kpiLabel}>Our value, accepted projects</span>
-            </div>
-            <div className={styles.kpi}>
-              <span className={styles.kpiValue}>{money(k.wonValue)}</span>
-              <span className={styles.kpiLabel}>Won business</span>
-            </div>
-          </div>
+          <StatCardGrid>
+            <StatCard value={money(k.estimatedValueSubmitted)} label="Your estimates, all submissions" />
+            <StatCard value={money(k.quotedValueApproved)} label="Our value, accepted projects" />
+            <StatCard value={money(k.wonValue)} label="Won business" />
+          </StatCardGrid>
           <p className={calcStyles.small}>
             Estimates are the figures you submitted and are not forecasts. Only &ldquo;won business&rdquo; represents closed deals.
           </p>

@@ -3,6 +3,7 @@
 import { QuotationDetails } from '@/lib/types';
 import { selectAllOnFocus } from '@/lib/numberInputHelpers';
 import styles from './calculator.module.css';
+import CommonChip from '@/components/ui/CommonChip';
 import PhoneInput from '@/components/ui/PhoneInput';
 import TeamMemberSelect, { TeamMemberOption } from '@/components/ui/TeamMemberSelect';
 
@@ -107,26 +108,20 @@ export default function QuotationDetailsForm({ details, onChange, onBehalfOption
           <div className={styles.field}>
             <span className={styles.label}>Included in the quoted price</span>
             <div className={styles.deptPickRow}>
-              <button
-                type="button"
-                role="checkbox"
-                aria-checked={details.freightIncluded}
-                className={`${styles.deptPickChip} ${details.freightIncluded ? styles.deptPickChipActive : ''}`}
+              <CommonChip
+                checkbox
+                selected={details.freightIncluded}
                 onClick={() => onChange({ freightIncluded: !details.freightIncluded })}
               >
-                <span className={styles.deptPickChipCheck} aria-hidden="true" />
                 Freight / transportation
-              </button>
-              <button
-                type="button"
-                role="checkbox"
-                aria-checked={details.installationIncluded}
-                className={`${styles.deptPickChip} ${details.installationIncluded ? styles.deptPickChipActive : ''}`}
+              </CommonChip>
+              <CommonChip
+                checkbox
+                selected={details.installationIncluded}
                 onClick={() => onChange({ installationIncluded: !details.installationIncluded })}
               >
-                <span className={styles.deptPickChipCheck} aria-hidden="true" />
                 Installation
-              </button>
+              </CommonChip>
             </div>
             {/* Shows the exact sentence the client will read, so the two
                 boxes never have to be mentally combined into one. */}

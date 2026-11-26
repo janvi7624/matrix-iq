@@ -1,4 +1,5 @@
 import { AlertTriangle } from 'lucide-react';
+import CommonButton from './CommonButton';
 import styles from './states.module.css';
 
 interface ErrorStateProps {
@@ -19,9 +20,9 @@ export default function ErrorState({ title = 'Unable to load this page', message
       <div className={styles.stateTitle}>{title}</div>
       <div className={styles.stateMessage}>{message}</div>
       {onRetry && (
-        <button type="button" className={styles.retryBtn} onClick={onRetry}>
+        <CommonButton variant="secondary" size="md" onClick={onRetry}>
           Try again
-        </button>
+        </CommonButton>
       )}
     </div>
   );

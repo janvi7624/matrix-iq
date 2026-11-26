@@ -3,9 +3,17 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { TeamMatrixCell, TeamMatrixEmployee, TeamMatrixResponse } from '@/lib/dailyReportTypes';
 import { formatIstDayShort, formatIstWeekday } from '@/lib/dailyReportTime';
+import CommonButton from './ui/CommonButton';
+import SearchInput from './ui/SearchInput';
+import Dropdown from './ui/Dropdown';
+import { setListParam } from '@/lib/listParam';
+import CommonChip from './ui/CommonChip';
+import StatCard, { StatCardGrid } from './ui/StatCard';
+import { SkeletonStatCards, SkeletonTable } from './ui/Skeleton';
 import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
 import styles from './teamSheet.module.css';
+import { RefreshButton } from './ui/ListControls';
 
 // Team Daily Reports, as a workbook.
 //
@@ -124,7 +132,8 @@ function download(name: string, rows: string[][]) {
 export default function TeamDailyReportsSheet({ onOpenDay }: { onOpenDay?: (employeeId: string, date: string) => void }) {
   const [preset, setPreset] = useState<Preset>('fortnight');
   const [range, setRange] = useState(() => rangeFor('fortnight'));
-  const [departmentId, setDepartmentId] = useState('');
+  // Multi-select: an empty list means every department in the viewer's scope.
+  const [departmentId, setDepartmentId] = useState<string[]>([]);
   const [search, setSearch] = useState('');
   /** '' is the All-employees grid; otherwise the open person's sheet. */
   const [active, setActive] = useState('');
@@ -137,7 +146,7 @@ export default function TeamDailyReportsSheet({ onOpenDay }: { onOpenDay?: (empl
     (async () => {
       try {
         const params = new URLSearchParams({ from: range.from, to: range.to });
-        if (departmentId) params.set('departmentId', departmentId);
+        setListParam(params, 'departmentId', departmentId);
         if (search.trim()) params.set('search', search.trim());
         if (active) params.set('expand', active);
         const response = await fetch(`/api/daily-reports/team/matrix?${params.toString()}`);
@@ -240,14 +249,13 @@ export default function TeamDailyReportsSheet({ onOpenDay }: { onOpenDay?: (empl
               ['month', 'This month']
             ] as [Preset, string][]
           ).map(([key, label]) => (
-            <button
+            <CommonChip
               key={key}
-              type="button"
-              className={`${styles.preset} ${preset === key ? styles.presetActive : ''}`}
+              selected={preset === key}
               onClick={() => choosePreset(key)}
             >
               {label}
-            </button>
+            </CommonChip>
           ))}
         </div>
 
@@ -268,24 +276,26 @@ export default function TeamDailyReportsSheet({ onOpenDay }: { onOpenDay?: (empl
         />
 
         {data && data.departments.length > 1 && (
-          <select className={calcStyles.formControl} value={departmentId} onChange={(e) => setDepartmentId(e.target.value)}>
-            <option value="">All my departments</option>
-            {data.departments.map((d) => (
-              <option key={d.id} value={d.id}>{d.name}</option>
-            ))}
-          </select>
+          <Dropdown
+            multiselect
+            value={departmentId}
+            onChange={(v) => setDepartmentId(v)}
+            placeholder="All my departments"
+            label="Department"
+            options={data.departments.map((d) => ({ value: String(d.id), label: d.name }))}
+          />
         )}
 
-        <input type="text" placeholder="Search a person…" value={search} onChange={(e) => setSearch(e.target.value)} />
-        <button type="button" className={historyStyles.button} onClick={() => setReloadKey((k) => k + 1)}>Refresh</button>
-        <button
-          type="button"
-          className={historyStyles.button}
+        <SearchInput inline debounceMs={300} placeholder="Search a person…" value={search} onChange={(v) => setSearch(v)} />
+        <CommonButton
+          variant="secondary"
+          size="md"
           onClick={active ? exportActive : exportOverview}
           disabled={!data?.employees.length}
         >
           Export CSV
-        </button>
+        </CommonButton>
+        <RefreshButton onRefresh={() => setReloadKey((k) => k + 1)} label="Refresh sheet" pushRight />
       </div>
 
       {/* --- the workbook's tabs: All employees, then one per person --- */}
@@ -318,19 +328,26 @@ export default function TeamDailyReportsSheet({ onOpenDay }: { onOpenDay?: (empl
         </div>
       )}
 
-      {status && <div className={historyStyles.status}>{status}</div>}
+      {!data && status === 'Loading…' ? (
+        <div style={{ margin: '12px 0' }}>
+          <SkeletonStatCards count={6} minWidth={130} withIcon={false} />
+          <div style={{ marginTop: 12 }}><SkeletonTable columns={8} rows={6} /></div>
+        </div>
+      ) : (
+        status && <div className={historyStyles.status}>{status}</div>
+      )}
 
       {/* --- All employees: the at-a-glance grid --- */}
       {data && !active && data.employees.length > 0 && (
         <>
-          <div className={styles.kpiRow}>
-            <div className={styles.kpi}><span className={styles.kpiLabel}>People</span><span className={styles.kpiValue}>{data.totals.employees}</span></div>
-            <div className={styles.kpi}><span className={styles.kpiLabel}>Working days</span><span className={styles.kpiValue}>{data.dates.length}</span></div>
-            <div className={styles.kpi}><span className={styles.kpiLabel}>Submitted</span><span className={styles.kpiValue}>{data.totals.submitted}<span className={styles.kpiOf}>/{data.totals.owed}</span></span></div>
-            <div className={styles.kpi}><span className={styles.kpiLabel}>Late</span><span className={`${styles.kpiValue} ${styles.kpiWarn}`}>{data.totals.submitted_late}</span></div>
-            <div className={styles.kpi}><span className={styles.kpiLabel}>Missing</span><span className={`${styles.kpiValue} ${data.totals.missing ? styles.kpiBad : ''}`}>{data.totals.missing}</span></div>
-            <div className={styles.kpi}><span className={styles.kpiLabel}>Compliance</span><span className={styles.kpiValue}>{compliance}%</span></div>
-          </div>
+          <StatCardGrid minWidth={130} style={{ margin: '12px 0' }}>
+            <StatCard size="compact" value={data.totals.employees} label="People" />
+            <StatCard size="compact" value={data.dates.length} label="Working days" />
+            <StatCard size="compact" value={<>{data.totals.submitted}<span className={styles.kpiOf}>/{data.totals.owed}</span></>} label="Submitted" />
+            <StatCard size="compact" value={data.totals.submitted_late} label="Late" tone="warning" />
+            <StatCard size="compact" value={data.totals.missing} label="Missing" tone={data.totals.missing ? 'danger' : 'default'} />
+            <StatCard size="compact" value={`${compliance}%`} label="Compliance" />
+          </StatCardGrid>
 
           <div className={styles.legend}>
             <span><i className={`${styles.swatch} ${styles.cellOk}`} /> submitted (number = tasks)</span>

@@ -1,10 +1,14 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Download, Eye, File, FileImage, FileSpreadsheet, FileText, Loader2, Lock, Receipt, Search, UploadCloud } from 'lucide-react';
+import { Download, Eye, File, FileImage, FileSpreadsheet, FileText, Loader2, Lock, Receipt, UploadCloud } from 'lucide-react';
 import { QuotationRecord } from '@/lib/types';
 import { downloadQuotationFromRecord } from '@/lib/quotationPdfFromRecord';
 import { useToast } from './ui/ToastProvider';
+import CommonButton from './ui/CommonButton';
+import CommonChip from './ui/CommonChip';
+import SearchInput from './ui/SearchInput';
+import { SkeletonList } from './ui/Skeleton';
 import styles from './taskAttachments.module.css';
 import docs from './projectDocuments.module.css';
 
@@ -136,9 +140,9 @@ export default function ProjectDocuments({
                 <span className={styles.fileName}>{q.quotation_number}</span>
                 <span className={styles.fileType}>APPROVED{q.client_name ? ` · ${q.client_name}` : ''}</span>
               </span>
-              <button type="button" className={styles.viewBtn} disabled={downloading === q.id} onClick={() => downloadQuote(q)}>
-                <Download size={14} /> {downloading === q.id ? 'Preparing…' : 'Download PDF'}
-              </button>
+              <CommonButton variant="secondary" size="sm" leadingIcon={<Download />} disabled={downloading === q.id} onClick={() => downloadQuote(q)}>
+                {downloading === q.id ? 'Preparing…' : 'Download PDF'}
+              </CommonButton>
             </div>
           ))}
         </div>
@@ -148,23 +152,24 @@ export default function ProjectDocuments({
         <div className={docs.filters}>
           <div className={docs.chips}>
             {sources.map((s) => (
-              <button key={s} type="button" className={`${docs.chip} ${source === s ? docs.chipActive : ''}`} onClick={() => setSource(s)}>
-                {s}
-                <span className={docs.chipCount}>{s === 'All' ? items.length : items.filter((d) => d.source === s).length}</span>
-              </button>
+              <CommonChip
+                key={s}
+                size="sm"
+                label={s}
+                count={s === 'All' ? items.length : items.filter((d) => d.source === s).length}
+                selected={source === s}
+                onClick={() => setSource(s)}
+              />
             ))}
           </div>
-          <label className={docs.search}>
-            <Search size={14} />
-            <input placeholder="Search files" value={query} onChange={(e) => setQuery(e.target.value)} />
-          </label>
+          <SearchInput size="sm" inline placeholder="Search files" value={query} onChange={(v) => setQuery(v)} />
         </div>
       )}
 
       {state === 'loading' ? (
-        <p className={styles.empty}>Loading documents…</p>
+        <SkeletonList rows={4} boxed={false} />
       ) : state === 'error' ? (
-        <p className={styles.empty}>Could not load documents. <button type="button" className={docs.retry} onClick={load}>Retry</button></p>
+        <p className={styles.empty}>Could not load documents. <CommonButton variant="link" size="sm" onClick={load}>Retry</CommonButton></p>
       ) : items.length === 0 && quotations.length === 0 ? (
         <p className={styles.empty}>No documents yet for this project.</p>
       ) : shown.length === 0 ? (
@@ -184,8 +189,8 @@ export default function ProjectDocuments({
                     {d.at && <span>{fmt(d.at)}</span>}
                   </span>
                 </span>
-                <a className={styles.viewBtn} href={d.url} target="_blank" rel="noreferrer"><Eye size={14} /> View</a>
-                <a className={styles.dlBtn} href={d.url} download={d.name} aria-label={`Download ${d.name}`} title="Download"><Download size={14} /></a>
+                <CommonButton variant="secondary" size="sm" leadingIcon={<Eye />} href={d.url} native target="_blank" rel="noreferrer">View</CommonButton>
+                <CommonButton variant="ghost" size="sm" iconOnly leadingIcon={<Download />} href={d.url} native download={d.name} aria-label={`Download ${d.name}`} title="Download" />
               </li>
             );
           })}

@@ -2,7 +2,10 @@
 
 import { Discount } from '@/lib/types';
 import { selectAllOnFocus } from '@/lib/numberInputHelpers';
+import { Plus, X } from 'lucide-react';
 import styles from './calculator.module.css';
+import CommonButton from './ui/CommonButton';
+import Select from './ui/Select';
 
 interface DiscountsListProps {
   discounts: Discount[];
@@ -32,15 +35,15 @@ export default function DiscountsList({ discounts, onAdd, onChangeItem, onRemove
                 tabIndex={canEdit ? undefined : -1}
                 onChange={canEdit ? (e) => onChangeItem(discount.id, { label: e.target.value }) : undefined}
               />
-              <select
-                className={canEdit ? `${styles.formControl} ${styles.lineItemInput}` : `${styles.formControl} ${styles.lineItemInput} ${styles.formControlLocked}`}
+              <Select
+                className={styles.lineItemInput}
                 value={discount.type}
                 disabled={!canEdit}
                 onChange={(e) => onChangeItem(discount.id, { type: e.target.value as 'percent' | 'flat' })}
               >
                 <option value="percent">% of total</option>
                 <option value="flat">Flat amount (₹)</option>
-              </select>
+              </Select>
               <input
                 type="number"
                 className={canEdit ? `${styles.formControl} ${styles.lineItemInput}` : `${styles.formControl} ${styles.lineItemInput} ${styles.formControlLocked}`}
@@ -54,17 +57,15 @@ export default function DiscountsList({ discounts, onAdd, onChangeItem, onRemove
                 onChange={canEdit ? (e) => onChangeItem(discount.id, { value: parseFloat(e.target.value) || 0 }) : undefined}
               />
               {canEdit && (
-                <button type="button" className={styles.removeItemBtn} title="Remove discount" onClick={() => onRemove(discount.id)}>
-                  ×
-                </button>
+                <CommonButton variant="destructive" size="md" iconOnly leadingIcon={<X />} title="Remove discount" aria-label="Remove discount" onClick={() => onRemove(discount.id)} />
               )}
             </div>
           ))}
         </div>
         {canEdit ? (
-          <button type="button" className={styles.secondaryButton} onClick={onAdd}>
-            + Add Discount
-          </button>
+          <CommonButton variant="secondary" size="md" leadingIcon={<Plus />} onClick={onAdd}>
+            Add Discount
+          </CommonButton>
         ) : (
           <span className={styles.lockedHint}>You do not have permission to add or change discounts.</span>
         )}

@@ -2,10 +2,13 @@
 
 import { useEffect, useState } from 'react';
 import AppShell from './AppShell';
-import { SkeletonRows } from './ui/Skeleton';
+import PageBackButton from './ui/PageBackButton';
+import CommonButton from './ui/CommonButton';
+import { SkeletonForm } from './ui/Skeleton';
 import calcStyles from './calculator.module.css';
 import historyStyles from './quotationHistory.module.css';
 import { ProductFeedbackFormRecord } from '@/lib/types';
+import Select from './ui/Select';
 
 interface FeedbackFormFillViewProps {
   formId: string;
@@ -48,7 +51,7 @@ export default function FeedbackFormFillView({ formId }: FeedbackFormFillViewPro
   const content = error ? (
     <div className={historyStyles.loginError}>{error}</div>
   ) : !form ? (
-    <SkeletonRows rows={4} />
+    <SkeletonForm fields={4} />
   ) : submitted ? (
     <div className={historyStyles.status}>Thanks — your response has been recorded.</div>
   ) : form.status === 'closed' ? (
@@ -71,33 +74,38 @@ export default function FeedbackFormFillView({ formId }: FeedbackFormFillViewPro
               />
             )}
             {q.type === 'rating' && (
-              <select
-                className={calcStyles.formControl}
+              <Select
                 value={(answers[q.id] as number) || ''}
                 onChange={(e) => setAnswers((a) => ({ ...a, [q.id]: Number(e.target.value) }))}
               >
                 <option value="">Select a rating...</option>
                 {[1, 2, 3, 4, 5].map((n) => <option key={n} value={n}>{n}</option>)}
-              </select>
+              </Select>
             )}
             {q.type === 'choice' && (
-              <select
-                className={calcStyles.formControl}
+              <Select
                 value={(answers[q.id] as string) || ''}
                 onChange={(e) => setAnswers((a) => ({ ...a, [q.id]: e.target.value }))}
               >
                 <option value="">Select...</option>
                 {(q.options || []).map((opt) => <option key={opt} value={opt}>{opt}</option>)}
-              </select>
+              </Select>
             )}
           </div>
         ))}
-        <button type="button" className={calcStyles.btn} disabled={submitting} onClick={handleSubmit}>
-          {submitting ? 'Submitting...' : 'Submit'}
-        </button>
+        <CommonButton variant="primary" loading={submitting} loadingLabel="Submitting..." onClick={handleSubmit}>
+          Submit
+        </CommonButton>
       </div>
     </>
   );
 
-  return <AppShell title="Feedback form" subtitle="Your answers go straight to the Product Manager who asked.">{content}</AppShell>;
+  return (
+    <AppShell title="Feedback form" subtitle="Your answers go straight to the Product Manager who asked.">
+      <div style={{ display: 'flex', alignItems: 'center', marginBottom: 16 }}>
+        <PageBackButton />
+      </div>
+      {content}
+    </AppShell>
+  );
 }

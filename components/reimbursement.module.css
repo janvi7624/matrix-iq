@@ -219,3 +219,21 @@
 .bulkRowErrorText { font-size: 12px; color: var(--mx-danger); font-weight: 600; }
 .bulkFooterRow { display: flex; align-items: center; gap: 10px; margin-top: 12px; flex-wrap: wrap; }
 .bulkTotalText { margin-left: auto; font-size: 13px; color: var(--mx-ink-muted); }
+
+/* Responsive: these rows hold controls or a title + actions. They wrap
+   onto a second line when the screen is too narrow for them, instead of
+   overflowing or crushing their neighbours. No effect when they fit. */
+.mainTabBar,
+.decisionActionsRow,
+.attachmentRow,
+.formSubmitRow,
+.amountDisplayRow,
+.sheetDetailActions {
+    flex-wrap: wrap;
+    row-gap: 8px;
+}
+
+/* Shared vertical spacing between stacked blocks (app/globals.css → "Stack spacing"). */
+.companyPaidWrap { composes: mx-block from global; }
+
+.companyPaidHeader { composes: mx-block from global; }

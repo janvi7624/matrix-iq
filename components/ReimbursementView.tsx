@@ -4,13 +4,21 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { UserRole, ReimbursementRecord, ReimbursementSheetRecord, ReimbursementSheetStatus, ReimbursementDeadlineInfo } from '@/lib/types';
 import { numberToIndianWords } from '@/lib/numberToWords';
 import { checkSubmittablePeriod, lastClaimableMonth, isWithinAddWindow } from '@/lib/reimbursementPeriod';
+import { Download, Pencil, Plus, Trash2 } from 'lucide-react';
 import AppShell from './AppShell';
+import CommonButton from './ui/CommonButton';
+import CommonChip from './ui/CommonChip';
+import PageBackButton from './ui/PageBackButton';
+import { SkeletonList, SkeletonTable } from './ui/Skeleton';
 import ReimbursementBulkAddForm from './ReimbursementBulkAddForm';
 import { useToast } from './ui/ToastProvider';
 import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
 import styles from './reimbursement.module.css';
 import { fetchCached } from '@/lib/fetchCached';
+import RowActions from './ui/RowActions';
+import { RefreshButton } from './ui/ListControls';
+import Select from './ui/Select';
 
 interface Props {
   currentUser: { username: string; role: UserRole; isPrivileged: boolean; isReviewer: boolean };
@@ -648,9 +656,9 @@ export default function ReimbursementView({ currentUser }: Props) {
               : `Submission deadline this month: day ${deadlineInfo.day}${deadlineInfo.extended ? ` (extended${deadlineInfo.extendedByName ? ` by ${deadlineInfo.extendedByName}` : ''})` : ''}.`}
           </span>
           {deadlineInfo.canExtend && !showExtendForm && (
-            <button type="button" className={historyStyles.button} onClick={() => { setShowExtendForm(true); setExtendDay(deadlineInfo.day ? String(deadlineInfo.day) : ''); }}>
+            <CommonButton size="sm" onClick={() => { setShowExtendForm(true); setExtendDay(deadlineInfo.day ? String(deadlineInfo.day) : ''); }}>
               Extend this month&apos;s deadline
-            </button>
+            </CommonButton>
           )}
           {deadlineInfo.canExtend && showExtendForm && (
             <>
@@ -664,44 +672,43 @@ export default function ReimbursementView({ currentUser }: Props) {
                 value={extendDay}
                 onChange={(e) => setExtendDay(e.target.value)}
               />
-              <button type="button" className={`${historyStyles.button} ${historyStyles.primary}`} disabled={extendingDeadline} onClick={handleExtendDeadline}>
-                {extendingDeadline ? 'Saving…' : 'Save'}
-              </button>
-              <button type="button" className={historyStyles.button} onClick={() => { setShowExtendForm(false); setExtendDay(''); }}>Cancel</button>
+              <CommonButton variant="primary" size="sm" loading={extendingDeadline} loadingLabel="Saving…" onClick={handleExtendDeadline}>
+                Save
+              </CommonButton>
+              <CommonButton size="sm" onClick={() => { setShowExtendForm(false); setExtendDay(''); }}>Cancel</CommonButton>
             </>
           )}
         </div>
       )}
       {/* Toolbar */}
       <div className={historyStyles.toolbar}>
-        <select aria-label="Month" className={`${calcStyles.formControl} ${styles.selectMonth}`} value={month} onChange={(e) => { setMonth(Number(e.target.value)); setForm((f) => ({ ...f, date: '' })); setShowForm(false); setShowBulkForm(false); cancelForm(); }}>
+        <Select auto aria-label="Month" className={styles.selectMonth} value={month} onChange={(e) => { setMonth(Number(e.target.value)); setForm((f) => ({ ...f, date: '' })); setShowForm(false); setShowBulkForm(false); cancelForm(); }}>
           {MONTHS.map((m, i) => <option key={i} value={i + 1}>{m}</option>)}
-        </select>
-        <select aria-label="Year" className={`${calcStyles.formControl} ${styles.selectYear}`} value={year} onChange={(e) => { setYear(Number(e.target.value)); setForm((f) => ({ ...f, date: '' })); setShowForm(false); setShowBulkForm(false); cancelForm(); }}>
+        </Select>
+        <Select auto aria-label="Year" className={styles.selectYear} value={year} onChange={(e) => { setYear(Number(e.target.value)); setForm((f) => ({ ...f, date: '' })); setShowForm(false); setShowBulkForm(false); cancelForm(); }}>
           {Array.from({ length: 5 }, (_, i) => now.getFullYear() - 2 + i).map((y) => <option key={y} value={y}>{y}</option>)}
-        </select>
+        </Select>
         {canAddNewEntries && (
-          <button type="button" className={`${historyStyles.button} ${historyStyles.primary}`} onClick={() => { setShowForm((v) => !v); setShowBulkForm(false); if (showForm) cancelForm(); else { setEditId(null); setForm({ ...EMPTY_FORM, employeeIds: myUserId ? [myUserId] : [] }); setGuestNameInput(''); } }}>
-            {showForm ? 'Cancel' : '+ Add Entry'}
-          </button>
+          <CommonButton variant={showForm ? 'secondary' : 'primary'} leadingIcon={showForm ? undefined : <Plus />} onClick={() => { setShowForm((v) => !v); setShowBulkForm(false); if (showForm) cancelForm(); else { setEditId(null); setForm({ ...EMPTY_FORM, employeeIds: myUserId ? [myUserId] : [] }); setGuestNameInput(''); } }}>
+            {showForm ? 'Cancel' : 'Add Entry'}
+          </CommonButton>
         )}
         {canAddNewEntries && (
-          <button type="button" className={historyStyles.button} onClick={() => { setShowBulkForm((v) => !v); setShowForm(false); cancelForm(); }}>
-            {showBulkForm ? 'Cancel' : '+ Add Multiple'}
-          </button>
+          <CommonButton leadingIcon={showBulkForm ? undefined : <Plus />} onClick={() => { setShowBulkForm((v) => !v); setShowForm(false); cancelForm(); }}>
+            {showBulkForm ? 'Cancel' : 'Add Multiple'}
+          </CommonButton>
         )}
         {canEdit && !canAddNewEntries && hasMounted && (
           <span className={styles.addLockedHint}>
             New entries can only be added for {MONTHS[now.getMonth()]} {now.getFullYear()} or {MONTHS[claimableMonth.month - 1]} {claimableMonth.year}.
           </span>
         )}
-        <button type="button" className={historyStyles.button} onClick={() => { fetchRecords(); fetchSheet(); }}>Refresh</button>
         {records.length > 0 && (
-          <button type="button" className={`${historyStyles.button} ${styles.inlineFlexGap5}`} onClick={() => sheet && downloadVoucher(sheet.id)}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          <CommonButton leadingIcon={<Download />} onClick={() => sheet && downloadVoucher(sheet.id)}>
             Export Voucher
-          </button>
+          </CommonButton>
         )}
+        <RefreshButton onRefresh={() => { fetchRecords(); fetchSheet(); }} loading={loading} label="Refresh claims" pushRight />
       </div>
 
       {/* Sheet status card */}
@@ -756,15 +763,16 @@ export default function ReimbursementView({ currentUser }: Props) {
           {/* Employee: Submit button */}
           {canEdit && sheet.created_by === currentUser.username && records.length > 0 && (
             <div className={calcStyles.mt12}>
-              <button
-                type="button"
-                className={`${historyStyles.button} ${historyStyles.primary} ${styles.submitBtnSm}`}
-                disabled={actionLoading || !periodCheck.allowed}
+              <CommonButton
+                variant="primary"
+                disabled={!periodCheck.allowed}
+                loading={actionLoading}
+                loadingLabel="Submitting…"
                 title={periodCheck.allowed ? undefined : periodCheck.reason}
                 onClick={() => handleSheetAction('submit', {})}
               >
-                {actionLoading ? 'Submitting…' : 'Submit to Manager for Approval'}
-              </button>
+                Submit to Manager for Approval
+              </CommonButton>
               {!periodCheck.allowed ? (
                 <span className={styles.submitHint}>{periodCheck.reason}</span>
               ) : sheetStatus === 'draft' && (
@@ -790,17 +798,16 @@ export default function ReimbursementView({ currentUser }: Props) {
                 onChange={(e) => setActionRemarks(e.target.value)}
               />
               <div className={styles.decisionActionsRow}>
-                <button
-                  type="button"
-                  className={`${historyStyles.button} ${historyStyles.primary} ${styles.approveBtn}`}
-                  disabled={actionLoading}
+                <CommonButton
+                  variant="success"
+                  loading={actionLoading}
+                  loadingLabel="Processing…"
                   onClick={() => handleSheetAction('manager-decide', { decision: 'manager_approved', remarks: actionRemarks })}
                 >
-                  {actionLoading ? 'Processing…' : 'Approve'}
-                </button>
-                <button
-                  type="button"
-                  className={`${historyStyles.button} ${styles.rejectBtn}`}
+                  Approve
+                </CommonButton>
+                <CommonButton
+                  variant="destructive"
                   disabled={actionLoading}
                   onClick={() => {
                     if (!actionRemarks.trim()) { toast.error('Please provide remarks for the change request.'); return; }
@@ -808,7 +815,7 @@ export default function ReimbursementView({ currentUser }: Props) {
                   }}
                 >
                   Request Changes
-                </button>
+                </CommonButton>
               </div>
             </div>
           )}
@@ -834,17 +841,16 @@ export default function ReimbursementView({ currentUser }: Props) {
                 onChange={(e) => setActionRemarks(e.target.value)}
               />
               <div className={styles.decisionActionsRow}>
-                <button
-                  type="button"
-                  className={`${historyStyles.button} ${historyStyles.primary} ${styles.approveBtn}`}
-                  disabled={actionLoading}
+                <CommonButton
+                  variant="success"
+                  loading={actionLoading}
+                  loadingLabel="Processing…"
                   onClick={() => handleSheetAction('hr-decide', { decision: 'hr_approved', remarks: actionRemarks })}
                 >
-                  {actionLoading ? 'Processing…' : 'Approve & Forward to Accounts'}
-                </button>
-                <button
-                  type="button"
-                  className={`${historyStyles.button} ${styles.rejectBtn}`}
+                  Approve &amp; Forward to Accounts
+                </CommonButton>
+                <CommonButton
+                  variant="destructive"
                   disabled={actionLoading}
                   onClick={() => {
                     if (!actionRemarks.trim()) { toast.error('Please provide remarks for the change request.'); return; }
@@ -852,7 +858,7 @@ export default function ReimbursementView({ currentUser }: Props) {
                   }}
                 >
                   Request Changes
-                </button>
+                </CommonButton>
               </div>
             </div>
           )}
@@ -874,14 +880,14 @@ export default function ReimbursementView({ currentUser }: Props) {
                   <input type="text" className={calcStyles.formControl} value={actionRemarks} onChange={(e) => setActionRemarks(e.target.value)} placeholder="Optional remarks" />
                 </div>
               </div>
-              <button
-                type="button"
-                className={`${historyStyles.button} ${historyStyles.primary} ${styles.approveBtn}`}
-                disabled={actionLoading}
+              <CommonButton
+                variant="success"
+                loading={actionLoading}
+                loadingLabel="Processing…"
                 onClick={() => handleSheetAction('accounts-complete', { paymentReference: paymentRef, remarks: actionRemarks })}
               >
-                {actionLoading ? 'Processing…' : 'Mark Payment Done'}
-              </button>
+                Mark Payment Done
+              </CommonButton>
             </div>
           )}
 
@@ -907,7 +913,7 @@ export default function ReimbursementView({ currentUser }: Props) {
               </div>
               <div className={calcStyles.field}>
                 <label className={calcStyles.label} htmlFor="reimbursement-description-type">Description *</label>
-                <select id="reimbursement-description-type" aria-label="Description" className={calcStyles.formControl} required value={form.descriptionType} onChange={(e) => {
+                <Select id="reimbursement-description-type" aria-label="Description" required value={form.descriptionType} onChange={(e) => {
                   const val = e.target.value;
                   setForm((f) => ({
                     ...f, descriptionType: val, description: '', vehicleType: '',
@@ -916,7 +922,7 @@ export default function ReimbursementView({ currentUser }: Props) {
                 }}>
                   <option value="">— Select type —</option>
                   {DESCRIPTION_OPTIONS.map((d) => <option key={d} value={d}>{d}</option>)}
-                </select>
+                </Select>
                 {form.descriptionType === 'Other' && (
                   <input type="text" className={`${calcStyles.formControl} ${calcStyles.mt6}`} required value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} placeholder="Enter description" />
                 )}
@@ -957,35 +963,37 @@ export default function ReimbursementView({ currentUser }: Props) {
                     const user = users.find((u) => u.id === id);
                     const isMe = id === myUserId;
                     return (
-                      <span key={id} className={`${historyStyles.rolePill} ${styles.employeePill} ${isMe ? styles.employeePillMe : styles.employeePillOther}`}>
-                        {user?.name || user?.username || id}{isMe ? ' (You)' : ''}
-                        {!isMe && (
-                          <button type="button" onClick={() => setForm((f) => ({ ...f, employeeIds: f.employeeIds.filter((c) => c !== id) }))} className={styles.pillRemoveBtn}>&times;</button>
-                        )}
-                      </span>
+                      <CommonChip
+                        key={id}
+                        size="sm"
+                        tone={isMe ? 'brand' : 'default'}
+                        label={`${user?.name || user?.username || id}${isMe ? ' (You)' : ''}`}
+                        onRemove={isMe ? undefined : () => setForm((f) => ({ ...f, employeeIds: f.employeeIds.filter((c) => c !== id) }))}
+                      />
                     );
                   })}
                   {form.guestNames.map((name, idx) => (
-                    <span key={`guest-${idx}`} className={`${historyStyles.rolePill} ${styles.employeePill} ${styles.employeePillOther}`}>
-                      {name} (Guest)
-                      <button type="button" onClick={() => setForm((f) => ({ ...f, guestNames: f.guestNames.filter((_, i) => i !== idx) }))} className={styles.pillRemoveBtn}>&times;</button>
-                    </span>
+                    <CommonChip
+                      key={`guest-${idx}`}
+                      size="sm"
+                      label={`${name} (Guest)`}
+                      onRemove={() => setForm((f) => ({ ...f, guestNames: f.guestNames.filter((_, i) => i !== idx) }))}
+                    />
                   ))}
                 </div>
               )}
-              <select
-                className={calcStyles.formControl}
+              <Select
+                value=""
                 onChange={(e) => {
                   const id = e.target.value;
                   if (id && !form.employeeIds.includes(id)) setForm((f) => ({ ...f, employeeIds: [...f.employeeIds, id] }));
-                  e.target.value = '';
                 }}
               >
                 <option value="">— Add someone who was with you (optional) —</option>
                 {users.filter((u) => !form.employeeIds.includes(u.id)).map((u) => (
                   <option key={u.id} value={u.id}>{u.name || u.username}</option>
                 ))}
-              </select>
+              </Select>
               <div className={`${calcStyles.inlineFlexGap8} ${calcStyles.mt6}`}>
                 <input
                   type="text"
@@ -995,7 +1003,7 @@ export default function ReimbursementView({ currentUser }: Props) {
                   onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addGuest(); } }}
                   placeholder="Other — type a guest's name (not an app user)"
                 />
-                <button type="button" className={historyStyles.button} onClick={addGuest}>Add</button>
+                <CommonButton onClick={addGuest}>Add</CommonButton>
               </div>
             </div>
 
@@ -1034,10 +1042,10 @@ export default function ReimbursementView({ currentUser }: Props) {
               </div>
               <div className={calcStyles.field}>
                 <label className={calcStyles.label}>Mode of Payment</label>
-                <select className={calcStyles.formControl} value={form.modeOfPayment} onChange={(e) => setForm((f) => ({ ...f, modeOfPayment: e.target.value }))}>
+                <Select value={form.modeOfPayment} onChange={(e) => setForm((f) => ({ ...f, modeOfPayment: e.target.value }))}>
                   <option value="">— Select —</option>
                   {MODE_OPTIONS.map((m) => <option key={m} value={m}>{m}</option>)}
-                </select>
+                </Select>
               </div>
             </div>
 
@@ -1077,10 +1085,9 @@ export default function ReimbursementView({ currentUser }: Props) {
                       <a href={url} target="_blank" rel="noopener noreferrer" className={styles.attachmentLink}>
                         {friendlyFileName(url)}
                       </a>
-                      <button type="button" onClick={() => setForm((f) => ({ ...f, attachmentUrls: f.attachmentUrls.filter((_, j) => j !== i) }))} className={styles.attachmentRemoveBtn}
-                        onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--mx-danger-subtle)'; }}
-                        onMouseLeave={(e) => { e.currentTarget.style.background = 'none'; }}
-                      >Remove</button>
+                      <CommonButton variant="destructive" size="sm" onClick={() => setForm((f) => ({ ...f, attachmentUrls: f.attachmentUrls.filter((_, j) => j !== i) }))}>
+                        Remove
+                      </CommonButton>
                     </div>
                   ))}
                 </div>
@@ -1088,10 +1095,10 @@ export default function ReimbursementView({ currentUser }: Props) {
             </div>
 
             <div className={styles.formSubmitRow}>
-              <button type="submit" className={`${historyStyles.button} ${historyStyles.primary}`} disabled={saving || uploading}>
-                {saving ? 'Saving…' : (editId ? 'Update Entry' : 'Add Entry')}
-              </button>
-              <button type="button" className={historyStyles.button} onClick={cancelForm}>Cancel</button>
+              <CommonButton type="submit" variant="primary" disabled={uploading} loading={saving} loadingLabel="Saving…">
+                {editId ? 'Update Entry' : 'Add Entry'}
+              </CommonButton>
+              <CommonButton onClick={cancelForm}>Cancel</CommonButton>
             </div>
           </form>
         </>
@@ -1110,7 +1117,7 @@ export default function ReimbursementView({ currentUser }: Props) {
 
       {/* Monthly sheet */}
       {loading ? (
-        <p className={historyStyles.status}>Loading…</p>
+        <SkeletonTable columns={canEdit ? 11 : 10} rows={6} />
       ) : records.length === 0 ? (
         <div className={historyStyles.empty}>No reimbursement entries for {MONTHS[month - 1]} {year}.</div>
       ) : (
@@ -1166,16 +1173,13 @@ export default function ReimbursementView({ currentUser }: Props) {
                     {canEdit && (
                       <td>
                         {(rec.created_by === currentUser.username || isPrivileged) && (
-                          <div className={styles.rowActionsGap6}>
-                            <button type="button" onClick={() => startEdit(rec)} className={styles.tableIconBtn}>
-                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>
-                              Edit
-                            </button>
-                            <button type="button" onClick={() => handleDelete(rec.id)} className={`${styles.tableIconBtn} ${styles.tableIconBtnDanger}`}>
-                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2" /></svg>
-                              Delete
-                            </button>
-                          </div>
+                          <RowActions
+                            label="Claim actions"
+                            actions={[
+                              { key: 'edit', label: 'Edit', icon: <Pencil />, onClick: () => startEdit(rec) },
+                              { key: 'delete', label: 'Delete', icon: <Trash2 />, destructive: true, onClick: () => handleDelete(rec.id) }
+                            ]}
+                          />
                         )}
                       </td>
                     )}
@@ -1222,13 +1226,13 @@ export default function ReimbursementView({ currentUser }: Props) {
       {isReviewer && tab === 'pending' && (
         <>
           <div className={historyStyles.toolbar}>
-            <button type="button" className={historyStyles.button} onClick={fetchPending}>Refresh</button>
+            <RefreshButton onRefresh={fetchPending} label="Refresh pending claims" pushRight />
           </div>
 
           {!selectedPending ? (
             <>
               {pendingLoading ? (
-                <p className={historyStyles.status}>Loading pending sheets…</p>
+                <SkeletonList rows={5} avatar={false} />
               ) : pendingSheets.length === 0 ? (
                 <div className={historyStyles.empty}>No pending approvals at the moment.</div>
               ) : (
@@ -1276,14 +1280,9 @@ export default function ReimbursementView({ currentUser }: Props) {
           ) : (
             <>
               {/* Back button + selected sheet header */}
-              <button
-                type="button"
-                className={`${historyStyles.button} ${styles.backBtn}`}
-                onClick={() => { setSelectedPending(null); setPendingRecords([]); }}
-              >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6" /></svg>
-                Back to list
-              </button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+                <PageBackButton onBack={() => { setSelectedPending(null); setPendingRecords([]); }} label="Back to list" />
+              </div>
 
               {/* Sheet info card */}
               {(() => {
@@ -1314,10 +1313,9 @@ export default function ReimbursementView({ currentUser }: Props) {
                         )}
                       </div>
                       <div className={styles.sheetDetailActions}>
-                        <button type="button" className={`${historyStyles.button} ${styles.voucherBtnSm}`} onClick={() => downloadVoucher(sp.id)}>
-                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                        <CommonButton size="sm" leadingIcon={<Download />} onClick={() => downloadVoucher(sp.id)}>
                           Download Voucher
-                        </button>
+                        </CommonButton>
                         <span className={styles.statusPillLg} style={{ background: cfg.color }}>
                           {statusLabel(cfg, sp.status, sp.manager_name)}
                         </span>
@@ -1351,17 +1349,17 @@ export default function ReimbursementView({ currentUser }: Props) {
                           onChange={(e) => setActionRemarks(e.target.value)}
                         />
                         <div className={styles.decisionActionsRow}>
-                          <button type="button" className={`${historyStyles.button} ${historyStyles.primary} ${styles.approveBtn}`} disabled={actionLoading}
+                          <CommonButton variant="success" loading={actionLoading} loadingLabel="Processing…"
                             onClick={() => handlePendingAction('manager-decide', { decision: 'manager_approved', remarks: actionRemarks })}>
-                            {actionLoading ? 'Processing…' : 'Approve & Forward to HR'}
-                          </button>
-                          <button type="button" className={`${historyStyles.button} ${styles.rejectBtn}`} disabled={actionLoading}
+                            Approve &amp; Forward to HR
+                          </CommonButton>
+                          <CommonButton variant="destructive" disabled={actionLoading}
                             onClick={() => {
                               if (!actionRemarks.trim()) { toast.error('Please provide remarks for the change request.'); return; }
                               handlePendingAction('manager-decide', { decision: 'manager_change_requested', remarks: actionRemarks });
                             }}>
                             Request Changes
-                          </button>
+                          </CommonButton>
                         </div>
                       </div>
                     )}
@@ -1384,17 +1382,17 @@ export default function ReimbursementView({ currentUser }: Props) {
                           onChange={(e) => setActionRemarks(e.target.value)}
                         />
                         <div className={styles.decisionActionsRow}>
-                          <button type="button" className={`${historyStyles.button} ${historyStyles.primary} ${styles.approveBtn}`} disabled={actionLoading}
+                          <CommonButton variant="success" loading={actionLoading} loadingLabel="Processing…"
                             onClick={() => handlePendingAction('hr-decide', { decision: 'hr_approved', remarks: actionRemarks })}>
-                            {actionLoading ? 'Processing…' : 'Approve & Forward to Accounts'}
-                          </button>
-                          <button type="button" className={`${historyStyles.button} ${styles.rejectBtn}`} disabled={actionLoading}
+                            Approve &amp; Forward to Accounts
+                          </CommonButton>
+                          <CommonButton variant="destructive" disabled={actionLoading}
                             onClick={() => {
                               if (!actionRemarks.trim()) { toast.error('Please provide remarks for the change request.'); return; }
                               handlePendingAction('hr-decide', { decision: 'hr_change_requested', remarks: actionRemarks });
                             }}>
                             Request Changes
-                          </button>
+                          </CommonButton>
                         </div>
                       </div>
                     )}
@@ -1413,10 +1411,10 @@ export default function ReimbursementView({ currentUser }: Props) {
                             <input type="text" className={calcStyles.formControl} value={actionRemarks} onChange={(e) => setActionRemarks(e.target.value)} placeholder="Optional remarks" />
                           </div>
                         </div>
-                        <button type="button" className={`${historyStyles.button} ${historyStyles.primary} ${styles.approveBtn}`} disabled={actionLoading}
+                        <CommonButton variant="success" loading={actionLoading} loadingLabel="Processing…"
                           onClick={() => handlePendingAction('accounts-complete', { paymentReference: paymentRef, remarks: actionRemarks })}>
-                          {actionLoading ? 'Processing…' : 'Mark Payment Done'}
-                        </button>
+                          Mark Payment Done
+                        </CommonButton>
                       </div>
                     )}
 
@@ -1457,14 +1455,16 @@ export default function ReimbursementView({ currentUser }: Props) {
                             />
                           </div>
                         </div>
-                        <button
-                          type="button"
-                          className={`${historyStyles.button} ${styles.deleteSheetBtn}`}
-                          disabled={deleting || !deleteReason.trim() || deleteConfirm.trim() !== sp.sheet_code}
+                        <CommonButton
+                          variant="destructive"
+                          leadingIcon={<Trash2 />}
+                          disabled={!deleteReason.trim() || deleteConfirm.trim() !== sp.sheet_code}
+                          loading={deleting}
+                          loadingLabel="Deleting…"
                           onClick={() => handleDeleteSheet(sp.id, sp.sheet_code)}
                         >
-                          {deleting ? 'Deleting…' : 'Delete claim permanently'}
-                        </button>
+                          Delete claim permanently
+                        </CommonButton>
                       </div>
                     )}
                   </div>
@@ -1473,7 +1473,7 @@ export default function ReimbursementView({ currentUser }: Props) {
 
               {/* Entries table */}
               {pendingDetailLoading ? (
-                <p className={historyStyles.status}>Loading entries…</p>
+                <SkeletonTable columns={10} rows={6} />
               ) : pendingRecords.length === 0 ? (
                 <div className={historyStyles.empty}>No entries found.</div>
               ) : (
@@ -1522,16 +1522,22 @@ export default function ReimbursementView({ currentUser }: Props) {
                                   className={styles.amountEditInput}
                                   disabled={editingAmountLoading}
                                 />
-                                <button onClick={() => handleHrAmountEdit(rec.id)} disabled={editingAmountLoading} className={styles.saveAmountBtn}>{editingAmountLoading ? '...' : 'Save'}</button>
-                                <button onClick={() => setEditingAmountId(null)} disabled={editingAmountLoading} className={styles.cancelAmountBtn}>Cancel</button>
+                                <CommonButton variant="success" size="sm" loading={editingAmountLoading} loadingLabel="..." onClick={() => handleHrAmountEdit(rec.id)}>Save</CommonButton>
+                                <CommonButton size="sm" onClick={() => setEditingAmountId(null)} disabled={editingAmountLoading}>Cancel</CommonButton>
                               </div>
                             ) : (
                               <div className={styles.amountDisplayRow}>
                                 <span>{'₹'}{rec.amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
                                 {isHr && (
-                                  <button onClick={() => { setEditingAmountId(rec.id); setEditingAmountValue(String(rec.amount)); }} title="Edit amount" className={styles.editAmountIconBtn}>
-                                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-                                  </button>
+                                  <CommonButton
+                                    variant="ghost"
+                                    size="sm"
+                                    iconOnly
+                                    leadingIcon={<Pencil />}
+                                    title="Edit amount"
+                                    aria-label="Edit amount"
+                                    onClick={() => { setEditingAmountId(rec.id); setEditingAmountValue(String(rec.amount)); }}
+                                  />
                                 )}
                               </div>
                             )}
@@ -1629,13 +1635,13 @@ export default function ReimbursementView({ currentUser }: Props) {
       {isReviewer && tab === 'approved' && (
         <>
           <div className={historyStyles.toolbar}>
-            <button type="button" className={historyStyles.button} onClick={fetchApproved}>Refresh</button>
+            <RefreshButton onRefresh={fetchApproved} label="Refresh approved claims" pushRight />
           </div>
 
           {!selectedApproved ? (
             <>
               {approvedLoading ? (
-                <p className={historyStyles.status}>Loading…</p>
+                <SkeletonList rows={5} avatar={false} />
               ) : approvedSheets.length === 0 ? (
                 <div className={historyStyles.empty}>No approved sheets yet.</div>
               ) : (
@@ -1678,14 +1684,9 @@ export default function ReimbursementView({ currentUser }: Props) {
             </>
           ) : (
             <>
-              <button
-                type="button"
-                className={`${historyStyles.button} ${styles.backBtn}`}
-                onClick={() => { setSelectedApproved(null); setApprovedRecords([]); }}
-              >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6" /></svg>
-                Back to list
-              </button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+                <PageBackButton onBack={() => { setSelectedApproved(null); setApprovedRecords([]); }} label="Back to list" />
+              </div>
 
               {(() => {
                 const sa = selectedApproved;
@@ -1715,10 +1716,9 @@ export default function ReimbursementView({ currentUser }: Props) {
                         )}
                       </div>
                       <div className={styles.sheetDetailActions}>
-                        <button type="button" className={`${historyStyles.button} ${styles.voucherBtnSm}`} onClick={() => downloadVoucher(sa.id)}>
-                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                        <CommonButton size="sm" leadingIcon={<Download />} onClick={() => downloadVoucher(sa.id)}>
                           Download Voucher
-                        </button>
+                        </CommonButton>
                         <span className={styles.statusPillLg} style={{ background: cfg.color }}>
                           {statusLabel(cfg, sa.status, sa.manager_name)}
                         </span>
@@ -1750,7 +1750,7 @@ export default function ReimbursementView({ currentUser }: Props) {
               })()}
 
               {approvedDetailLoading ? (
-                <p className={historyStyles.status}>Loading entries…</p>
+                <SkeletonTable columns={10} rows={6} />
               ) : approvedRecords.length === 0 ? (
                 <div className={historyStyles.empty}>No entries found.</div>
               ) : (

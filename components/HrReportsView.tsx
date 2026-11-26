@@ -6,7 +6,7 @@ import AppShell from './AppShell';
 import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
 import styles from './hrExpenseReport.module.css';
-import { SkeletonRows } from './ui/Skeleton';
+import { SkeletonStatCards, SkeletonTable } from './ui/Skeleton';
 import EmptyState from './ui/EmptyState';
 import ErrorState from './ui/ErrorState';
 import Select from './ui/Select';
@@ -306,6 +306,7 @@ export default function HrReportsView() {
 
   return (
     <AppShell
+      fillPage
       title="HR Expense Report"
       subtitle="Reimbursement, Admin Expense, and Office Operation spend — by month, quarter, or year, for everyone or one department."
     >
@@ -422,7 +423,10 @@ export default function HrReportsView() {
       </section>
 
       {loading ? (
-        <div className={historyStyles.tableWrap}><SkeletonRows rows={8} columns={6} /></div>
+        <div style={{ display: 'grid', gap: 16 }}>
+          <SkeletonStatCards count={3} withIcon={false} />
+          <SkeletonTable columns={6} rows={8} />
+        </div>
       ) : loadFailed ? (
         <ErrorState message="Could not load this report — check your connection and try again." onRetry={() => setAttempt((a) => a + 1)} />
       ) : !report ? null : (

@@ -59,7 +59,14 @@ export default function Table<T>({ columns, rows, rowKey, rowClassName, empty, o
               style={onRowClick ? { cursor: 'pointer' } : undefined}
             >
               {columns.map((col) => (
-                <td key={col.key} className={col.cellClassName}>{col.render(row)}</td>
+                <td
+                  key={col.key}
+                  className={col.cellClassName}
+                  // Label for the phone card layout (app/globals.css → "Responsive tables").
+                  data-label={typeof col.header === 'string' ? col.header : undefined}
+                >
+                  {col.render(row)}
+                </td>
               ))}
             </tr>
           ))}

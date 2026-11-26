@@ -1,4 +1,4 @@
-import Link from 'next/link';
+import Link from '@/components/ui/AppLink';
 import { BRAND } from '@/lib/branding';
 import { CHAPTERS } from '@/lib/landingContent';
 import base from './landing.module.css';

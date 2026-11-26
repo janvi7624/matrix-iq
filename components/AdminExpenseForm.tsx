@@ -4,12 +4,16 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { UNALLOCATED_EMPLOYEE_ID } from '@/lib/adminExpenseUnallocated';
 import AppShell from './AppShell';
+import CommonButton from './ui/CommonButton';
+import PageBackButton from './ui/PageBackButton';
+import SearchInput from './ui/SearchInput';
 import { useToast } from './ui/ToastProvider';
+import { SkeletonForm } from './ui/Skeleton';
 import { AdminEntry, UserOption } from './AdminExpensesView';
-import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
 import styles from './adminExpenses.module.css';
 import { fetchCached } from '@/lib/fetchCached';
+import Select from './ui/Select';
 
 const EXPENSE_TYPES = ['Hotel', 'Visa Expense', 'Bus Ticket', 'Train Ticket', 'Flight Ticket', 'Other Expense'];
 // Everything except 'Other Expense' itself — used to tell "this row's
@@ -249,15 +253,13 @@ export default function AdminExpenseForm({ editBatchId }: AdminExpenseFormProps)
   return (
     <AppShell title={editBatchId ? 'Edit Expense' : 'Add Expense'} subtitle="Add hotel & ticket expenses split across employees">
       <div className={styles.pageWrap}>
-        <div className={styles.headerRow}>
+        <div className={styles.headerRow} style={{ justifyContent: 'flex-start', gap: 12 }}>
+          <PageBackButton fallbackRoute="/admin-expenses" />
           <h2 className={styles.headerTitle}>{editBatchId ? 'Edit Expense' : 'Add Expense'}</h2>
-          <button type="button" className={historyStyles.button} onClick={goBack}>
-            ← Back to register
-          </button>
         </div>
 
         {loadingEntry ? (
-          <div className={styles.centerMuted}>Loading…</div>
+          <SkeletonForm fields={8} />
         ) : (
           <form onSubmit={handleSubmit}>
             {editBatchId && (
@@ -268,10 +270,10 @@ export default function AdminExpenseForm({ editBatchId }: AdminExpenseFormProps)
             <div className={styles.fieldsGrid}>
               <div>
                 <label className={styles.fieldLabel}>Expense Type *</label>
-                <select className={`${calcStyles.formControl} ${styles.fullWidth}`} value={type} onChange={(e) => setType(e.target.value)}>
+                <Select className={styles.fullWidth} value={type} onChange={(e) => setType(e.target.value)}>
                   <option value="">Select type…</option>
                   {EXPENSE_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
-                </select>
+                </Select>
               </div>
 
               {isHotel ? (
@@ -319,14 +321,14 @@ export default function AdminExpenseForm({ editBatchId }: AdminExpenseFormProps)
               {isFlight && (
                 <div>
                   <label className={styles.fieldLabel}>Trip Type *</label>
-                  <select
-                    className={`${calcStyles.formControl} ${styles.fullWidth}`}
+                  <Select
+                    className={styles.fullWidth}
                     value={flightTripType}
                     onChange={(e) => setFlightTripType(e.target.value as 'one_way' | 'return')}
                   >
                     <option value="one_way">One-Way</option>
                     <option value="return">Return</option>
-                  </select>
+                  </Select>
                 </div>
               )}
 
@@ -388,15 +390,14 @@ export default function AdminExpenseForm({ editBatchId }: AdminExpenseFormProps)
                 </span>
               </label>
               <div className={styles.employeeSearchRow}>
-                <input
-                  type="text"
-                  className={`${calcStyles.formControl} ${styles.employeeSearchInput}`}
+                <SearchInput
+                  className={styles.employeeSearchInput}
                   placeholder="Search employees…"
                   value={empSearch}
-                  onChange={(e) => setEmpSearch(e.target.value)}
+                  onChange={(v) => setEmpSearch(v)}
                 />
-                <button type="button" className={`${historyStyles.button} ${styles.smallActionBtn}`} onClick={selectAll}>Select All</button>
-                <button type="button" className={`${historyStyles.button} ${styles.smallActionBtn}`} onClick={deselectAll}>Clear</button>
+                <CommonButton size="sm" onClick={selectAll}>Select All</CommonButton>
+                <CommonButton size="sm" onClick={deselectAll}>Clear</CommonButton>
               </div>
               <div className={styles.employeeListBox}>
                 {filteredUsers.map((u) => (
@@ -427,12 +428,12 @@ export default function AdminExpenseForm({ editBatchId }: AdminExpenseFormProps)
             )}
 
             <div className={styles.formButtonsRow}>
-              <button type="submit" className={`${historyStyles.button} ${historyStyles.primary}`} disabled={saving}>
-                {saving ? (editBatchId ? 'Updating…' : 'Adding…') : (editBatchId ? 'Update Expense' : 'Add Expense')}
-              </button>
-              <button type="button" className={historyStyles.button} onClick={goBack} disabled={saving}>
+              <CommonButton type="submit" variant="primary" loading={saving} loadingLabel={editBatchId ? 'Updating…' : 'Adding…'}>
+                {editBatchId ? 'Update Expense' : 'Add Expense'}
+              </CommonButton>
+              <CommonButton onClick={goBack} disabled={saving}>
                 Cancel
-              </button>
+              </CommonButton>
             </div>
           </form>
         )}

@@ -1,6 +1,7 @@
 'use client';
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
+import CommonButton from './CommonButton';
 import styles from './notify.module.css';
 
 export interface PromptOptions {
@@ -80,12 +81,12 @@ export function PromptProvider({ children }: { children: React.ReactNode }) {
             />
             {error && <div className={styles.promptError}>{error}</div>}
             <div className={styles.confirmActions}>
-              <button type="button" className={styles.confirmCancel} onClick={() => respond(null)}>
+              <CommonButton variant="secondary" size="md" onClick={() => respond(null)}>
                 {pending.cancelLabel || 'Cancel'}
-              </button>
-              <button type="button" className={styles.confirmOk} onClick={submit}>
+              </CommonButton>
+              <CommonButton variant="primary" size="md" onClick={submit}>
                 {pending.confirmLabel || 'OK'}
-              </button>
+              </CommonButton>
             </div>
           </div>
         </div>

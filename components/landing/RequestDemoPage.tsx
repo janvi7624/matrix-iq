@@ -1,13 +1,14 @@
 'use client';
 
 import { FormEvent, useState } from 'react';
-import Link from 'next/link';
+import Link from '@/components/ui/AppLink';
 import { ArrowLeft, CheckCircle2, Clock, Mail, Phone, Sparkles } from 'lucide-react';
 import { INTEREST_OPTIONS, SITE, TEAM_SIZE_OPTIONS } from '@/lib/landingContent';
 import { SiteFooter } from './LandingPage';
 import SiteHeader from './SiteHeader';
 import base from './landing.module.css';
 import styles from './requestDemo.module.css';
+import Select from '@/components/ui/Select';
 
 const EMPTY = {
   name: '',
@@ -123,10 +124,10 @@ export default function RequestDemoPage() {
                   {field('city', 'City', { auto: 'address-level2' })}
                   <label className={styles.field}>
                     <span>Team size</span>
-                    <select value={form.teamSize} onChange={(e) => set('teamSize', e.target.value)}>
+                    <Select value={form.teamSize} onChange={(e) => set('teamSize', e.target.value)}>
                       <option value="">Select…</option>
                       {TEAM_SIZE_OPTIONS.map((t) => <option key={t} value={t}>{t} people</option>)}
-                    </select>
+                    </Select>
                   </label>
                   <label className={styles.field}>
                     <span>Preferred demo date</span>

@@ -14,6 +14,9 @@ import { groupByCategory } from '@/lib/materialGrouping';
 import { MATERIAL_CONFIDENTIALITY_NOTICE } from '@/lib/materialConfidentiality';
 import { CATEGORY_ICON, KIND_ICON, formatWhen } from './materialIcons';
 import PartnerShell from './PartnerShell';
+import CommonButton from './ui/CommonButton';
+import SearchInput from './ui/SearchInput';
+import { SkeletonCards } from './ui/Skeleton';
 import historyStyles from './quotationHistory.module.css';
 import styles from './materials.module.css';
 
@@ -175,18 +178,11 @@ export default function PartnerMaterialsView({ partner }: { partner: PartnerReco
 
       <div className={styles.toolbar}>
         <div className={styles.searchWrap}>
-          <input
-            className={styles.searchInput}
-            type="text"
+          <SearchInput
             placeholder="Search the library..."
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(v) => setSearch(v)}
           />
-          {searching && (
-            <button type="button" className={styles.searchClear} onClick={() => setSearch('')} aria-label="Clear search">
-              ×
-            </button>
-          )}
         </div>
       </div>
 
@@ -241,7 +237,7 @@ export default function PartnerMaterialsView({ partner }: { partner: PartnerReco
         </div>
       )}
 
-      {status && <div className={historyStyles.status}>{status}</div>}
+      {status === 'Loading...' ? <SkeletonCards count={6} /> : status && <div className={historyStyles.status}>{status}</div>}
 
       {!searching && childFolders.length > 0 && (
         <div className={styles.grid}>
@@ -294,25 +290,28 @@ export default function PartnerMaterialsView({ partner }: { partner: PartnerReco
                     </div>
 
                     <div className={styles.cardActions}>
-                      <a
-                        className={styles.openBtn}
+                      <CommonButton
+                        native
+                        variant="primary"
+                        size="sm"
+                        leadingIcon={<ExternalLink size={14} />}
                         href={safeHref(product.primaryLink)}
                         target="_blank"
                         rel="noopener noreferrer"
                         onClick={() => open(product.documents[0])}
                       >
-                        <ExternalLink size={14} /> {product.isFolder ? 'Open folder' : 'Open'}
-                      </a>
+                        {product.isFolder ? 'Open folder' : 'Open'}
+                      </CommonButton>
                       {multiple && (
-                        <button
-                          type="button"
-                          className={styles.ghostBtn}
+                        <CommonButton
+                          variant="ghost"
+                          size="sm"
+                          leadingIcon={<ChevronDown size={14} className={isOpen ? styles.chevronOpen : undefined} />}
                           onClick={() => toggleExpanded(key)}
                           aria-expanded={isOpen}
                         >
-                          <ChevronDown size={14} className={isOpen ? styles.chevronOpen : undefined} />
                           {isOpen ? 'Hide' : 'All files'}
-                        </button>
+                        </CommonButton>
                       )}
                     </div>
 

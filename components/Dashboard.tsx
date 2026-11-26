@@ -1,12 +1,17 @@
 'use client';
 
 import { createElement, Fragment, useEffect, useMemo, useState } from 'react';
-import Link from 'next/link';
+import Link from '@/components/ui/AppLink';
 import { DemoScheduleRecord, ModuleConfigRecord, ProjectHandoverRecord, ProjectRecord, UserRole } from '@/lib/types';
 import type { SalesTeamSummaryRow } from '@/lib/salesTeamSummary';
 import { DepartmentBreakdown } from '@/lib/projectDepartmentOptions';
 import { formatMoney } from '@/lib/format';
 import AppShell from './AppShell';
+import CommonButton from './ui/CommonButton';
+import CommonChip from './ui/CommonChip';
+import SearchInput from './ui/SearchInput';
+import Dropdown from './ui/Dropdown';
+import StatCard, { StatCardGrid } from './ui/StatCard';
 import HealthGauge, { BAND_COLOR, BAND_TEXT } from './ui/HealthGauge';
 import DepartmentHealthDetail from './DepartmentHealthDetail';
 import { BRAND } from '@/lib/branding';
@@ -28,7 +33,6 @@ import {
   Users as UsersIcon,
   X,
   Plus,
-  Search,
   CheckCircle2,
   Calendar,
   Sun,
@@ -55,6 +59,7 @@ import { hasSeenCelebrationPopup, markCelebrationPopupSeen } from '@/lib/celebra
 import Table from './ui/Table';
 import StatusBadge from './ui/StatusBadge';
 import EmptyState from './ui/EmptyState';
+import { Skeleton, SkeletonList, SkeletonTable } from './ui/Skeleton';
 import CelebrationsSection from './CelebrationsSection';
 import AppreciationWall from './AppreciationWall';
 import MyTargetPanel from './MyTargetPanel';
@@ -673,28 +678,28 @@ export default function Dashboard({ currentUser }: DashboardProps) {
   const totalModuleCount = allFlattenedModules.length;
 
   return (
-    <AppShell title={BRAND.appName} subtitle={BRAND.tagline} showBackLink={false}>
+    <AppShell title={BRAND.appName} subtitle={BRAND.tagline}>
       {showCelebrations && (
         <Modal
           title={
             <div className={styles.celebrationHeader}>
               <span>🎉 Today&apos;s Celebrations</span>
-              <button
-                type="button"
-                className={styles.celebrationCloseBtn}
+              <CommonButton
+                variant="ghost"
+                size="sm"
+                iconOnly
+                leadingIcon={<X size={18} />}
                 onClick={() => setCelebrationsDismissed(true)}
                 aria-label="Close"
-              >
-                <X size={18} />
-              </button>
+              />
             </div>
           }
           ariaLabel="Today's birthdays, work anniversaries, and festival greetings"
           onClose={() => setCelebrationsDismissed(true)}
           footer={
-            <button type="button" className={styles.celebrationOkBtn} onClick={() => setCelebrationsDismissed(true)}>
+            <CommonButton variant="primary" size="md" onClick={() => setCelebrationsDismissed(true)}>
               Close
-            </button>
+            </CommonButton>
           }
         >
           <div className={styles.celebrationList}>
@@ -760,50 +765,55 @@ export default function Dashboard({ currentUser }: DashboardProps) {
               A shortcut that opened a page saying "you are not required to
               file" would be worse than no shortcut. */}
           {dailyReport?.required && (
-            <Link
+            <CommonButton
               href="/daily-reports"
-              className={`${styles.heroDailyBtn} ${
+              size="md"
+              variant={
                 dailyReport.submission_status === 'MISSING' || dailyReport.submission_status === 'DRAFT'
                   ? dailyReport.past_deadline
-                    ? styles.heroDailyLate
-                    : styles.heroDailyPending
-                  : styles.heroDailyDone
-              }`}
+                    ? 'destructive'
+                    : 'primary'
+                  : 'outlined'
+              }
+              leadingIcon={
+                dailyReport.submission_status === 'SUBMITTED' || dailyReport.submission_status === 'SUBMITTED_LATE' ? (
+                  <CheckCircle2 size={15} />
+                ) : (
+                  <ClipboardList size={15} />
+                )
+              }
             >
               {dailyReport.submission_status === 'SUBMITTED' || dailyReport.submission_status === 'SUBMITTED_LATE' ? (
-                <>
-                  <CheckCircle2 size={15} /> Daily Report Filed
-                </>
+                'Daily Report Filed'
               ) : (
                 <>
-                  <ClipboardList size={15} />
                   {/* A saved draft is NOT filed, and saying "File" rather
                       than "Finish" would hide that it is still outstanding. */}
                   {dailyReport.submission_status === 'DRAFT' ? 'Finish Daily Report' : 'File Daily Report'}
                   {dailyReport.past_deadline && ' · Overdue'}
                 </>
               )}
-            </Link>
+            </CommonButton>
           )}
-          <Link href="/quotation" className={styles.heroPrimaryBtn}>
-            <Plus size={16} strokeWidth={2.5} /> New Quotation
-          </Link>
-          <Link href="/leads" className={styles.heroSecondaryBtn}>
-            <Contact size={15} /> Leads Hub
-          </Link>
+          <CommonButton href="/quotation" variant="primary" size="md" leadingIcon={<Plus size={16} strokeWidth={2.5} />}>
+            New Quotation
+          </CommonButton>
+          <CommonButton href="/leads" variant="outlined" size="md" leadingIcon={<Contact size={15} />}>
+            Leads Hub
+          </CommonButton>
           {/* Admin / superadmin / manager get Performance Review here instead of
               Analytics: it is the page they actually open from the dashboard, and
               /admin/performance-review is privileged-only anyway (proxy.ts's
               ADMIN_ONLY_PREFIXES), so pointing anyone else at it would just be a
               redirect. Everybody else keeps Analytics, which is open to them. */}
           {isPrivileged ? (
-            <Link href="/admin/performance-review" className={styles.heroAnalyticsBtn}>
-              <BarChart3 size={15} /> Performance Review
-            </Link>
+            <CommonButton href="/admin/performance-review" variant="outlined" size="md" leadingIcon={<BarChart3 size={15} />}>
+              Performance Review
+            </CommonButton>
           ) : (
-            <Link href="/analytics" className={styles.heroAnalyticsBtn}>
-              <BarChart3 size={15} /> Analytics
-            </Link>
+            <CommonButton href="/analytics" variant="outlined" size="md" leadingIcon={<BarChart3 size={15} />}>
+              Analytics
+            </CommonButton>
           )}
         </div>
       </section>
@@ -845,175 +855,148 @@ export default function Dashboard({ currentUser }: DashboardProps) {
 
             <div className={styles.healthControls}>
               {/* Department Search Input */}
-              <div className={styles.healthSearchWrap}>
-                <Search size={13} className={styles.healthSearchIcon} />
-                <input
-                  type="text"
-                  className={styles.healthSearchInput}
-                  placeholder="Filter departments..."
-                  value={healthSearchQuery}
-                  onChange={(e) => setHealthSearchQuery(e.target.value)}
-                  aria-label="Filter departments by name"
-                />
-                {healthSearchQuery && (
-                  <button
-                    type="button"
-                    className={styles.healthSearchClear}
-                    onClick={() => setHealthSearchQuery('')}
-                    aria-label="Clear filter"
-                  >
-                    <X size={12} />
-                  </button>
-                )}
-              </div>
+              <SearchInput
+                size="sm"
+                inline
+                placeholder="Filter departments..."
+                value={healthSearchQuery}
+                onChange={(v) => setHealthSearchQuery(v)}
+                aria-label="Filter departments by name"
+              />
 
               {/* Filter Pills */}
               <div className={styles.healthFilterPills}>
-                <button
-                  type="button"
-                  className={`${styles.healthFilterBtn} ${healthBandFilter === 'all' ? styles.healthFilterBtnActive : ''}`}
+                <CommonChip
+                  size="sm"
+                  selected={healthBandFilter === 'all'}
+                  showCheck={false}
                   onClick={() => setHealthBandFilter('all')}
                 >
                   All ({healthStats?.total ?? 0})
-                </button>
-                <button
-                  type="button"
-                  className={`${styles.healthFilterBtn} ${healthBandFilter === 'red' ? styles.healthFilterBtnActive : ''}`}
+                </CommonChip>
+                <CommonChip
+                  size="sm"
+                  selected={healthBandFilter === 'red'}
+                  showCheck={false}
+                  leadingIcon={<span className={styles.healthFilterDot} style={{ background: 'var(--mx-danger)' }} />}
                   onClick={() => setHealthBandFilter('red')}
                 >
-                  <span className={styles.healthFilterDot} style={{ background: 'var(--mx-danger)' }} />
                   Needs Attention ({healthStats?.redCount ?? 0})
-                </button>
-                <button
-                  type="button"
-                  className={`${styles.healthFilterBtn} ${healthBandFilter === 'yellow' ? styles.healthFilterBtnActive : ''}`}
+                </CommonChip>
+                <CommonChip
+                  size="sm"
+                  selected={healthBandFilter === 'yellow'}
+                  showCheck={false}
+                  leadingIcon={<span className={styles.healthFilterDot} style={{ background: 'var(--mx-warning)' }} />}
                   onClick={() => setHealthBandFilter('yellow')}
                 >
-                  <span className={styles.healthFilterDot} style={{ background: 'var(--mx-warning)' }} />
                   On Track ({healthStats?.yellowCount ?? 0})
-                </button>
-                <button
-                  type="button"
-                  className={`${styles.healthFilterBtn} ${healthBandFilter === 'green' ? styles.healthFilterBtnActive : ''}`}
+                </CommonChip>
+                <CommonChip
+                  size="sm"
+                  selected={healthBandFilter === 'green'}
+                  showCheck={false}
+                  leadingIcon={<span className={styles.healthFilterDot} style={{ background: 'var(--mx-success)' }} />}
                   onClick={() => setHealthBandFilter('green')}
                 >
-                  <span className={styles.healthFilterDot} style={{ background: 'var(--mx-success)' }} />
                   Performing ({healthStats?.greenCount ?? 0})
-                </button>
+                </CommonChip>
               </div>
 
               {/* View Mode Toggle */}
               <div className={styles.moduleViewModeToggle}>
-                <button
-                  type="button"
-                  className={`${styles.moduleViewModeBtn} ${healthViewMode === 'cards' ? styles.moduleViewModeBtnActive : ''}`}
+                <CommonButton
+                  variant="ghost"
+                  size="sm"
+                  selected={healthViewMode === 'cards'}
+                  leadingIcon={<LayoutGrid size={13} />}
                   onClick={() => setHealthViewMode('cards')}
                   title="Scorecard Grid"
                 >
-                  <LayoutGrid size={13} /> Cards
-                </button>
-                <button
-                  type="button"
-                  className={`${styles.moduleViewModeBtn} ${healthViewMode === 'leaderboard' ? styles.moduleViewModeBtnActive : ''}`}
+                  Cards
+                </CommonButton>
+                <CommonButton
+                  variant="ghost"
+                  size="sm"
+                  selected={healthViewMode === 'leaderboard'}
+                  leadingIcon={<TableIcon size={13} />}
                   onClick={() => setHealthViewMode('leaderboard')}
                   title="Ranked Table"
                 >
-                  <TableIcon size={13} /> Ranked
-                </button>
+                  Ranked
+                </CommonButton>
               </div>
 
               {/* Sort selector */}
-              <select
-                className={styles.healthSortSelect}
+              <Dropdown
+                size="sm"
                 value={healthSortOrder}
-                onChange={(e) => setHealthSortOrder(e.target.value as 'priority' | 'top' | 'alpha')}
-                aria-label="Sort health gauges"
-              >
-                <option value="priority">Sort: Priority (Lowest First)</option>
-                <option value="top">Sort: Top Performing First</option>
-                <option value="alpha">Sort: Name (A-Z)</option>
-              </select>
+                onChange={(v) => { if (v) setHealthSortOrder(v as 'priority' | 'top' | 'alpha'); }}
+                clearable={false}
+                label="Sort"
+                ariaLabel="Sort health gauges"
+                options={[
+                  { value: 'priority', label: 'Priority (Lowest First)' },
+                  { value: 'top', label: 'Top Performing First' },
+                  { value: 'alpha', label: 'Name (A-Z)' },
+                ]}
+              />
 
               {/* Executive Copy Snapshot Button */}
-              <button
-                type="button"
-                className={styles.healthSnapshotBtn}
+              <CommonButton
+                variant="outlined"
+                size="sm"
+                leadingIcon={copiedHealthToast ? <Check size={13} className={styles.snapshotCheckIcon} /> : <Copy size={13} />}
                 onClick={handleCopyHealthReport}
                 title="Copy formatted Executive Health Report to clipboard"
               >
-                {copiedHealthToast ? (
-                  <>
-                    <Check size={13} className={styles.snapshotCheckIcon} /> Copied!
-                  </>
-                ) : (
-                  <>
-                    <Copy size={13} /> Snapshot
-                  </>
-                )}
-              </button>
+                {copiedHealthToast ? 'Copied!' : 'Snapshot'}
+              </CommonButton>
             </div>
           </div>
 
           {/* Executive Performance Highlights Bar */}
           {healthStats && (
             <div className={styles.healthInsightsBar}>
-              <button
-                type="button"
-                className={`${styles.healthInsightCard} ${styles.healthInsightCardClickable}`}
+              <StatCard
+                icon={<Activity size={18} />}
+                tone="info"
+                value={`${healthStats.avgScore}% Overall Health`}
+                label={`Across ${healthStats.total} monitored departments`}
                 onClick={() => setHealthBandFilter('all')}
                 title="View all departments"
-              >
-                <div className={`${styles.healthInsightIcon} ${styles.healthInsightIconAvg}`}>
-                  <Activity size={18} />
-                </div>
-                <div className={styles.healthInsightText}>
-                  <div className={styles.healthInsightVal}>{healthStats.avgScore}% Overall Health</div>
-                  <div className={styles.healthInsightSub}>Across {healthStats.total} monitored departments</div>
-                </div>
-              </button>
+                actionLabel="View all departments"
+              />
 
               {healthStats.riskDept ? (
-                <button
-                  type="button"
-                  className={`${styles.healthInsightCard} ${styles.healthInsightCardClickable} ${styles.healthInsightCardWarning}`}
+                <StatCard
+                  icon={<AlertTriangle size={18} />}
+                  tone="danger"
+                  value={`${healthStats.riskDept.department} (${healthStats.riskDept.score}%)`}
+                  label={`Requires immediate review (${healthStats.redCount} at risk)`}
                   onClick={() => setHealthBandFilter('red')}
                   title="Filter to departments needing attention"
-                >
-                  <div className={`${styles.healthInsightIcon} ${styles.healthInsightIconRisk}`}>
-                    <AlertTriangle size={18} />
-                  </div>
-                  <div className={styles.healthInsightText}>
-                    <div className={styles.healthInsightVal}>{healthStats.riskDept.department} ({healthStats.riskDept.score}%)</div>
-                    <div className={styles.healthInsightSub}>Requires immediate review ({healthStats.redCount} at risk)</div>
-                  </div>
-                </button>
+                  actionLabel="Filter to departments needing attention"
+                />
               ) : (
-                <div className={styles.healthInsightCard}>
-                  <div className={`${styles.healthInsightIcon} ${styles.healthInsightIconTop}`}>
-                    <CheckCircle2 size={18} />
-                  </div>
-                  <div className={styles.healthInsightText}>
-                    <div className={styles.healthInsightVal}>0 Teams At Risk</div>
-                    <div className={styles.healthInsightSub}>All department targets within acceptable thresholds</div>
-                  </div>
-                </div>
+                <StatCard
+                  icon={<CheckCircle2 size={18} />}
+                  tone="success"
+                  value="0 Teams At Risk"
+                  label="All department targets within acceptable thresholds"
+                />
               )}
 
               {healthStats.topDept && (
-                <button
-                  type="button"
-                  className={`${styles.healthInsightCard} ${styles.healthInsightCardClickable}`}
+                <StatCard
+                  icon={<Trophy size={18} />}
+                  tone="success"
+                  value={`${healthStats.topDept.department} (${healthStats.topDept.score}%)`}
+                  label="Highest operational health score"
                   onClick={() => setHealthBandFilter('green')}
                   title="Filter to top performing departments"
-                >
-                  <div className={`${styles.healthInsightIcon} ${styles.healthInsightIconTop}`}>
-                    <Trophy size={18} />
-                  </div>
-                  <div className={styles.healthInsightText}>
-                    <div className={styles.healthInsightVal}>{healthStats.topDept.department} ({healthStats.topDept.score}%)</div>
-                    <div className={styles.healthInsightSub}>Highest operational health score</div>
-                  </div>
-                </button>
+                  actionLabel="Filter to top performing departments"
+                />
               )}
             </div>
           )}
@@ -1105,13 +1088,14 @@ export default function Dashboard({ currentUser }: DashboardProps) {
                             )}
                           </td>
                           <td style={{ textAlign: 'right' }}>
-                            <button
-                              type="button"
-                              className={styles.leaderboardActionBtn}
+                            <CommonButton
+                              variant="outlined"
+                              size="sm"
+                              trailingIcon={<ChevronRight size={12} />}
                               onClick={() => setOpenHealthDepartment(g.department)}
                             >
-                              Team Details <ChevronRight size={12} />
-                            </button>
+                              Team Details
+                            </CommonButton>
                           </td>
                         </tr>
                       );
@@ -1157,7 +1141,7 @@ export default function Dashboard({ currentUser }: DashboardProps) {
           ) : (
             <div className={styles.attentionEmpty}>
               {attentionLoading ? (
-                <span className={styles.attentionAllCaughtUp}>Checking active queues&hellip;</span>
+                <SkeletonList rows={3} boxed={false} />
               ) : (
                 <div className={styles.attentionCaughtUpCard}>
                   <div className={styles.attentionCaughtUpIcon}><CheckCircle2 size={24} /></div>
@@ -1180,7 +1164,7 @@ export default function Dashboard({ currentUser }: DashboardProps) {
                 <Link href="/projects">View all &rarr;</Link>
               </div>
               <div className={styles.recentList}>
-                {departmentBreakdown === null && <div className={styles.recentEmpty}>Loading&hellip;</div>}
+                {departmentBreakdown === null && <SkeletonList rows={4} avatar={false} boxed={false} />}
                 {departmentBreakdown !== null && departmentBreakdown.total === 0 && <div className={styles.recentEmpty}>No projects yet.</div>}
                 {departmentBreakdown !== null && departmentBreakdown.total > 0 && (
                   <>
@@ -1280,45 +1264,36 @@ export default function Dashboard({ currentUser }: DashboardProps) {
           <div className={styles.modulesHeadRight}>
             {/* View Mode Toggle */}
             <div className={styles.moduleViewModeToggle}>
-              <button
-                type="button"
-                className={`${styles.moduleViewModeBtn} ${moduleViewMode === 'accordion' ? styles.moduleViewModeBtnActive : ''}`}
+              <CommonButton
+                variant="ghost"
+                size="sm"
+                selected={moduleViewMode === 'accordion'}
+                leadingIcon={<ListFilter size={13} />}
                 onClick={() => setModuleViewMode('accordion')}
                 title="Categorized View"
               >
-                <ListFilter size={13} /> Grouped
-              </button>
-              <button
-                type="button"
-                className={`${styles.moduleViewModeBtn} ${moduleViewMode === 'grid' ? styles.moduleViewModeBtnActive : ''}`}
+                Grouped
+              </CommonButton>
+              <CommonButton
+                variant="ghost"
+                size="sm"
+                selected={moduleViewMode === 'grid'}
+                leadingIcon={<LayoutGrid size={13} />}
                 onClick={() => setModuleViewMode('grid')}
                 title="Expanded Grid View"
               >
-                <LayoutGrid size={13} /> All Tools
-              </button>
+                All Tools
+              </CommonButton>
             </div>
 
             {/* Instant Search Bar */}
-            <div className={styles.moduleSearchWrap}>
-              <Search size={14} className={styles.moduleSearchIcon} />
-              <input
-                type="text"
-                className={styles.moduleSearchInput}
-                placeholder="Search tools &amp; modules…"
-                value={moduleSearchQuery}
-                onChange={(e) => setModuleSearchQuery(e.target.value)}
-              />
-              {moduleSearchQuery && (
-                <button
-                  type="button"
-                  className={styles.moduleSearchClear}
-                  onClick={() => setModuleSearchQuery('')}
-                  aria-label="Clear search"
-                >
-                  &times;
-                </button>
-              )}
-            </div>
+            <SearchInput
+              className={styles.moduleSearchWrap}
+              inline
+              placeholder="Search tools &amp; modules…"
+              value={moduleSearchQuery}
+              onChange={(v) => setModuleSearchQuery(v)}
+            />
           </div>
         </div>
 
@@ -1330,15 +1305,15 @@ export default function Dashboard({ currentUser }: DashboardProps) {
               const isActive = selectedCategoryTab === catKey;
               const Icon = catKey === 'all' ? Layers : sectionIconFor(catKey);
               return (
-                <button
+                <CommonChip
                   key={catKey}
-                  type="button"
-                  className={`${styles.categoryTabChip} ${isActive ? styles.categoryTabChipActive : ''}`}
+                  selected={isActive}
+                  showCheck={false}
+                  leadingIcon={<Icon size={13} />}
                   onClick={() => setSelectedCategoryTab(catKey)}
                 >
-                  <Icon size={13} />
-                  <span>{label}</span>
-                </button>
+                  {label}
+                </CommonChip>
               );
             })}
           </div>
@@ -1488,7 +1463,7 @@ function DueSection({
           ) : (
             <div className={styles.attentionEmpty}>
               {loading ? (
-                'Checking\u2026'
+                <SkeletonList rows={3} boxed={false} />
               ) : (
                 <span className={styles.attentionAllCaughtUp}>
                   <ALL_CAUGHT_UP_ICON size={16} /> Nothing due right now.
@@ -1532,7 +1507,7 @@ function SalesTeamSummaryPanel({ rows }: { rows: SalesTeamSummaryRow[] | null })
         </div>
       </div>
       {rows === null ? (
-        <div className={styles.recentEmpty}>Loading sales pipeline data&hellip;</div>
+        <SkeletonTable columns={9} rows={6} />
       ) : rows.length === 0 ? (
         <EmptyState
           icon={UsersIcon}
@@ -1685,56 +1660,33 @@ function KpiRow({
   ];
 
   return (
-    <div className={styles.kpiRow}>
+    <StatCardGrid>
       {cards.map((card) => {
         const Icon = card.icon;
-        const iconWrapperClass =
+        const tone =
           card.type === 'leads'
-            ? styles.kpiIconWrapperLeads
+            ? 'info'
             : card.type === 'projects'
-              ? styles.kpiIconWrapperProjects
+              ? 'accent'
               : card.type === 'value'
-                ? styles.kpiIconWrapperValue
+                ? 'success'
                 : card.alert
-                  ? styles.kpiIconWrapperPending
-                  : styles.kpiIconWrapperSuccess;
-
-        const body = (
-          <>
-            <div className={styles.kpiCardHead}>
-              <span className={`${styles.kpiIconWrapper} ${iconWrapperClass}`}>
-                <Icon size={17} strokeWidth={2.2} />
-              </span>
-              {card.alert ? (
-                <span className={styles.kpiTagAlert}>Urgent</span>
-              ) : card.clear ? (
-                <span className={styles.kpiTagSuccess}>All Clear</span>
-              ) : (
-                <ArrowRight size={14} className={styles.kpiHoverArrow} />
-              )}
-            </div>
-
-            <div className={styles.kpiBody}>
-              <div
-                className={`${styles.kpiValueNew} ${loading ? styles.kpiValueLoading : ''} ${
-                  card.alert ? styles.kpiValueAlert : ''
-                }`}
-              >
-                {card.value}
-              </div>
-              <div className={styles.kpiLabelNew}>{card.label}</div>
-            </div>
-          </>
-        );
+                  ? 'danger'
+                  : 'success';
+        const common = {
+          icon: <Icon size={17} strokeWidth={2.2} />,
+          tone,
+          value: loading ? <Skeleton width={64} height={24} /> : card.value,
+          label: card.label,
+          sub: card.alert ? 'Urgent' : card.clear ? 'All Clear' : undefined
+        } as const;
 
         return card.key === 'pending' ? (
-          <div key={card.key} className={styles.kpiCardNew}>{body}</div>
+          <StatCard key={card.key} {...common} />
         ) : (
-          <Link key={card.key} href={card.href} className={styles.kpiCardNew}>
-            {body}
-          </Link>
+          <StatCard key={card.key} {...common} href={card.href} actionLabel={`Open ${card.label}`} />
         );
       })}
-    </div>
+    </StatCardGrid>
   );
 }

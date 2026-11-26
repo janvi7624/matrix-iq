@@ -2,8 +2,9 @@
 
 import { CartItem } from '@/lib/types';
 import { formatMoney } from '@/lib/format';
+import { X } from 'lucide-react';
+import CommonButton from '@/components/ui/CommonButton';
 import styles from './calculator.module.css';
-import cartStyles from './cartList.module.css';
 
 interface CartListProps {
   items: CartItem[];
@@ -27,9 +28,15 @@ export default function CartList({ items, onAdd, onRemove, onChangeRemark, hasAc
               <div className={styles.lineItemRow}>
                 <span className={styles.flexFill}>{item.label}</span>
                 <span>{formatMoney(item.subtotal)}</span>
-                <button type="button" className={styles.removeItemBtn} title="Remove product" onClick={() => onRemove(item.id)}>
-                  ×
-                </button>
+                <CommonButton
+                  variant="ghost"
+                  size="sm"
+                  iconOnly
+                  aria-label="Remove product"
+                  title="Remove product"
+                  leadingIcon={<X />}
+                  onClick={() => onRemove(item.id)}
+                />
               </div>
               <input
                 type="text"
@@ -41,13 +48,9 @@ export default function CartList({ items, onAdd, onRemove, onChangeRemark, hasAc
             </div>
           ))}
         </div>
-        <button
-          type="button"
-          className={`${hasActiveProduct ? styles.btn : styles.secondaryButton} ${cartStyles.fullWidthBtn}`}
-          onClick={onAdd}
-        >
+        <CommonButton variant={hasActiveProduct ? 'primary' : 'secondary'} fullWidth onClick={onAdd}>
           Add This Product to the Quote
-        </button>
+        </CommonButton>
         <div className={styles.small}>
           {hasActiveProduct
             ? 'Ready to add. Tap the button above, then pick another product to add more.'

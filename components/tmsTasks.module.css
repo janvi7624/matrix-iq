@@ -45,8 +45,7 @@
 }
 
 .tab:focus-visible,
-.tabActive:focus-visible,
-.newBtn:focus-visible {
+.tabActive:focus-visible {
     outline: 2px solid var(--mx-brand);
     outline-offset: 2px;
 }
@@ -85,20 +84,6 @@
    state. */
 .newBtn {
     margin-left: auto;
-    border: 1px solid var(--mx-brand);
-    border-radius: 999px;
-    background: var(--mx-brand);
-    color: #fff;
-    font-size: 13px;
-    font-weight: 600;
-    padding: 8px 18px;
-    cursor: pointer;
-    white-space: nowrap;
-    transition: background 180ms var(--mx-ease);
-}
-
-.newBtn:hover {
-    background: var(--mx-brand-hover);
 }
 
 /* ---- Status distribution --------------------------------------------
@@ -171,6 +156,5 @@
     .newBtn {
         margin-left: 0;
         flex: 1 1 100%;
-        text-align: center;
     }
 }

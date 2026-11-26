@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { FolderKanban, ListChecks, Bell, RefreshCw } from 'lucide-react';
 import notifyStyles from './ui/notify.module.css';
+import CommonButton from './ui/CommonButton';
 import calcStyles from './calculator.module.css';
 import styles from './tmsGuideModal.module.css';
 
@@ -94,7 +95,7 @@ export default function TmsGuideModal({ onClose, dontShowAgainDefault = true }: 
         </label>
 
         <div className={`${notifyStyles.confirmActions} ${styles.actionsSpaced}`}>
-          <button type="button" className={notifyStyles.confirmOk} onClick={close}>Got it</button>
+          <CommonButton variant="primary" size="md" onClick={close}>Got it</CommonButton>
         </div>
       </div>
     </div>

@@ -1,0 +1,243 @@
+/* CommonButton — the one button style for the app. Every value comes from
+   the component tokens in app/globals.css (--mx-btn-*, --mx-selected-*,
+   --mx-disabled-*, --mx-focus-*), so changing a button's look app-wide is a
+   token edit, never a page edit. */
+
+.root {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--mx-btn-gap);
+  border: 1px solid transparent;
+  border-radius: var(--mx-btn-radius);
+  font-family: inherit;
+  font-weight: var(--mx-weight-semibold);
+  line-height: var(--mx-leading-tight);
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    background var(--mx-duration-base) var(--mx-ease),
+    border-color var(--mx-duration-base) var(--mx-ease),
+    color var(--mx-duration-base) var(--mx-ease),
+    box-shadow var(--mx-duration-base) var(--mx-ease),
+    transform var(--mx-duration-fast) var(--mx-ease),
+    opacity var(--mx-duration-base) var(--mx-ease);
+}
+.root:focus-visible {
+  outline: var(--mx-focus-ring-width) solid var(--mx-focus-ring-color);
+  outline-offset: var(--mx-focus-ring-offset);
+}
+.root:active:not(:disabled):not([aria-disabled='true']) {
+  transform: translateY(1px);
+}
+
+/* ---------- Sizes ---------- */
+.sm { min-height: var(--mx-btn-h-sm); padding: 0 var(--mx-btn-px-sm); font-size: var(--mx-btn-font-sm); }
+.md { min-height: var(--mx-btn-h-md); padding: 0 var(--mx-btn-px-md); font-size: var(--mx-btn-font-md); }
+.lg { min-height: var(--mx-btn-h-lg); padding: 0 var(--mx-btn-px-lg); font-size: var(--mx-btn-font-lg); }
+
+/* A small button is visually 36px, but the tap target still reaches 44px
+   on touch screens via an invisible hit-area extension. */
+@media (pointer: coarse) {
+  .sm { position: relative; }
+  .sm::after {
+    content: '';
+    position: absolute;
+    inset: calc((var(--mx-btn-h-sm) - var(--mx-touch-target)) / 2) 0;
+  }
+}
+
+/* ---------- Icon-only ---------- */
+.iconOnly { padding: 0; aspect-ratio: 1 / 1; }
+.iconOnly.sm { width: var(--mx-btn-h-sm); }
+.iconOnly.md { width: var(--mx-btn-h-md); }
+.iconOnly.lg { width: var(--mx-btn-h-lg); }
+
+.icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  line-height: 1;
+}
+.sm .icon :global(svg) { width: var(--mx-icon-xs); height: var(--mx-icon-xs); }
+.md .icon :global(svg) { width: var(--mx-icon-sm); height: var(--mx-icon-sm); }
+.lg .icon :global(svg) { width: var(--mx-icon-md); height: var(--mx-icon-md); }
+.iconOnly.md .icon :global(svg) { width: var(--mx-icon-md); height: var(--mx-icon-md); }
+.iconOnly.lg .icon :global(svg) { width: var(--mx-icon-lg); height: var(--mx-icon-lg); }
+
+.label { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+
+/* ---------- Width ---------- */
+.fullWidth { display: flex; width: 100%; }
+
+/* ---------- Variants ---------- */
+.primary {
+  background: var(--mx-primary);
+  border-color: var(--mx-primary);
+  color: var(--mx-on-primary);
+  box-shadow: var(--mx-shadow-xs);
+}
+.primary:hover:not(:disabled):not([aria-disabled='true']) {
+  background: var(--mx-primary-hover);
+  border-color: var(--mx-primary-hover);
+  box-shadow: var(--mx-shadow-sm);
+}
+
+.secondary {
+  background: var(--mx-surface);
+  border-color: transparent;
+  color: var(--mx-text-primary);
+  box-shadow: var(--mx-shadow-xs);
+}
+.secondary:hover:not(:disabled):not([aria-disabled='true']) {
+  background: var(--mx-surface-sunken);
+  box-shadow: var(--mx-shadow-sm);
+}
+
+.outlined {
+  background: var(--mx-unselected-bg);
+  border-color: var(--mx-unselected-border);
+  color: var(--mx-unselected-fg);
+}
+.outlined:hover:not(:disabled):not([aria-disabled='true']) {
+  border-color: var(--mx-unselected-hover-border);
+  color: var(--mx-text-primary);
+  background: var(--mx-gray-50);
+}
+
+.ghost {
+  background: transparent;
+  border-color: transparent;
+  color: var(--mx-text-secondary);
+}
+.ghost:hover:not(:disabled):not([aria-disabled='true']) {
+  background: var(--mx-surface-sunken);
+  color: var(--mx-text-primary);
+}
+
+.destructive {
+  background: var(--mx-surface);
+  border-color: var(--mx-red-200);
+  color: var(--mx-danger);
+}
+.destructive:hover:not(:disabled):not([aria-disabled='true']) {
+  background: var(--mx-danger-subtle);
+  border-color: var(--mx-brand);
+}
+/* Solid destructive — a confirm-delete button inside a dialog. */
+.destructiveSolid {
+  background: var(--mx-danger);
+  border-color: var(--mx-danger);
+  color: #ffffff;
+  box-shadow: var(--mx-shadow-xs);
+}
+.destructiveSolid:hover:not(:disabled):not([aria-disabled='true']) {
+  background: var(--mx-red-800);
+  border-color: var(--mx-red-800);
+}
+
+.success {
+  background: var(--mx-success);
+  border-color: var(--mx-success);
+  color: #ffffff;
+  box-shadow: var(--mx-shadow-xs);
+}
+.success:hover:not(:disabled):not([aria-disabled='true']) {
+  background: var(--mx-green-800);
+  border-color: var(--mx-green-800);
+}
+
+/* Warning — a resume/hold-type action that needs attention but isn't destructive. */
+.warning {
+  background: var(--mx-warning); /* #b45309 — 5:1 with white text */
+  border-color: var(--mx-warning);
+  color: #ffffff;
+  box-shadow: var(--mx-shadow-xs);
+}
+.warning:hover:not(:disabled):not([aria-disabled='true']) {
+  background: var(--mx-amber-800);
+  border-color: var(--mx-amber-800);
+}
+
+/* Link — inline text action inside copy or a table cell. */
+.link {
+  background: transparent;
+  border-color: transparent;
+  color: var(--mx-brand-text);
+  padding-left: 0;
+  padding-right: 0;
+  min-height: 0;
+}
+.link:hover:not(:disabled):not([aria-disabled='true']) { text-decoration: underline; }
+
+/* ---------- Inverse tone (dark surfaces like the app header) ---------- */
+.inverse.ghost { color: var(--mx-header-fg); }
+.inverse.ghost:hover:not(:disabled):not([aria-disabled='true']) {
+  background: var(--mx-header-control-hover);
+  color: var(--mx-header-fg);
+}
+.inverse:focus-visible { outline-color: var(--mx-header-fg); }
+
+/* ---------- Selected ----------
+   Deliberately a solid brand fill on every variant, so a selected toggle
+   is never mistaken for its unselected neighbours. */
+.selected,
+.selected.secondary,
+.selected.outlined,
+.selected.ghost {
+  background: var(--mx-selected-bg);
+  border-color: var(--mx-selected-border);
+  color: var(--mx-selected-fg);
+  box-shadow: var(--mx-shadow-pressed-sm);
+}
+.selected:hover:not(:disabled):not([aria-disabled='true']) {
+  background: var(--mx-selected-bg-hover);
+  border-color: var(--mx-selected-bg-hover);
+  color: var(--mx-selected-fg);
+}
+.selected.primary {
+  background: var(--mx-primary-hover);
+  border-color: var(--mx-primary-hover);
+}
+
+/* ---------- Disabled / loading ---------- */
+.root:disabled,
+.root[aria-disabled='true'] {
+  opacity: var(--mx-disabled-opacity);
+  cursor: not-allowed;
+  box-shadow: none;
+  transform: none;
+}
+.loading { cursor: progress; }
+
+.spinner {
+  display: inline-block;
+  width: 1em;
+  height: 1em;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: commonButtonSpin 0.7s linear infinite;
+  flex-shrink: 0;
+}
+@keyframes commonButtonSpin {
+  to { transform: rotate(360deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .spinner { animation-duration: 1.5s; }
+  .root { transition: none; }
+}
+
+/* collapseOnPhone — icon-only below 640px (e.g. the header's Log out), so a
+   row of header actions fits on one line on a phone. */
+@media (max-width: 640px) {
+  .collapseOnPhone .label { display: none; }
+  .collapseOnPhone.sm { width: var(--mx-btn-h-sm); padding: 0; }
+  .collapseOnPhone.md { width: var(--mx-btn-h-md); padding: 0; }
+  .collapseOnPhone.lg { width: var(--mx-btn-h-lg); padding: 0; }
+}

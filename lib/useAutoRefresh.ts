@@ -6,9 +6,13 @@ import { useEffect, useRef } from 'react';
 //
 // Two triggers, deliberately in this order of importance:
 //
-//   1. The tab regaining focus. This is the case that actually matters — you
-//      switch to WhatsApp or another tab, come back, and want today's numbers.
-//      It costs exactly one fetch per return and nothing at all while idle.
+//   1. The tab becoming visible again AFTER ITS DATA HAS GONE STALE. You
+//      switch to WhatsApp or another tab for a while, come back, and want
+//      today's numbers. A quick glance away and back (or clicking into
+//      DevTools, the address bar, a dialog) does NOT refetch: the data on
+//      screen is still fresh. That used to be the `window.focus` event, which
+//      fires on every one of those clicks and re-requested the same unchanged
+//      data again and again; it is no longer listened to.
 //   2. A slow interval, PAUSED whenever the tab is hidden. Someone watching
 //      the dashboard sees it tick over; the twenty people who left it open on
 //      a second monitor cost nothing.
@@ -34,7 +38,7 @@ export const DEFAULT_REFRESH_MS = 60_000;
 
 /**
  * The shortest gap allowed between two refreshes, whatever asks for one.
- * Alt-tabbing back and forth fires `focus` every time; this is what stops that
+ * Rapid tab switching or interval ticks must not stack up; this is what stops that
  * becoming a burst of identical queries.
  */
 export const MIN_REFRESH_GAP_MS = 10_000;
@@ -55,18 +59,31 @@ export function shouldRefresh(lastAt: number, now: number, minGapMs: number = MI
   return now - lastAt >= minGapMs;
 }
 
+/**
+ * Whether returning to the tab should refetch: only once the data on screen
+ * is at least `staleAfterMs` old. Pure for tests.
+ */
+export function shouldRefreshOnReturn(lastAt: number, now: number, staleAfterMs: number): boolean {
+  return shouldRefresh(lastAt, now, staleAfterMs);
+}
+
 export interface AutoRefreshOptions {
-  /** Interval while the tab is visible. 0 or negative disables the interval, leaving focus-only. */
+  /** Interval while the tab is visible. 0 or negative disables the interval, leaving refresh-on-return only. */
   intervalMs?: number;
   /** Set false to suspend entirely — e.g. while a dialog is open, or a form is dirty. */
   enabled?: boolean;
   /** Minimum gap between refreshes, shared by both triggers. */
   minGapMs?: number;
+  /**
+   * Returning to the tab refetches only when the data is at least this old.
+   * Defaults to the interval (or DEFAULT_REFRESH_MS when the interval is off).
+   */
+  staleAfterMs?: number;
 }
 
 /**
- * Calls `refresh` when the tab regains focus, and on a slow interval while it
- * is visible. Never reloads the page.
+ * Calls `refresh` when the tab becomes visible again with stale data, and on
+ * a slow interval while it is visible. Never reloads the page.
  *
  * `refresh` may be recreated on every render (the usual case for a `load()`
  * defined in a component body) — it is held in a ref, so the listeners are
@@ -74,6 +91,7 @@ export interface AutoRefreshOptions {
  */
 export function useAutoRefresh(refresh: () => void | Promise<void>, options: AutoRefreshOptions = {}): void {
   const { intervalMs = DEFAULT_REFRESH_MS, enabled = true, minGapMs = MIN_REFRESH_GAP_MS } = options;
+  const staleAfterMs = Math.max(minGapMs, options.staleAfterMs ?? (intervalMs > 0 ? intervalMs : DEFAULT_REFRESH_MS));
 
   const refreshRef = useRef(refresh);
   refreshRef.current = refresh;
@@ -88,10 +106,10 @@ export function useAutoRefresh(refresh: () => void | Promise<void>, options: Aut
 
     let cancelled = false;
 
-    const run = async () => {
+    const run = async (gapMs: number) => {
       if (cancelled || inFlightRef.current) return;
       const now = Date.now();
-      if (!shouldRefresh(lastAtRef.current, now, minGapMs)) return;
+      if (!shouldRefresh(lastAtRef.current, now, gapMs)) return;
       lastAtRef.current = now;
       inFlightRef.current = true;
       try {
@@ -106,18 +124,15 @@ export function useAutoRefresh(refresh: () => void | Promise<void>, options: Aut
     };
 
     // Seeded as "just refreshed": every caller mounts right after its own
-    // initial load, so without this the first focus event would immediately
+    // initial load, so without this the first return to the tab would immediately
     // fetch the same data a second time.
     lastAtRef.current = Date.now();
 
-    const onFocus = () => {
-      void run();
-    };
+    // Tab visible again → refetch only if what's on screen is stale.
     const onVisibility = () => {
-      if (document.visibilityState === 'visible') void run();
+      if (document.visibilityState === 'visible') void run(staleAfterMs);
     };
 
-    window.addEventListener('focus', onFocus);
     document.addEventListener('visibilitychange', onVisibility);
 
     // Checked per tick rather than by starting/stopping the timer on
@@ -127,15 +142,14 @@ export function useAutoRefresh(refresh: () => void | Promise<void>, options: Aut
     const timer =
       intervalMs > 0
         ? window.setInterval(() => {
-            if (document.visibilityState === 'visible') void run();
+            if (document.visibilityState === 'visible') void run(minGapMs);
           }, intervalMs)
         : 0;
 
     return () => {
       cancelled = true;
-      window.removeEventListener('focus', onFocus);
       document.removeEventListener('visibilitychange', onVisibility);
       if (timer) window.clearInterval(timer);
     };
-  }, [enabled, intervalMs, minGapMs]);
+  }, [enabled, intervalMs, minGapMs, staleAfterMs]);
 }

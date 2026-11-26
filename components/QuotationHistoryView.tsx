@@ -4,12 +4,16 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { QuotationEffectiveStatus, QuotationRecord } from '@/lib/types';
 import { needsFollowUp } from '@/lib/followUp';
 import { closedQuotationsVisible, isClosedQuotation } from '@/lib/quotationVisibility';
+import { setListParam } from '@/lib/listParam';
 import AppShell from './AppShell';
+import CommonButton from './ui/CommonButton';
 import QuotationTable from './QuotationTable';
+import { SkeletonTable } from './ui/Skeleton';
 import { useToast } from './ui/ToastProvider';
 import styles from './quotationHistory.module.css';
 import FilterBar from './ui/FilterBar';
-import Select from './ui/Select';
+import SearchInput from './ui/SearchInput';
+import Dropdown from './ui/Dropdown';
 import Input from './ui/Input';
 import ToolbarButton, { ToolbarLink } from './ui/ToolbarButton';
 
@@ -39,8 +43,11 @@ export default function QuotationHistoryView({ title, subtitle, showXlsxExport =
   const [followUpOnly, setFollowUpOnly] = useState(false);
   const [orgWide, setOrgWide] = useState(true);
 
-  const [fSalesPerson, setFSalesPerson] = useState('');
-  const [fStatus, setFStatus] = useState<QuotationEffectiveStatus | ''>('');
+  const [fSalesPerson, setFSalesPerson] = useState<string[]>([]);
+  const [fStatus, setFStatus] = useState<QuotationEffectiveStatus[]>([]);
+  // Every sales person seen in any load so far, so narrowing to one never
+  // drops the others from the option list.
+  const [seenSalesPeople, setSeenSalesPeople] = useState<string[]>([]);
   const [fProjectId, setFProjectId] = useState('');
   const [fFrom, setFFrom] = useState('');
   const [fTo, setFTo] = useState('');
@@ -49,7 +56,8 @@ export default function QuotationHistoryView({ title, subtitle, showXlsxExport =
   // Same three ways in as the Projects list: an explicit Status pick, any
   // date range, or the person asking outright.
   const showClosed = closedQuotationsVisible({
-    statusFilter: fStatus,
+    // Any closed status among the picked ones lets closed quotations through.
+    statusFilter: fStatus.find((st) => st === 'approved' || st === 'rejected' || st === 'expired') ?? '',
     dateFilterActive: Boolean(fFrom || fTo),
     userOverride: includeClosed
   });
@@ -70,8 +78,8 @@ export default function QuotationHistoryView({ title, subtitle, showXlsxExport =
     try {
       const params = new URLSearchParams();
       if (searchValue.trim()) params.set('q', searchValue.trim());
-      if (fSalesPerson) params.set('salesPerson', fSalesPerson);
-      if (fStatus) params.set('status', fStatus);
+      setListParam(params, 'salesPerson', fSalesPerson);
+      setListParam(params, 'status', fStatus);
       if (fProjectId.trim()) params.set('projectId', fProjectId.trim());
       if (fFrom) params.set('dateFrom', fFrom);
       if (fTo) params.set('dateTo', fTo);
@@ -80,18 +88,24 @@ export default function QuotationHistoryView({ title, subtitle, showXlsxExport =
       if (!response.ok) throw new Error(`Server responded with ${response.status}`);
       const data: QuotationRecord[] = await response.json();
       setRows(data);
+      setSeenSalesPeople((prev) => {
+        const next = new Set(prev);
+        for (const r of data) if (r.created_by) next.add(r.created_by);
+        return next.size === prev.length ? prev : Array.from(next).sort();
+      });
       setStatus(data.length ? `${data.length} quotation${data.length === 1 ? '' : 's'} found.` : '');
       setLoaded(true);
     } catch {
       setStatus('Could not reach the quotation API. Click Refresh to try again.');
       setLoaded(false);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [searchValue, fSalesPerson, fStatus, fProjectId, fFrom, fTo]);
 
+  // Initial load only — later loads run on Search / Refresh, as before.
   useEffect(() => {
     loadQuotations();
-  }, [loadQuotations]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const visibleRows = useMemo(() => {
     return rows.filter((r) => {
@@ -108,7 +122,7 @@ export default function QuotationHistoryView({ title, subtitle, showXlsxExport =
     if (showClosed) return 0;
     return rows.filter((r) => isClosedQuotation(r)).length;
   }, [rows, showClosed]);
-  const salesPeople = useMemo(() => Array.from(new Set(rows.map((r) => r.created_by).filter(Boolean))).sort(), [rows]);
+  const salesPeople = useMemo(() => Array.from(new Set([...seenSalesPeople, ...fSalesPerson])).sort(), [seenSalesPeople, fSalesPerson]);
 
   async function handleDelete(id: string) {
     try {
@@ -153,29 +167,32 @@ export default function QuotationHistoryView({ title, subtitle, showXlsxExport =
   }
 
   return (
-    <AppShell title={title} subtitle={orgWide ? subtitle : 'Every quotation in your department, with a guaranteed-unique quotation number.'}>
+    <AppShell fillPage title={title} subtitle={orgWide ? subtitle : 'Every quotation in your department, with a guaranteed-unique quotation number.'}>
         <FilterBar>
-          <input
-            type="text"
+          <SearchInput
             placeholder="Search by quotation number, prepared by, client name, company, or project vertical..."
             value={searchValue}
-            onChange={(e) => setSearchValue(e.target.value)}
+            onChange={(v) => setSearchValue(v)}
             onKeyDown={(e) => {
               if (e.key === 'Enter') loadQuotations();
             }}
           />
-          <Select auto value={fSalesPerson} onChange={(e) => setFSalesPerson(e.target.value)}>
-            <option value="">All sales people</option>
-            {salesPeople.map((s) => (
-              <option key={s} value={s}>{s}</option>
-            ))}
-          </Select>
-          <Select auto value={fStatus} onChange={(e) => setFStatus(e.target.value as QuotationEffectiveStatus | '')}>
-            <option value="">All statuses</option>
-            {STATUS_OPTIONS.map((s) => (
-              <option key={s.value} value={s.value}>{s.label}</option>
-            ))}
-          </Select>
+          <Dropdown
+            multiselect
+            value={fSalesPerson}
+            onChange={setFSalesPerson}
+            placeholder="All sales people"
+            label="Sales person"
+            options={salesPeople.map((s) => ({ value: s, label: s }))}
+          />
+          <Dropdown
+            multiselect
+            value={fStatus}
+            onChange={(v) => setFStatus(v as QuotationEffectiveStatus[])}
+            placeholder="All statuses"
+            label="Status"
+            options={STATUS_OPTIONS}
+          />
           <input
             type="text"
             placeholder="Project ID"
@@ -204,20 +221,24 @@ export default function QuotationHistoryView({ title, subtitle, showXlsxExport =
             </ToolbarLink>
           )}
         </FilterBar>
-        <div className={styles.status}>{status}</div>
+        {!loaded && status === 'Loading...' ? (
+          <SkeletonTable rows={8} columns={10} />
+        ) : (
+          <div className={styles.status}>{status}</div>
+        )}
         {loaded && hiddenClosedCount > 0 && (
           <div className={styles.status}>
             {hiddenClosedCount} closed quotation{hiddenClosedCount === 1 ? '' : 's'} (Approved/Rejected/Expired) {hiddenClosedCount === 1 ? 'is' : 'are'} hidden.{' '}
-            <button type="button" className={styles.linkBtn} onClick={() => setIncludeClosed(true)}>
+            <CommonButton variant="link" size="sm" onClick={() => setIncludeClosed(true)}>
               Show {hiddenClosedCount === 1 ? 'it' : 'them'}
-            </button>
+            </CommonButton>
             {' '}— or pick a Status, or set any date range.
           </div>
         )}
         {loaded && includeClosed && (
           <div className={styles.status}>
             Closed quotations are shown.{' '}
-            <button type="button" className={styles.linkBtn} onClick={() => setIncludeClosed(false)}>Hide them again</button>
+            <CommonButton variant="link" size="sm" onClick={() => setIncludeClosed(false)}>Hide them again</CommonButton>
           </div>
         )}
         {loaded && (

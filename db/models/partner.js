@@ -24,7 +24,7 @@ module.exports = (sequelize, DataTypes) => {
     product_categories: { type: DataTypes.JSONB, allowNull: false, defaultValue: [] },
     territory: { type: DataTypes.JSONB, allowNull: false, defaultValue: [] },
     relationship_manager_id: { type: DataTypes.UUID },
-    // When the last onboarding document (Agreement, NDA, Payment Agreement)
+    // When the last onboarding document (Agreement, NDA, GST, PAN)
     // was approved by the account creator. NULL means onboarding is
     // incomplete: the partner may sign in but reaches only
     // /partner/onboarding. Partners that predate onboarding were backfilled

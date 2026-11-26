@@ -1,10 +1,11 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import Link from 'next/link';
+import Link from '@/components/ui/AppLink';
 import Modal, { ModalOkButton } from './ui/Modal';
 import ErrorState from './ui/ErrorState';
-import { SkeletonRows } from './ui/Skeleton';
+import StatCard, { StatCardGrid } from './ui/StatCard';
+import { SkeletonList, SkeletonStatCards } from './ui/Skeleton';
 import { TMS_ROLE_LABEL, TMS_TASK_STATUS_LABEL, todayIso } from '@/lib/tmsLabels';
 import styles from './departmentHealthDetail.module.css';
 
@@ -83,24 +84,19 @@ export default function TmsPersonDashboard({ userId, onClose }: TmsPersonDashboa
       {error ? (
         <ErrorState message={error} onRetry={() => setReloadKey((k) => k + 1)} />
       ) : !data ? (
-        <div className={styles.loadingWrap}><SkeletonRows rows={5} columns={3} /></div>
+        <div className={styles.loadingWrap} style={{ display: 'grid', gap: 18 }}>
+          <SkeletonStatCards count={3} withIcon={false} />
+          <SkeletonStatCards count={4} withIcon={false} />
+          <SkeletonList rows={4} avatar={false} />
+        </div>
       ) : (
         <>
           <h3 className={styles.sectionTitle}>Projects</h3>
-          <div className={styles.totalsGrid}>
-            <div className={styles.totalCard}>
-              <div className={styles.totalValue}>{data.projects.assigned}</div>
-              <div className={styles.totalLabel}>Assigned</div>
-            </div>
-            <div className={styles.totalCard}>
-              <div className={styles.totalValue}>{data.projects.active}</div>
-              <div className={styles.totalLabel}>Active</div>
-            </div>
-            <div className={styles.totalCard}>
-              <div className={styles.totalValue}>{data.projects.completed}</div>
-              <div className={styles.totalLabel}>Completed</div>
-            </div>
-          </div>
+          <StatCardGrid>
+            <StatCard value={data.projects.assigned} label="Assigned" />
+            <StatCard value={data.projects.active} label="Active" />
+            <StatCard value={data.projects.completed} label="Completed" />
+          </StatCardGrid>
 
           <h3 className={styles.sectionTitle}>
             Tasks{data.taskDerivedProgress !== null ? ` — ${data.taskDerivedProgress}% complete` : ''}
@@ -110,7 +106,7 @@ export default function TmsPersonDashboard({ userId, onClose }: TmsPersonDashboa
             <p className={styles.emptyNote}>No tasks assigned in TMS.</p>
           ) : (
             <>
-              <div className={styles.totalsGrid}>
+              <StatCardGrid>
                 {([
                   ['total', data.tasks.total, 'Total'],
                   ['completed', data.tasks.completed, 'Completed'],
@@ -118,17 +114,16 @@ export default function TmsPersonDashboard({ userId, onClose }: TmsPersonDashboa
                   ['blocked', data.tasks.blocked, 'Blocked'],
                   ['overdue', data.tasks.overdue, 'Overdue']
                 ] as [TaskTile, number, string][]).map(([tile, value, label]) => (
-                  <button
+                  <StatCard
                     key={tile}
-                    type="button"
-                    className={`${styles.totalCard} ${styles.totalCardClickable} ${taskFilter === tile ? styles.totalCardActive : ''}`}
+                    value={value}
+                    label={label}
+                    selected={taskFilter === tile}
                     onClick={() => setTaskFilter((f) => (f === tile ? null : tile))}
-                  >
-                    <div className={styles.totalValue}>{value}</div>
-                    <div className={styles.totalLabel}>{label}</div>
-                  </button>
+                    actionLabel={`Show ${label.toLowerCase()} tasks`}
+                  />
                 ))}
-              </div>
+              </StatCardGrid>
               {taskFilter && (() => {
                 const today = todayIso();
                 const filtered = data.tasksList.filter((t) => {

@@ -1,7 +1,7 @@
 'use client';
 
 import { FormEvent, useEffect, useState } from 'react';
-import { User as UserIcon } from 'lucide-react';
+import { Plus, User as UserIcon } from 'lucide-react';
 import { PublicUser, UserRole } from '@/lib/types';
 import { TMS_DEPARTMENTS, TMS_ROLE_KEYS } from '@/lib/tmsConstants';
 import { TMS_ROLE_LABEL } from '@/lib/tmsLabels';
@@ -10,15 +10,17 @@ import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
 import { useToast } from './ui/ToastProvider';
 import { useConfirm } from './ui/ConfirmDialog';
-import { SkeletonRows } from './ui/Skeleton';
+import { SkeletonTable } from './ui/Skeleton';
 import EmptyState from './ui/EmptyState';
 import ErrorState from './ui/ErrorState';
 import { Field, FieldRow } from './ui/Field';
 import Input from './ui/Input';
 import Select from './ui/Select';
 import SubmitButton from './ui/SubmitButton';
+import CommonButton from './ui/CommonButton';
 import ToolbarButton, { DeleteButton } from './ui/ToolbarButton';
 import Table, { TableColumn } from './ui/Table';
+import { RefreshButton } from './ui/ListControls';
 
 const EMPTY_FORM = {
   username: '',
@@ -212,11 +214,15 @@ export default function TmsUsersView({ currentUser, embedded }: TmsUsersViewProp
             shown once the form is open, because this same button is the form's
             Cancel and hiding it would leave no way out. */}
         {(users.length > 0 || showForm) && (
-          <button type="button" className={calcStyles.btn} onClick={() => setShowForm((v) => !v)}>
-            {showForm ? 'Cancel' : '+ New User'}
-          </button>
+          <CommonButton
+            variant={showForm ? 'secondary' : 'primary'}
+            leadingIcon={showForm ? undefined : <Plus />}
+            onClick={() => setShowForm((v) => !v)}
+          >
+            {showForm ? 'Cancel' : 'New User'}
+          </CommonButton>
         )}
-        <ToolbarButton onClick={load}>Refresh</ToolbarButton>
+        <RefreshButton onRefresh={load} loading={loading} pushRight />
       </div>
 
       {showForm && (
@@ -269,7 +275,7 @@ export default function TmsUsersView({ currentUser, embedded }: TmsUsersViewProp
       {!loading && !loadFailed && <div className={historyStyles.status}>{status}</div>}
 
       {loading ? (
-        <div className={historyStyles.tableWrap}><SkeletonRows rows={6} columns={6} /></div>
+        <SkeletonTable rows={6} columns={columns.length} />
       ) : loadFailed ? (
         <ErrorState message="Could not load TMS users — check your connection and try again." onRetry={load} />
       ) : users.length === 0 ? (
@@ -277,7 +283,7 @@ export default function TmsUsersView({ currentUser, embedded }: TmsUsersViewProp
           icon={UserIcon}
           title="No technical users yet"
           message="Create your first Technical Manager, Team Lead, Engineer, or Technician account."
-          action={<button type="button" className={calcStyles.btn} onClick={() => setShowForm(true)}>+ New User</button>}
+          action={<CommonButton variant="primary" leadingIcon={<Plus />} onClick={() => setShowForm(true)}>New User</CommonButton>}
         />
       ) : (
         <Table columns={columns} rows={users} rowKey={(u) => u.id} />
@@ -287,7 +293,7 @@ export default function TmsUsersView({ currentUser, embedded }: TmsUsersViewProp
 
   if (embedded) return content;
   return (
-    <AppShell title="TMS Users" subtitle="Manage technical team accounts, department, role, and access.">
+    <AppShell fillPage={!showForm} title="TMS Users" subtitle="Manage technical team accounts, department, role, and access.">
       {content}
     </AppShell>
   );

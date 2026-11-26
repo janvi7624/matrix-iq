@@ -847,7 +847,7 @@ a.kpiCardNew:hover .kpiHoverArrow {
    -------------------------------------------------------------------------- */
 .recentGrid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 1fr));
     gap: 16px;
     margin-top: 18px;
 }
@@ -1271,10 +1271,13 @@ a.kpiCardNew:hover .kpiHoverArrow {
 
 /* Leaderboard Table View for Health Matrix */
 .healthLeaderboardWrap {
+    /* mx-rtable-wrap: capped to one screen, rows scroll inside under a
+       sticky header (app/globals.css → "Table viewport"). */
+    composes: mx-rtable-wrap from global;
     margin-top: 16px;
     border-radius: 12px;
     border: 1px solid var(--mx-border);
-    overflow: hidden;
+    overflow: auto;
     background: #ffffff;
 }
 
@@ -1716,7 +1719,7 @@ a.kpiCardNew:hover .kpiHoverArrow {
 /* Module Grid */
 .grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(min(260px, 100%), 1fr));
     gap: 12px;
     margin: 12px 0 18px;
 }
@@ -1820,7 +1823,7 @@ a.kpiCardNew:hover .kpiHoverArrow {
 
 .searchResultsGrid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(min(260px, 100%), 1fr));
     gap: 12px;
     margin: 16px 0;
 }
@@ -2303,4 +2306,48 @@ a.kpiCardNew:hover .kpiHoverArrow {
 }
 .heroDailyDone:hover {
     background: rgba(255, 255, 255, 0.22);
+}
+
+/* --------------------------------------------------------------------------
+   Responsive fixes (hero + health filters)
+   The hero was one non-wrapping row whose actions never shrink
+   (flex-shrink: 0), so between ~770px and ~1100px the actions kept their
+   full width and crushed the greeting into a sliver that the buttons then
+   overlapped. It now wraps: the greeting keeps a sensible minimum width and
+   the actions drop onto their own row when they don't fit beside it.
+   The old .heroPrimaryBtn/.heroSecondaryBtn/.heroAnalyticsBtn phone rules
+   target classes the (CommonButton) actions no longer carry, so the phone
+   stretching is re-expressed on the children.
+   -------------------------------------------------------------------------- */
+.heroBanner { flex-wrap: wrap; }
+.heroContent { flex: 1 1 320px; }
+.heroActions { flex: 0 1 auto; margin-left: auto; justify-content: flex-end; }
+
+@media (max-width: 768px) {
+    .heroContent { flex-basis: 100%; }
+    .heroActions { margin-left: 0; justify-content: stretch; width: 100%; }
+    .heroActions > * { flex: 1 1 auto; justify-content: center; }
+}
+@media (max-width: 480px) {
+    .heroActions > * { width: 100%; }
+}
+
+.healthFilterPills { flex-wrap: wrap; max-width: 100%; }
+
+/* Responsive: these rows hold controls or a title + actions. They wrap
+   onto a second line when the screen is too narrow for them, instead of
+   overflowing or crushing their neighbours. No effect when they fit. */
+.kpiCardHead,
+.attentionHead,
+.attentionRow,
+.summaryHead,
+.summaryHeadActions,
+.recentCardHead,
+.recentRow,
+.healthTitleRow,
+.tileHead,
+.tileFooter,
+.celebrationHeader {
+    flex-wrap: wrap;
+    row-gap: 8px;
 }

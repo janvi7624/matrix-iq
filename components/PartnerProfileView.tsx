@@ -3,8 +3,10 @@
 import { FormEvent, useCallback, useEffect, useState } from 'react';
 import PartnerShell from './PartnerShell';
 import { useToast } from './ui/ToastProvider';
+import CommonButton from './ui/CommonButton';
 import calcStyles from './calculator.module.css';
 import styles from './partnerProfile.module.css';
+import { SkeletonForm } from './ui/Skeleton';
 
 interface ProfilePayload {
   company_name: string;
@@ -90,7 +92,7 @@ export default function PartnerProfileView({ companyName, partnerCode }: { compa
       {failed && <div className={calcStyles.small}>{failed}</div>}
 
       {!data ? (
-        <div className={calcStyles.sectionPanel}><p className={calcStyles.small}>Loading…</p></div>
+        failed ? null : <div className={calcStyles.sectionPanel}><SkeletonForm fields={6} /></div>
       ) : data.financial_details_scope !== 'partner' ? (
         // Read-only, NOT hidden. This branch used to render the sentence
         // alone, so a partner whose details are maintained internally — the
@@ -156,7 +158,7 @@ export default function PartnerProfileView({ companyName, partnerCode }: { compa
             </div>
           </div>
 
-          <button type="submit" className={calcStyles.btn} disabled={saving}>{saving ? 'Saving…' : 'Save'}</button>
+          <CommonButton type="submit" variant="primary" size="md" disabled={saving}>{saving ? 'Saving…' : 'Save'}</CommonButton>
         </form>
       )}
     </PartnerShell>

@@ -23,17 +23,20 @@ const STATUS_LABEL: Record<ProjectStatus, string> = { active: 'Active', on_hold:
 
 export type ClientSortKey = 'name' | 'company' | 'owner' | 'projects' | 'created' | 'updated';
 
+// company / owner / handlerName / type / outcome / handler take one value
+// (the original contract) or a list whose values are OR-ed; an empty list or
+// undefined means "no filter".
 export interface ClientMasterQuery {
   search?: string;
-  company?: string;
-  owner?: string;
-  handlerName?: string;
-  type?: ClientRowTypeFilter;
-  outcome?: string;
+  company?: string | string[];
+  owner?: string | string[];
+  handlerName?: string | string[];
+  type?: ClientRowTypeFilter | ClientRowTypeFilter[];
+  outcome?: string | string[];
   /** 'has' | 'none' — customers with / without an active project. */
   active?: string;
-  /** 'has' | 'none' — rows with / without a product handler. */
-  handler?: string;
+  /** 'has' | 'none' (or both) — rows with / without a product handler. */
+  handler?: string | string[];
   dateFrom?: string;
   dateTo?: string;
   sortKey?: ClientSortKey;
@@ -100,25 +103,36 @@ function searchHaystack(c: ClientMasterRow): string[] {
   ];
 }
 
+/** One value or a list → a list without blanks. */
+function toList<T extends string>(value: T | T[] | undefined): T[] {
+  return (Array.isArray(value) ? value : value ? [value] : []).filter(Boolean);
+}
+
 export function filterClients(clients: ClientMasterRow[], q: ClientMasterQuery): ClientMasterRow[] {
   const search = (q.search || '').trim().toLowerCase();
+  const companies = toList(q.company);
+  const owners = toList(q.owner);
+  const handlerNames = toList(q.handlerName);
+  const types = toList(q.type);
+  // 'not_called' is stored as the empty outcome.
+  const outcomes = toList(q.outcome).map((o) => (o === 'not_called' ? '' : o));
+  const handlers = toList(q.handler);
   return clients.filter((c) => {
-    if (q.company && c.displayName !== q.company) return false;
-    if (q.owner && !c.owners.some((o) => o.username === q.owner)) return false;
-    if (q.handlerName && !c.productHandlers.some((h) => h.product === q.handlerName)) return false;
-    if (q.type && c.type !== q.type) return false;
-    if (q.outcome) {
+    if (companies.length && !companies.includes(c.displayName)) return false;
+    if (owners.length && !c.owners.some((o) => owners.includes(o.username))) return false;
+    if (handlerNames.length && !c.productHandlers.some((h) => handlerNames.includes(h.product))) return false;
+    if (types.length && !types.includes(c.type)) return false;
+    if (outcomes.length) {
       // A row with no lead behind it has no outcome to match — including the
       // "not called yet" option, which means "has a lead, nobody rang it".
       if (c.leadCount === 0) return false;
-      if (q.outcome === 'not_called' ? c.callOutcome !== '' : c.callOutcome !== q.outcome) return false;
+      if (!outcomes.includes(c.callOutcome)) return false;
     }
     // Both project filters are about CUSTOMERS — a prospect has no project to
     // be active or inactive, so it belongs to neither bucket.
     if (q.active === 'has' && (isProspect(c) || !hasActiveProject(c))) return false;
     if (q.active === 'none' && (isProspect(c) || hasActiveProject(c))) return false;
-    if (q.handler === 'has' && c.productHandlers.length === 0) return false;
-    if (q.handler === 'none' && c.productHandlers.length > 0) return false;
+    if (handlers.length && !handlers.includes(c.productHandlers.length > 0 ? 'has' : 'none')) return false;
     if (q.dateFrom && (!c.createdAt || c.createdAt.slice(0, 10) < q.dateFrom)) return false;
     if (q.dateTo && (!c.createdAt || c.createdAt.slice(0, 10) > q.dateTo)) return false;
     if (search && !searchHaystack(c).some((v) => (v || '').toLowerCase().includes(search))) return false;

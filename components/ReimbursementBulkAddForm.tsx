@@ -1,10 +1,13 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { Plus, X } from 'lucide-react';
 import { useToast } from './ui/ToastProvider';
+import CommonButton from './ui/CommonButton';
+import CommonChip from './ui/CommonChip';
 import calcStyles from './calculator.module.css';
-import historyStyles from './quotationHistory.module.css';
 import styles from './reimbursement.module.css';
+import Select from '@/components/ui/Select';
 
 interface UserOption { id: string; username: string; name: string }
 
@@ -210,7 +213,9 @@ export default function ReimbursementBulkAddForm({ users, myUserId, dateMin, dat
     <>
       <h2 className={`${calcStyles.h2} ${styles.h2SpacedTop}`}>Add Multiple Entries</h2>
       <div className={calcStyles.sectionPanel}>
-        <div className={styles.bulkTableWrap}>
+        {/* Plain wrapper: keeps this form at its natural height inside a fill-the-screen list page (app/globals.css → .mx-fill-page) — the table is capped to one screen and scrolls inside on its own. */}
+        <div>
+        <div className={`${styles.bulkTableWrap} mx-rtable-wrap`}>
           <table className={styles.bulkTable}>
             <thead>
               <tr>
@@ -245,20 +250,21 @@ export default function ReimbursementBulkAddForm({ users, myUserId, dateMin, dat
             </tbody>
           </table>
         </div>
+        </div>
 
         <div className={styles.bulkFooterRow}>
-          <button type="button" className={historyStyles.button} onClick={() => addRows(1)}>+ Add Row</button>
-          <button type="button" className={historyStyles.button} onClick={() => addRows(5)}>+ Add 5 Rows</button>
+          <CommonButton leadingIcon={<Plus />} onClick={() => addRows(1)}>Add Row</CommonButton>
+          <CommonButton leadingIcon={<Plus />} onClick={() => addRows(5)}>Add 5 Rows</CommonButton>
           <span className={styles.bulkTotalText}>
             {filledCount > 0 && <>Running total: <strong>₹{total.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong></>}
           </span>
         </div>
 
         <div className={styles.formSubmitRow}>
-          <button type="button" className={`${historyStyles.button} ${historyStyles.primary}`} disabled={saving || filledCount === 0} onClick={handleSaveAll}>
-            {saving ? 'Saving…' : `Save All${filledCount > 0 ? ` (${filledCount})` : ''}`}
-          </button>
-          <button type="button" className={historyStyles.button} onClick={onClose}>Cancel</button>
+          <CommonButton variant="primary" loading={saving} loadingLabel="Saving…" disabled={filledCount === 0} onClick={handleSaveAll}>
+            {`Save All${filledCount > 0 ? ` (${filledCount})` : ''}`}
+          </CommonButton>
+          <CommonButton onClick={onClose}>Cancel</CommonButton>
         </div>
       </div>
     </>
@@ -297,8 +303,8 @@ function BulkRowView({
           <input type="date" className={calcStyles.formControl} min={dateMin} max={dateMax} value={row.date} onChange={(e) => onChange({ date: e.target.value })} />
         </td>
         <td>
-          <select
-            className={calcStyles.formControl}
+          <Select
+            dropdownSize="sm"
             value={row.descriptionType}
             onChange={(e) => {
               const val = e.target.value;
@@ -307,7 +313,7 @@ function BulkRowView({
           >
             <option value="">— Select —</option>
             {DESCRIPTION_OPTIONS.map((d) => <option key={d} value={d}>{d}</option>)}
-          </select>
+          </Select>
         </td>
         <td>
           <input
@@ -317,10 +323,10 @@ function BulkRowView({
           />
         </td>
         <td>
-          <select className={calcStyles.formControl} value={row.modeOfPayment} onChange={(e) => onChange({ modeOfPayment: e.target.value })}>
+          <Select dropdownSize="sm" value={row.modeOfPayment} onChange={(e) => onChange({ modeOfPayment: e.target.value })}>
             <option value="">—</option>
             {MODE_OPTIONS.map((m) => <option key={m} value={m}>{m}</option>)}
-          </select>
+          </Select>
         </td>
         <td>
           {row.attachmentUrls.length > 0 ? (
@@ -333,13 +339,13 @@ function BulkRowView({
           )}
         </td>
         <td>
-          <button type="button" className={styles.bulkCompanionBtn} onClick={() => setShowCompanionPicker((v) => !v)}>
+          <CommonButton variant="outlined" size="sm" onClick={() => setShowCompanionPicker((v) => !v)}>
             You{companions.length > 0 ? ` +${companions.length}` : ''}
-          </button>
+          </CommonButton>
         </td>
         <td>
           {canRemove && (
-            <button type="button" className={styles.bulkRemoveBtn} onClick={onRemoveRow} title="Remove row" aria-label="Remove row">&times;</button>
+            <CommonButton variant="ghost" size="sm" iconOnly leadingIcon={<X />} onClick={onRemoveRow} title="Remove row" aria-label="Remove row" />
           )}
         </td>
       </tr>
@@ -390,18 +396,21 @@ function BulkRowView({
                   {companions.map((id) => {
                     const u = users.find((x) => x.id === id);
                     return (
-                      <span key={id} className={`${historyStyles.rolePill} ${styles.employeePill} ${styles.employeePillOther}`}>
-                        {u?.name || u?.username || id}
-                        <button type="button" onClick={() => onRemoveCompanion(id)} className={styles.pillRemoveBtn}>&times;</button>
-                      </span>
+                      <CommonChip
+                        key={id}
+                        size="sm"
+                        label={u?.name || u?.username || id}
+                        onRemove={() => onRemoveCompanion(id)}
+                        removeLabel={`Remove ${u?.name || u?.username || 'companion'}`}
+                      />
                     );
                   })}
-                  <select className={calcStyles.formControl} onChange={(e) => { onAddCompanion(e.target.value); e.target.value = ''; }}>
+                  <Select dropdownSize="sm" value="" onChange={(e) => onAddCompanion(e.target.value)}>
                     <option value="">— Add companion —</option>
                     {users.filter((u) => !row.employeeIds.includes(u.id)).map((u) => (
                       <option key={u.id} value={u.id}>{u.name || u.username}</option>
                     ))}
-                  </select>
+                  </Select>
                 </div>
               )}
               {row.error && <span className={styles.bulkRowErrorText}>{row.error}</span>}

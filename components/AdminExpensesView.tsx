@@ -5,8 +5,13 @@ import { useRouter } from 'next/navigation';
 import AppShell from './AppShell';
 import { useToast } from './ui/ToastProvider';
 import AdminExpenseBulkForm from './AdminExpenseBulkForm';
+import { Plus, Check, Pencil, Trash2 } from 'lucide-react';
+import CommonButton from './ui/CommonButton';
 import historyStyles from './quotationHistory.module.css';
 import styles from './adminExpenses.module.css';
+import { SkeletonTable } from './ui/Skeleton';
+import RowActions from './ui/RowActions';
+import TablePager, { usePagination } from './ui/TablePager';
 
 export interface UserOption { id: string; username: string; name: string }
 
@@ -73,6 +78,8 @@ export default function AdminExpensesView({ currentUser }: { currentUser: { user
   const router = useRouter();
   const isApprover = currentUser.username === APPROVER_USERNAME;
   const [entries, setEntries] = useState<AdminEntry[]>([]);
+  // Rows per page + page number for the table footer (components/ui/TablePager).
+  const pager = usePagination(entries, 25);
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState<string | null>(null);
   const [approving, setApproving] = useState<string | null>(null);
@@ -123,23 +130,24 @@ export default function AdminExpensesView({ currentUser }: { currentUser: { user
 
   return (
     <AppShell title="Admin Expenses" subtitle="Add hotel & ticket expenses split across employees">
-      <div className={styles.pageWrap}>
+      <div className={`${styles.pageWrap} mx-fill-page`}>
         <div className={styles.headerRow}>
           <h2 className={styles.headerTitle}>Admin Expenses</h2>
           <div className={styles.headerActions}>
             {/* Same pair of entry points reimbursement and Office Operation
                 offer: one expense gets its own page, several are entered
                 inline here. */}
-            <button type="button" className={historyStyles.button} onClick={() => setBulkOpen((v) => !v)}>
-              {bulkOpen ? 'Cancel' : '+ Add Multiple'}
-            </button>
-            <button
-              type="button"
-              className={`${historyStyles.button} ${historyStyles.primary}`}
+            <CommonButton variant="secondary" size="md" leadingIcon={bulkOpen ? undefined : <Plus />} onClick={() => setBulkOpen((v) => !v)}>
+              {bulkOpen ? 'Cancel' : 'Add Multiple'}
+            </CommonButton>
+            <CommonButton
+              variant="primary"
+              size="md"
+              leadingIcon={<Plus />}
               onClick={() => router.push('/admin-expenses/new')}
             >
-              + Add Expense
-            </button>
+              Add Expense
+            </CommonButton>
           </div>
         </div>
 
@@ -148,14 +156,15 @@ export default function AdminExpensesView({ currentUser }: { currentUser: { user
         )}
 
         {loading ? (
-          <div className={styles.centerMuted}>Loading…</div>
+          <SkeletonTable columns={9} rows={6} />
         ) : entries.length === 0 ? (
           <div className={styles.centerMutedSmall}>
             No admin expenses added yet. Click &quot;+ Add Expense&quot; to get started.
           </div>
         ) : (
+          <>
           <div className={`${historyStyles.tableWrap} ${styles.actionsStickyWrap}`}>
-            <table className={`${historyStyles.table} ${historyStyles.tableFixed}`}>
+            <table className={historyStyles.table}>
               <thead>
                 <tr>
                   <th className={styles.colDate}>Date</th>
@@ -165,14 +174,14 @@ export default function AdminExpensesView({ currentUser }: { currentUser: { user
                   <th className={styles.colEmployees}>Employees</th>
                   <th className={styles.colPerPerson}>Per Person (₹)</th>
                   <th className={styles.colAdded}>Added</th>
-                  <th className={styles.colAdded}>Status</th>
+                  <th className={styles.colStatus}>Status</th>
                   <th className={styles.colActions}>Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {entries.map((entry) => (
+                {pager.rows.map((entry) => (
                   <tr key={entry.batchId}>
-                    <td className={styles.nowrap}>
+                    <td className={styles.dateCell}>
                       {/* Any type can carry a check_out_date now (Hotel's
                           own check-out, or a return flight's return date) —
                           both get the same range + day-count treatment. */}
@@ -196,7 +205,7 @@ export default function AdminExpensesView({ currentUser }: { currentUser: { user
                     <td>
                       {entry.to_location ? `${entry.from_location} → ${entry.to_location}` : (entry.from_location || '—')}
                     </td>
-                    <td className={styles.boldCell}>{formatCurrency(entry.total_amount)}</td>
+                    <td className={`${styles.boldCell} ${styles.nowrap}`}>{formatCurrency(entry.total_amount)}</td>
                     <td className={styles.colEmployees}>
                       {/* Collapsed by default (row stays single-line, no
                           horizontal scroll) — hovering the row swaps to the
@@ -220,7 +229,7 @@ export default function AdminExpensesView({ currentUser }: { currentUser: { user
                         ))}
                       </div>
                     </td>
-                    <td className={styles.perPersonCell}>{formatCurrency(entry.per_person)}</td>
+                    <td className={`${styles.perPersonCell} ${styles.nowrap}`}>{formatCurrency(entry.per_person)}</td>
                     <td className={styles.addedCell}>
                       {formatDate(entry.created_at)}
                     </td>
@@ -234,41 +243,42 @@ export default function AdminExpensesView({ currentUser }: { currentUser: { user
                       )}
                     </td>
                     <td className={styles.colActions}>
-                      <div className={styles.rowActions}>
-                        {isApprover && entry.approval_status === 'pending_approval' && (
-                          <button
-                            type="button"
-                            onClick={() => handleApprove(entry.batchId)}
-                            disabled={approving === entry.batchId}
-                            className={styles.editRowBtn}
-                            style={{ opacity: approving === entry.batchId ? 0.5 : 1 }}
-                          >
-                            {approving === entry.batchId ? '…' : 'Approve'}
-                          </button>
-                        )}
-                        <button
-                          type="button"
-                          onClick={() => router.push(`/admin-expenses/${encodeURIComponent(entry.batchId)}/edit`)}
-                          className={styles.editRowBtn}
-                        >
-                          Edit
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleDelete(entry.batchId)}
-                          disabled={deleting === entry.batchId}
-                          className={styles.deleteRowBtn}
-                          style={{ opacity: deleting === entry.batchId ? 0.5 : 1 }}
-                        >
-                          {deleting === entry.batchId ? '…' : 'Delete'}
-                        </button>
-                      </div>
+                      <RowActions
+                        label={`Actions for ${entry.batchId}`}
+                        actions={[
+                          {
+                            key: 'approve', pinned: true,
+                            label: approving === entry.batchId ? 'Approving…' : 'Approve',
+                            icon: <Check />,
+                            hidden: !(isApprover && entry.approval_status === 'pending_approval'),
+                            disabled: approving === entry.batchId,
+                            variant: 'success',
+                            onClick: () => handleApprove(entry.batchId)
+                          },
+                          {
+                            key: 'edit',
+                            label: 'Edit',
+                            icon: <Pencil />,
+                            onClick: () => router.push(`/admin-expenses/${encodeURIComponent(entry.batchId)}/edit`)
+                          },
+                          {
+                            key: 'delete',
+                            label: deleting === entry.batchId ? 'Deleting…' : 'Delete',
+                            icon: <Trash2 />,
+                            destructive: true,
+                            disabled: deleting === entry.batchId,
+                            onClick: () => handleDelete(entry.batchId)
+                          }
+                        ]}
+                      />
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
+          <TablePager {...pager.props} noun="expenses" />
+          </>
         )}
       </div>
     </AppShell>

@@ -22,7 +22,7 @@ export default function ProductsAdminView() {
   const [tab, setTab] = useState<'master' | 'catalog'>(initialTab);
 
   return (
-    <AppShell title="Products" subtitle="Administration › products available in quotations, and price/name overrides on the built-in AV, Robotics, AI Analytics & VisitIQ catalogs.">
+    <AppShell fillPage title="Products" subtitle="Administration › products available in quotations, and price/name overrides on the built-in AV, Robotics, AI Analytics & VisitIQ catalogs.">
       <div className={historyStyles.tabBar}>
         {TABS.map((t) => (
           <button

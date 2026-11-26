@@ -15,6 +15,7 @@ import { loadClaimStatusKeys } from './dailyReportLeaveClaimStore';
 import { loadWarningKeys } from './dailyReportWarningStore';
 import { employeeOwesDate, listEligibleEmployees } from './dailyReportEligibility';
 import { resolveDailyReportScope } from './dailyReportAccess';
+import { narrowDepartmentScope } from './dailyReportDepartmentFilter';
 import { addDays, istDate, workingDaysBetween } from './dailyReportTime';
 import { DailyReportFieldDef, TemplateDefinition, computeDerivedValues } from './dailyReportTemplates';
 
@@ -38,7 +39,8 @@ export const MAX_MATRIX_DAYS = 62;
 export interface MatrixFilters {
   from?: string;
   to?: string;
-  departmentId?: string;
+  /** One department id or several (multi-select); each must be in the viewer's scope. */
+  departmentId?: string | string[];
   search?: string;
   /** Employee id whose per-day tasks to include. */
   expand?: string;
@@ -86,13 +88,13 @@ export async function buildTeamMatrix(viewer: ViewerContext, filters: MatrixFilt
   // A departmentId in the query may only ever NARROW the viewer's scope.
   // Passing someone else's id falls back to the viewer's own departments
   // rather than leaking theirs.
-  const departmentIds =
-    filters.departmentId && scope.departmentIds.includes(filters.departmentId) ? [filters.departmentId] : scope.departmentIds;
+  // Several ids may be asked for; each is checked against the scope.
+  const { departmentIds, narrowed } = narrowDepartmentScope(scope.departmentIds, filters.departmentId);
 
   // Direct reports are added only when the viewer has NOT narrowed to one
   // department: with a department picked, the list must mean that department
   // and nothing else, and a reportee in it is already included by it.
-  const extraUserIds = filters.departmentId ? [] : scope.manageUserIds;
+  const extraUserIds = narrowed ? [] : scope.manageUserIds;
   const employees = departmentIds.length || extraUserIds.length ? await listEligibleEmployees(departmentIds, extraUserIds) : [];
 
   const search = (filters.search ?? '').trim().toLowerCase();

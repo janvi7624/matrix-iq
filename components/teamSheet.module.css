@@ -96,8 +96,11 @@
 
 /* --- the grid --- */
 
+/* mx-rtable-wrap: one screen tall at most on desktop, rows scroll inside under
+   the sticky header row (app/globals.css → "Table viewport"). */
 .gridWrap {
-  overflow-x: auto;
+  composes: mx-rtable-wrap from global;
+  overflow: auto;
   border: 1px solid var(--mx-border, #e2e8f0);
   border-radius: 8px;
   background: var(--mx-surface, #fff);
@@ -130,7 +133,9 @@
 }
 
 .stickyHead {
-  z-index: 3;
+  /* The corner: sticky both ways, above every other sticky cell. */
+  top: 0;
+  z-index: 4;
   padding: 8px 12px;
   font-size: 11px;
   letter-spacing: 0.4px;
@@ -141,6 +146,9 @@
 
 .dayHead,
 .totalHead {
+  position: sticky;
+  top: 0;
+  z-index: 3;
   padding: 6px 0;
   background: var(--mx-surface-muted, #f8fafc);
   font-size: 11px;
@@ -372,9 +380,11 @@
 .dayBreak { font-weight: 700; }
 
 .sheetWrap {
-  overflow-x: auto;
-  max-height: 520px;
-  overflow-y: auto;
+  composes: mx-rtable-wrap from global;
+  overflow: auto;
+}
+@media (max-width: 640px) {
+  .sheetWrap { max-height: 520px; }
 }
 
 .sheetTable {
@@ -419,7 +429,9 @@
   font-variant-numeric: tabular-nums;
 }
 
-.sheetDateHead { z-index: 3; background: var(--mx-surface-muted, #f8fafc); }
+/* The corner cell sits above both the header row and the date column. */
+.sheetTable thead th.sheetDateHead { z-index: 3; background: var(--mx-surface-muted, #f8fafc); }
+.sheetDateCell { z-index: 1; }
 
 .lateTag {
   display: block;
@@ -441,3 +453,10 @@
   .stickyHead,
   .stickyCell { min-width: 150px; }
 }
+
+/* Shared vertical spacing between stacked blocks (app/globals.css → "Stack spacing"). */
+.sheetBanner { composes: mx-block from global; }
+
+.sheetStats { composes: mx-block from global; }
+
+.sheetWrap { composes: mx-block from global; }

@@ -1,58 +1,48 @@
 'use client';
 
 import { ReactNode } from 'react';
-import calcStyles from '../calculator.module.css';
+import StatCard, { StatCardTone } from './StatCard';
 import styles from './statTile.module.css';
 
 export type StatTone = 'default' | 'success' | 'danger' | 'warning' | 'info' | 'accent' | 'brand';
-
-const TONE_CLASS: Record<Exclude<StatTone, 'default'>, string> = {
-  success: styles.statSuccess,
-  danger: styles.statDanger,
-  warning: styles.statWarning,
-  info: styles.statInfo,
-  accent: styles.statAccent,
-  brand: styles.statBrand
-};
 
 export interface StatTileProps {
   value: ReactNode;
   label: ReactNode;
   icon?: ReactNode;
-  /** Default 'before' — icon renders ahead of the value. */
+  /** Default 'before' — icon renders in the card's icon tile; 'after' keeps it inline after the value. */
   iconPosition?: 'before' | 'after';
   tone?: StatTone;
-  /** Presence of onClick renders a <button>; otherwise a plain <div>. */
+  /** Presence of onClick renders a clickable card (with the open arrow); otherwise a static card. */
   onClick?: () => void;
   active?: boolean;
   ariaPressed?: boolean;
 }
 
-// Panel chrome from calculator.module.css's .sectionPanel (same as before);
-// layout/interactive/tone from statTile.module.css, moved verbatim from
-// components/leadAssignment.module.css so nothing shifts visually.
+// Back-compat wrapper: existing call sites keep this API, rendering goes
+// through the shared StatCard so every KPI tile in the app looks and
+// behaves the same — neutral card, colour only on interaction and as a
+// small tint on the icon tile.
 export default function StatTile({ value, label, icon, iconPosition = 'before', tone = 'default', onClick, active, ariaPressed }: StatTileProps) {
-  const valueClass = [styles.statValue, tone !== 'default' ? TONE_CLASS[tone] : ''].filter(Boolean).join(' ');
-  const content = (
-    <>
-      <div className={valueClass}>
-        {icon && iconPosition === 'before' && icon}
-        {value}
-        {icon && iconPosition === 'after' && icon}
-      </div>
-      <div className={calcStyles.small}>{label}</div>
-    </>
+  const inlineAfter = icon && iconPosition === 'after';
+  return (
+    <StatCard
+      value={
+        inlineAfter ? (
+          <span className={styles.inlineValue}>
+            {value}
+            {icon}
+          </span>
+        ) : (
+          value
+        )
+      }
+      label={label}
+      icon={inlineAfter ? undefined : icon}
+      tone={tone as StatCardTone}
+      className={styles.statTile}
+      onClick={onClick}
+      selected={onClick ? (ariaPressed ?? active) : undefined}
+    />
   );
-
-  if (onClick) {
-    const classes = [calcStyles.sectionPanel, styles.statBtn, active ? styles.statActive : ''].filter(Boolean).join(' ');
-    return (
-      <button type="button" className={classes} onClick={onClick} aria-pressed={ariaPressed}>
-        {content}
-      </button>
-    );
-  }
-
-  const classes = [calcStyles.sectionPanel, styles.statTile].filter(Boolean).join(' ');
-  return <div className={classes}>{content}</div>;
 }

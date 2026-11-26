@@ -8,7 +8,12 @@ import calcStyles from '@/components/calculator.module.css';
 import { useToast } from '@/components/ui/ToastProvider';
 import { useConfirm } from '@/components/ui/ConfirmDialog';
 import { usePrompt } from '@/components/ui/PromptDialog';
+import { Plus, ShieldCheck, Pencil, Copy, Power, Trash2 } from 'lucide-react';
+import CommonButton from '@/components/ui/CommonButton';
+import CommonChip from '@/components/ui/CommonChip';
+import { SkeletonTable } from '@/components/ui/Skeleton';
 import pageStyles from './rolesPage.module.css';
+import RowActions from '@/components/ui/RowActions';
 
 const PERMISSION_ACTIONS: { key: ModulePermissionAction; label: string }[] = [
   { key: 'view', label: 'View' },
@@ -240,7 +245,7 @@ export default function RoleManagementPage() {
   }
 
   return (
-    <AppShell title="Role Management" subtitle="Administration › create roles and configure what each one can see and do — no code required.">
+    <AppShell fillPage={!selectedRole} title="Role Management" subtitle="Administration › create roles and configure what each one can see and do — no code required.">
         <h2 className={`${calcStyles.h2} ${calcStyles.h2Flush}`}>Add role</h2>
         <form className={calcStyles.sectionPanel} onSubmit={handleCreate}>
           {createError && <div className={historyStyles.loginError}>{createError}</div>}
@@ -258,11 +263,15 @@ export default function RoleManagementPage() {
             <input type="checkbox" checked={isPrivileged} onChange={(e) => setIsPrivileged(e.target.checked)} />
             Privileged (reaches the Administration area and sees org-wide records, not just their own)
           </label>
-          <button type="submit" className={calcStyles.btn} disabled={creating}>{creating ? 'Adding...' : '+ Add role'}</button>
+          <CommonButton type="submit" variant="primary" size="md" leadingIcon={creating ? undefined : <Plus />} disabled={creating}>{creating ? 'Adding...' : 'Add role'}</CommonButton>
         </form>
 
         <h2 className={calcStyles.h2}>Roles</h2>
-        <div className={historyStyles.status}>{status}</div>
+        {roles.length === 0 && status === 'Loading...' ? (
+          <SkeletonTable columns={5} rows={6} />
+        ) : (
+        <>
+        <div className={historyStyles.status}>{status === 'Loading...' ? '' : status}</div>
         <div className={historyStyles.tableWrap}>
           <table className={historyStyles.table}>
             <thead>
@@ -289,8 +298,8 @@ export default function RoleManagementPage() {
                         </td>
                         <td colSpan={2}>
                           <div className={pageStyles.actionsRow6}>
-                            <button type="button" className={`${historyStyles.button} ${historyStyles.primary}`} onClick={() => saveEdit(r.id)}>Save</button>
-                            <button type="button" className={historyStyles.button} onClick={() => { setEditingId(null); setEditState(null); }}>Cancel</button>
+                            <CommonButton variant="primary" size="sm" onClick={() => saveEdit(r.id)}>Save</CommonButton>
+                            <CommonButton variant="secondary" size="sm" onClick={() => { setEditingId(null); setEditState(null); }}>Cancel</CommonButton>
                           </div>
                         </td>
                       </>
@@ -313,17 +322,21 @@ export default function RoleManagementPage() {
                     )}
                     {!isEditing && (
                       <td>
-                        <div className={historyStyles.rowActionsInline}>
-                          <button type="button" className={historyStyles.button} onClick={() => setSelectedId(r.id === selectedId ? null : r.id)}>
-                            {selectedId === r.id ? 'Hide permissions' : 'Configure permissions'}
-                          </button>
-                          <button type="button" className={historyStyles.button} onClick={() => startEdit(r)}>Edit</button>
-                          <button type="button" className={historyStyles.button} onClick={() => handleClone(r)}>Clone</button>
-                          <button type="button" className={historyStyles.button} onClick={() => toggleStatus(r)}>
-                            {r.status === 'active' ? 'Deactivate' : 'Activate'}
-                          </button>
-                          {!r.isSystem && <button type="button" className={historyStyles.deleteBtn} onClick={() => handleDelete(r)}>Delete</button>}
-                        </div>
+                        <RowActions
+                          label={`Actions for role ${r.label}`}
+                          actions={[
+                            {
+                              key: 'permissions',
+                              label: selectedId === r.id ? 'Hide permissions' : 'Configure permissions',
+                              icon: <ShieldCheck />,
+                              onClick: () => setSelectedId(r.id === selectedId ? null : r.id)
+                            },
+                            { key: 'edit', label: 'Edit', icon: <Pencil />, onClick: () => startEdit(r) },
+                            { key: 'clone', label: 'Clone', icon: <Copy />, onClick: () => handleClone(r) },
+                            { key: 'status', label: r.status === 'active' ? 'Deactivate' : 'Activate', icon: <Power />, onClick: () => toggleStatus(r) },
+                            { key: 'delete', label: 'Delete', icon: <Trash2 />, destructive: true, hidden: r.isSystem, onClick: () => handleDelete(r) }
+                          ]}
+                        />
                       </td>
                     )}
                   </tr>
@@ -332,6 +345,8 @@ export default function RoleManagementPage() {
             </tbody>
           </table>
         </div>
+        </>
+        )}
 
         {selectedRole && (
           <div className={pageStyles.mt24}>
@@ -341,21 +356,25 @@ export default function RoleManagementPage() {
             </div>
 
             <div className={historyStyles.permToolbar}>
-              <button type="button" className={historyStyles.button} onClick={() => setCollapsedGroups(new Set())}>Expand All</button>
-              <button type="button" className={historyStyles.button} onClick={() => setCollapsedGroups(new Set(modulesBySection.keys()))}>Collapse All</button>
+              <CommonButton variant="secondary" size="md" onClick={() => setCollapsedGroups(new Set())}>Expand All</CommonButton>
+              <CommonButton variant="secondary" size="md" onClick={() => setCollapsedGroups(new Set(modulesBySection.keys()))}>Collapse All</CommonButton>
               <span className={pageStyles.toolbarDivider} />
-              <button type="button" className={historyStyles.button} onClick={() => setAllPermissions(selectedRole, true)}>Select All Permissions</button>
-              <button type="button" className={historyStyles.button} onClick={() => setAllPermissions(selectedRole, false)}>Clear All Permissions</button>
+              <CommonButton variant="secondary" size="md" onClick={() => setAllPermissions(selectedRole, true)}>Select All Permissions</CommonButton>
+              <CommonButton variant="secondary" size="md" onClick={() => setAllPermissions(selectedRole, false)}>Clear All Permissions</CommonButton>
             </div>
 
             <div className={`${calcStyles.sectionPanel} ${pageStyles.globalCapsPanel}`}>
               <div className={`${historyStyles.navGroupLabel} ${calcStyles.h2Flush}`}>Global capabilities</div>
               <div className={pageStyles.capsWrap}>
                 {GLOBAL_CAPABILITIES.map((cap) => (
-                  <label key={cap.key} className={`${historyStyles.permRowSelectLabel} ${pageStyles.capChip}`} title={cap.hint}>
-                    <input type="checkbox" checked={selectedRole.permissions[cap.key]} onChange={() => toggleGlobalCapability(selectedRole, cap.key)} />
-                    <span className={pageStyles.capLabelText}>{cap.label}</span>
-                  </label>
+                  <CommonChip
+                    key={cap.key}
+                    title={cap.hint}
+                    selected={!!selectedRole.permissions[cap.key]}
+                    onClick={() => toggleGlobalCapability(selectedRole, cap.key)}
+                  >
+                    {cap.label}
+                  </CommonChip>
                 ))}
               </div>
             </div>
@@ -370,7 +389,7 @@ export default function RoleManagementPage() {
                     <span className={historyStyles.permGroupCount}>{list.length} module{list.length === 1 ? '' : 's'}</span>
                   </button>
                   {!collapsed && (
-                    <div className={historyStyles.permTableScroll}>
+                    <div className={`${historyStyles.permTableScroll} ${pageStyles.permScroll}`}>
                       <table className={historyStyles.permTable}>
                         <thead>
                           <tr>

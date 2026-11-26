@@ -1,6 +1,6 @@
 'use client';
 
-import Link from 'next/link';
+import Link from '@/components/ui/AppLink';
 import { Building2, CalendarClock, ClipboardList, FileText, MapPin, MessageSquareText, MonitorPlay, Package, Target, User, Users } from 'lucide-react';
 import { DemoScheduleRecord } from '@/lib/types';
 import { DOMAIN_DISPLAY_NAME } from '@/lib/domainLabels';

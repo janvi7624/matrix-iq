@@ -2,9 +2,13 @@
 
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
-import Link from 'next/link';
+import Link from '@/components/ui/AppLink';
 import { PublicUser, RoleRecord } from '@/lib/types';
+import { ArrowRight } from 'lucide-react';
 import AppShell from '@/components/AppShell';
+import CommonButton from '@/components/ui/CommonButton';
+import PageBackButton from '@/components/ui/PageBackButton';
+import { SkeletonCards, SkeletonDetail } from '@/components/ui/Skeleton';
 import historyStyles from '@/components/quotationHistory.module.css';
 import calcStyles from '@/components/calculator.module.css';
 import styles from './profilePage.module.css';
@@ -90,14 +94,20 @@ export default function EmployeeProfilePage() {
 
   return (
     <AppShell title={user ? user.name : 'Employee Profile'} subtitle="Administration › User Management › Employee Profile">
-        {user && (
-          <div className={styles.topActionsRow}>
-            <Link className={historyStyles.button} href={`/admin/performance-review?user=${encodeURIComponent(user.username)}`}>
-              View Full Performance Review →
-            </Link>
-          </div>
-        )}
-        {user === undefined && <div className={historyStyles.status}>Loading profile...</div>}
+        <div className={styles.topActionsRow}>
+          <PageBackButton fallbackRoute="/admin/users" />
+          {user && (
+            <CommonButton
+              href={`/admin/performance-review?user=${encodeURIComponent(user.username)}`}
+              variant="secondary"
+              size="md"
+              trailingIcon={<ArrowRight />}
+            >
+              View Full Performance Review
+            </CommonButton>
+          )}
+        </div>
+        {user === undefined && <SkeletonDetail panels={3} pairs={4} withTopRow={false} />}
         {user === null && <div className={historyStyles.status}>Employee not found.</div>}
         {user && (
           <>
@@ -136,7 +146,7 @@ export default function EmployeeProfilePage() {
 
             <h2 className={calcStyles.h2}>Activity</h2>
             {activityLoading ? (
-              <div className={historyStyles.status}>Loading activity...</div>
+              <SkeletonCards count={4} minWidth={220} />
             ) : activity ? (
               <>
                 <div className={styles.activityGroupsRow}>

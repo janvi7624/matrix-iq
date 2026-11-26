@@ -1,7 +1,6 @@
 'use client';
 
 import { FormEvent, useCallback, useEffect, useState } from 'react';
-import Link from 'next/link';
 import { PartnerRecord } from '@/lib/types';
 import { PARTNER_STAGE_LABEL, PARTNER_STAGE_STEPS, PartnerProjectStage } from '@/lib/partnerProjectStages';
 import { PROJECT_DEPARTMENT_LABEL } from '@/lib/projectDepartmentOptions';
@@ -9,6 +8,10 @@ import { OPPORTUNITY_TYPE_LABEL, OpportunityType } from '@/lib/projectLeadOption
 import { awaitingSide, buildPartnerReviewThread } from '@/lib/partnerReviewThread';
 import PartnerReviewThread from './PartnerReviewThread';
 import PartnerShell from './PartnerShell';
+import CommonButton from './ui/CommonButton';
+import PageBackButton from './ui/PageBackButton';
+import StatCard, { StatCardGrid } from './ui/StatCard';
+import { Skeleton, SkeletonDetail, SkeletonTable } from './ui/Skeleton';
 import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
 import styles from './partnerPortal.module.css';
@@ -141,6 +144,8 @@ export default function PartnerProjectDetailView({ projectId, partner }: { proje
   // not on load, so a background refresh can never overwrite what they are
   // part-way through typing.
   const [edits, setEdits] = useState<Record<string, string> | null>(null);
+  const [quotationsLoaded, setQuotationsLoaded] = useState(false);
+  const [demosLoaded, setDemosLoaded] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -164,11 +169,13 @@ export default function PartnerProjectDetailView({ projectId, partner }: { proje
     fetch('/api/partner/quotations')
       .then((r) => (r.ok ? r.json() : []))
       .then((rows: SharedQuotation[]) => setQuotations(rows.filter((q) => q.project_id === projectId)))
-      .catch(() => setQuotations([]));
+      .catch(() => setQuotations([]))
+      .finally(() => setQuotationsLoaded(true));
     fetch('/api/partner/demos')
       .then((r) => (r.ok ? r.json() : []))
       .then((rows: PartnerDemo[]) => setDemos(rows.filter((d) => d.project_id === projectId)))
-      .catch(() => setDemos([]));
+      .catch(() => setDemos([]))
+      .finally(() => setDemosLoaded(true));
   }, [load, projectId]);
 
   function openEditor() {
@@ -250,8 +257,14 @@ export default function PartnerProjectDetailView({ projectId, partner }: { proje
   if (!project) {
     return (
       <PartnerShell title="Project" subtitle="" partnerName={partner.company_name} partnerCode={partner.partner_code}>
-        <div className={historyStyles.status}>{status}</div>
-        <Link className={historyStyles.button} href="/partner/projects">← All submissions</Link>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+          <PageBackButton fallbackRoute="/partner/projects" rootRoute="/partner" />
+        </div>
+        {status === 'Loading...' ? (
+          <SkeletonDetail panels={2} pairs={6} withTopRow={false} />
+        ) : (
+          <div className={historyStyles.status}>{status}</div>
+        )}
       </PartnerShell>
     );
   }
@@ -270,8 +283,8 @@ export default function PartnerProjectDetailView({ projectId, partner }: { proje
       partnerName={partner.company_name}
       partnerCode={partner.partner_code}
     >
-      <div style={{ marginBottom: 12 }}>
-        <Link className={historyStyles.button} href="/partner/projects">← All submissions</Link>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+        <PageBackButton fallbackRoute="/partner/projects" rootRoute="/partner" />
       </div>
 
       {error && <div className={historyStyles.loginError}>{error}</div>}
@@ -330,50 +343,14 @@ export default function PartnerProjectDetailView({ projectId, partner }: { proje
           SALES TEAM / QUOTATION AMOUNT / EXPECTED CLOSURE. ASSIGNED
           TECHNICAL TEAM is deliberately absent: who internally works the
           deal is staffing information. */}
-      <div className={styles.statCardRow}>
-        <div className={styles.statCard}>
-          <span className={styles.statCardLabel}>Customer details</span>
-          <span className={styles.statCardValue}>
-            {project.client_name || project.company || '—'}
-            <span className={styles.statCardSub}>{[project.phone, project.email].filter(Boolean).join(' · ') || '—'}</span>
-          </span>
-        </div>
-        <div className={styles.statCard}>
-          <span className={styles.statCardLabel}>Your contact</span>
-          <span className={styles.statCardValue}>
-            {project.salesperson_name || 'Not yet assigned'}
-            <span className={styles.statCardSub}>Our sales team</span>
-          </span>
-        </div>
-        <div className={styles.statCard}>
-          <span className={styles.statCardLabel}>Quotations shared</span>
-          <span className={styles.statCardValue}>
-            {quotations.length ? money(sharedTotal) : '—'}
-            <span className={styles.statCardSub}>{quotations.length} shared with you</span>
-          </span>
-        </div>
-        <div className={styles.statCard}>
-          <span className={styles.statCardLabel}>Expected closure</span>
-          <span className={styles.statCardValue}>
-            {date(project.expected_closing_date)}
-            <span className={styles.statCardSub}>{project.expected_timeline || 'No timeline given'}</span>
-          </span>
-        </div>
-        <div className={styles.statCard}>
-          <span className={styles.statCardLabel}>Your estimate</span>
-          <span className={styles.statCardValue}>
-            {money(project.submitted_value)}
-            <span className={styles.statCardSub}>As submitted by you</span>
-          </span>
-        </div>
-        <div className={styles.statCard}>
-          <span className={styles.statCardLabel}>Last activity</span>
-          <span className={styles.statCardValue}>
-            {date(project.last_activity_at)}
-            <span className={styles.statCardSub}>Submitted {date(project.submitted_at)}</span>
-          </span>
-        </div>
-      </div>
+      <StatCardGrid>
+        <StatCard label="Customer details" value={project.client_name || project.company || '—'} sub={<>{[project.phone, project.email].filter(Boolean).join(' · ') || '—'}</>} />
+        <StatCard label="Your contact" value={project.salesperson_name || 'Not yet assigned'} sub={<>Our sales team</>} />
+        <StatCard label="Quotations shared" value={!quotationsLoaded ? <Skeleton width={64} height={24} /> : quotations.length ? money(sharedTotal) : '—'} sub={<>{quotations.length} shared with you</>} />
+        <StatCard label="Expected closure" value={date(project.expected_closing_date)} sub={<>{project.expected_timeline || 'No timeline given'}</>} />
+        <StatCard label="Your estimate" value={money(project.submitted_value)} sub={<>As submitted by you</>} />
+        <StatCard label="Last activity" value={date(project.last_activity_at)} sub={<>Submitted {date(project.submitted_at)}</>} />
+      </StatCardGrid>
 
       {project.action_required && (
         <form className={calcStyles.sectionPanel} onSubmit={edits ? sendRevision : sendReply}>
@@ -416,12 +393,12 @@ export default function PartnerProjectDetailView({ projectId, partner }: { proje
                 <textarea className={calcStyles.formControl} rows={3} value={reply} onChange={(e) => setReply(e.target.value)} />
               </div>
               <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                <button type="submit" className={calcStyles.btn} disabled={sending}>
-                  {sending ? 'Sending...' : 'Save changes & send back'}
-                </button>
-                <button type="button" className={historyStyles.button} disabled={sending} onClick={() => { setEdits(null); setError(''); }}>
+                <CommonButton type="submit" variant="primary" size="md" loading={sending} loadingLabel="Sending...">
+                  Save changes &amp; send back
+                </CommonButton>
+                <CommonButton variant="secondary" size="md" disabled={sending} onClick={() => { setEdits(null); setError(''); }}>
                   Cancel
-                </button>
+                </CommonButton>
               </div>
             </>
           ) : (
@@ -432,8 +409,8 @@ export default function PartnerProjectDetailView({ projectId, partner }: { proje
               </p>
               <textarea className={calcStyles.formControl} rows={4} value={reply} onChange={(e) => setReply(e.target.value)} required />
               <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 10 }}>
-                <button type="submit" className={calcStyles.btn} disabled={sending}>{sending ? 'Sending...' : 'Send reply'}</button>
-                <button type="button" className={historyStyles.button} onClick={openEditor}>Edit project details</button>
+                <CommonButton type="submit" variant="primary" size="md" loading={sending} loadingLabel="Sending...">Send reply</CommonButton>
+                <CommonButton variant="secondary" size="md" onClick={openEditor}>Edit project details</CommonButton>
               </div>
             </>
           )}
@@ -523,7 +500,8 @@ export default function PartnerProjectDetailView({ projectId, partner }: { proje
         </div>
       )}
 
-      {tab === 'quotations' && (
+      {tab === 'quotations' && !quotationsLoaded && <SkeletonTable columns={5} rows={4} />}
+      {tab === 'quotations' && quotationsLoaded && (
         <div className={historyStyles.tableWrap}>
           {quotations.length === 0 ? (
             <p className={styles.pending}>
@@ -541,7 +519,7 @@ export default function PartnerProjectDetailView({ projectId, partner }: { proje
                     <td><span className={historyStyles.statusPill}>{q.status}</span></td>
                     <td>{money(q.total)}</td>
                     <td>{date(q.shared_at)}</td>
-                    <td><Link className={historyStyles.button} href="/partner/quotations">Open</Link></td>
+                    <td><CommonButton href="/partner/quotations" variant="secondary" size="sm">Open</CommonButton></td>
                   </tr>
                 ))}
               </tbody>
@@ -550,7 +528,8 @@ export default function PartnerProjectDetailView({ projectId, partner }: { proje
         </div>
       )}
 
-      {tab === 'demos' && (
+      {tab === 'demos' && !demosLoaded && <SkeletonTable columns={4} rows={4} />}
+      {tab === 'demos' && demosLoaded && (
         <div className={historyStyles.tableWrap}>
           {demos.length === 0 ? (
             <p className={styles.pending}>

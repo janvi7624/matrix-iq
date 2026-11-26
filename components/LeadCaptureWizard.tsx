@@ -6,7 +6,9 @@ import { LEAD_ORIGIN_OPTIONS } from '@/lib/leadSources';
 import { LEAD_REFERENCE_OPTIONS, LeadReference } from '@/lib/leadReferenceOptions';
 import { LEAD_DOMAIN_TILES, LEAD_SUB_INTERESTS, LEAD_FOLLOW_UP_ACTIONS, LEAD_BUDGET_OPTIONS, LEAD_PRIORITY_META } from '@/lib/leadInterestOptions';
 import { preprocessCardImage, scanBusinessCard } from '@/lib/cardOcr';
-import { Camera, User, Target, Flame, StickyNote, CheckCircle2, RefreshCw, Images, PenLine, Send, UserCheck } from 'lucide-react';
+import { Camera, User, Target, Flame, StickyNote, CheckCircle2, RefreshCw, Images, PenLine, Send, UserCheck, ChevronLeft, ChevronRight } from 'lucide-react';
+import CommonButton from '@/components/ui/CommonButton';
+import CommonChip from '@/components/ui/CommonChip';
 import PhoneInput from '@/components/ui/PhoneInput';
 import Select from '@/components/ui/Select';
 import historyStyles from './quotationHistory.module.css';
@@ -275,8 +277,8 @@ export default function LeadCaptureWizard({ creating, onSubmit, onViewAllLeads }
             )}
           </div>
           <div className={historyStyles.successActions}>
-            <button type="button" className={historyStyles.bigBtn} onClick={handleCaptureNext}>Scan Next Lead</button>
-            <button type="button" className={historyStyles.bigBtnGhost} onClick={onViewAllLeads}>View All Leads</button>
+            <CommonButton variant="primary" size="lg" onClick={handleCaptureNext}>Scan Next Lead</CommonButton>
+            <CommonButton variant="outlined" size="lg" onClick={onViewAllLeads}>View All Leads</CommonButton>
             {/* No "Convert to Project" here any more: a lead becomes a project
                 only after someone calls it and marks the outcome suitable
                 (lib/leadCall.ts), so this button would be refused every time.
@@ -504,14 +506,12 @@ export default function LeadCaptureWizard({ creating, onSubmit, onViewAllLeads }
                   </div>
                   <div className={historyStyles.pillWrap}>
                     {options.map((opt) => (
-                      <button
+                      <CommonChip
                         key={opt}
-                        type="button"
-                        className={`${historyStyles.pillBtn} ${form.subInterests.includes(opt) ? historyStyles.pillBtnActive : ''}`}
+                        label={opt}
+                        selected={form.subInterests.includes(opt)}
                         onClick={() => toggleSubInterest(opt)}
-                      >
-                        {opt}
-                      </button>
+                      />
                     ))}
                   </div>
                 </div>
@@ -545,28 +545,26 @@ export default function LeadCaptureWizard({ creating, onSubmit, onViewAllLeads }
             <div className={`${calcStyles.label} ${styles.mt16}`}>Follow-up action</div>
             <div className={historyStyles.chipGrid}>
               {LEAD_FOLLOW_UP_ACTIONS.map((a) => (
-                <div
+                <CommonChip
                   key={a.tag}
-                  className={`${historyStyles.chipBtn} ${form.followUpActions.includes(a.tag) ? historyStyles.chipBtnActive : ''}`}
+                  label={a.tag}
+                  leadingIcon={<a.icon />}
+                  showCheck={false}
+                  selected={form.followUpActions.includes(a.tag)}
                   onClick={() => toggleFollowUp(a.tag)}
-                >
-                  <span className={historyStyles.chipEmoji}><a.icon size={16} /></span>
-                  <span className={historyStyles.chipLabel}>{a.tag}</span>
-                </div>
+                />
               ))}
             </div>
 
             <div className={`${calcStyles.label} ${styles.mt16}`}>Budget range</div>
             <div className={historyStyles.pillWrap}>
               {LEAD_BUDGET_OPTIONS.map((b) => (
-                <button
+                <CommonChip
                   key={b}
-                  type="button"
-                  className={`${historyStyles.pillBtn} ${form.budget === b ? historyStyles.pillBtnActive : ''}`}
+                  label={b}
+                  selected={form.budget === b}
                   onClick={() => setForm((f) => ({ ...f, budget: f.budget === b ? '' : b }))}
-                >
-                  {b}
-                </button>
+                />
               ))}
             </div>
           </>
@@ -609,13 +607,13 @@ export default function LeadCaptureWizard({ creating, onSubmit, onViewAllLeads }
 
         {step > 0 && (
           <div className={historyStyles.wizardNav}>
-            <button type="button" className={historyStyles.bigBtnGhost} onClick={goBack}>← Back</button>
+            <CommonButton variant="outlined" size="lg" leadingIcon={<ChevronLeft />} onClick={goBack}>Back</CommonButton>
             {step < STEPS.length - 1 ? (
-              <button type="button" className={historyStyles.bigBtn} onClick={goNext}>Next →</button>
+              <CommonButton variant="primary" size="lg" trailingIcon={<ChevronRight />} onClick={goNext}>Next</CommonButton>
             ) : (
-              <button type="button" className={historyStyles.bigBtn} disabled={creating} onClick={handleSubmit}>
+              <CommonButton variant="primary" size="lg" disabled={creating} onClick={handleSubmit}>
                 {creating ? 'Saving…' : 'Save Lead & Next Person'}
-              </button>
+              </CommonButton>
             )}
           </div>
         )}

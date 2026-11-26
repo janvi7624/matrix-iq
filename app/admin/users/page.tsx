@@ -2,7 +2,7 @@
 
 import { FormEvent, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import Link from 'next/link';
+import Link from '@/components/ui/AppLink';
 import { ChevronDown, MoreVertical, Plus, Upload } from 'lucide-react';
 import { DepartmentRecord, PublicUser, RoleRecord, UserRole } from '@/lib/types';
 import AppShell from '@/components/AppShell';
@@ -14,11 +14,13 @@ import historyStyles from '@/components/quotationHistory.module.css';
 import calcStyles from '@/components/calculator.module.css';
 import PhoneInput from '@/components/ui/PhoneInput';
 import Button from '@/components/ui/Button';
+import CommonButton from '@/components/ui/CommonButton';
 import { useToast } from '@/components/ui/ToastProvider';
 import { useConfirm } from '@/components/ui/ConfirmDialog';
 import { usePrompt } from '@/components/ui/PromptDialog';
 import pageStyles from './usersPage.module.css';
 import { fetchCached, invalidatePeopleCaches } from '@/lib/fetchCached';
+import Select from '@/components/ui/Select';
 
 interface RowMenuAction {
   label: string;
@@ -98,17 +100,17 @@ function RowActionsMenu({ actions, label }: { actions: RowMenuAction[]; label: s
 
   return (
     <>
-      <button
-        type="button"
+      <CommonButton
+        variant="ghost"
+        size="sm"
+        iconOnly
+        leadingIcon={<MoreVertical size={18} />}
         ref={triggerRef}
-        className={historyStyles.rowMenuTrigger}
         onClick={toggle}
         aria-label={`Actions for ${label}`}
         aria-haspopup="menu"
         aria-expanded={open}
-      >
-        <MoreVertical size={18} />
-      </button>
+      />
       {open &&
         coords &&
         createPortal(
@@ -616,7 +618,7 @@ export default function ManageUsersPage() {
   }
 
   return (
-    <AppShell title="Employee Directory" subtitle="Administration › find, manage and onboard login accounts.">
+    <AppShell fillPage title="Employee Directory" subtitle="Administration › find, manage and onboard login accounts.">
       {/* Page actions sit above everything so the two ways to add people are
           adjacent and discoverable, instead of one being a link at the top and
           the other the submit button of an always-expanded form. */}
@@ -633,9 +635,9 @@ export default function ManageUsersPage() {
           </Button>
           {/* Bulk import stays Admin / Super Admin only (its route enforces it too). */}
           {isAdminTier && (
-            <Link className={historyStyles.button} href="/admin/users/import">
-              <Upload size={15} className={pageStyles.iconMr7} /> Import from Excel
-            </Link>
+            <CommonButton variant="secondary" size="md" href="/admin/users/import" leadingIcon={<Upload size={15} />}>
+              Import from Excel
+            </CommonButton>
           )}
         </div>
       )}
@@ -681,10 +683,10 @@ export default function ManageUsersPage() {
           <div className={`${calcStyles.row} ${calcStyles.columns}`}>
             <div className={calcStyles.field}>
               <label className={calcStyles.label} htmlFor="newDepartment">Department</label>
-              <select id="newDepartment" className={calcStyles.formControl} value={form.department} onChange={(e) => setForm((f) => ({ ...f, department: e.target.value }))}>
+              <Select id="newDepartment" value={form.department} onChange={(e) => setForm((f) => ({ ...f, department: e.target.value }))}>
                 <option value="">Select department…</option>
                 {departmentOptions.map((d) => <option key={d.id} value={d.name}>{d.name}</option>)}
-              </select>
+              </Select>
             </div>
             <div className={calcStyles.field}>
               <label className={calcStyles.label} htmlFor="newDesignation">Designation</label>
@@ -694,9 +696,9 @@ export default function ManageUsersPage() {
           <div className={`${calcStyles.row} ${calcStyles.columns}`}>
             <div className={calcStyles.field}>
               <label className={calcStyles.label} htmlFor="newRole">Role</label>
-              <select id="newRole" className={calcStyles.formControl} value={form.role} onChange={(e) => setForm((f) => ({ ...f, role: e.target.value as UserRole }))}>
+              <Select id="newRole" value={form.role} onChange={(e) => setForm((f) => ({ ...f, role: e.target.value as UserRole }))}>
                 {roleOptions.map((r) => <option key={r.key} value={r.key}>{r.label}</option>)}
-              </select>
+              </Select>
             </div>
           </div>
           <div className={pageStyles.formActionsRowMt4}>

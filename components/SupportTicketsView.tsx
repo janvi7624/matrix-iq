@@ -1,12 +1,15 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import Link from 'next/link';
+import Link from '@/components/ui/AppLink';
 import { SUPPORT_STATUS_LABEL, SupportTicketStatus } from '@/lib/supportTicketWorkflow';
 import AppShell from './AppShell';
+import StatCard, { StatCardGrid } from './ui/StatCard';
+import { Skeleton, SkeletonTable } from './ui/Skeleton';
 import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
-import styles from './partnerPortal.module.css';
+import SearchInput from './ui/SearchInput';
+import Dropdown from './ui/Dropdown';
 
 interface SlaAssessment {
   responseState: string;
@@ -109,34 +112,31 @@ export default function SupportTicketsView({ canWorkQueue }: SupportTicketsViewP
   });
 
   const breached = tickets.filter((t) => t.sla?.breached).length;
+  // Only the very first fetch — a queue switch keeps the previous list up.
+  const firstLoad = status === 'Loading...';
+  const kpiSkeleton = <Skeleton width={64} height={24} />;
 
   return (
-    <AppShell title="Technical Support" subtitle="Operations › after-sales support tickets">
-      <div className={styles.kpiRow}>
-        <div className={styles.kpi}>
-          <span className={styles.kpiValue}>{tickets.length}</span>
-          <span className={styles.kpiLabel}>In this queue</span>
-        </div>
-        <div className={styles.kpi}>
-          <span className={styles.kpiValue} style={breached ? { color: 'var(--mx-danger)' } : undefined}>{breached}</span>
-          <span className={styles.kpiLabel}>SLA breached</span>
-        </div>
-        <div className={styles.kpi}>
-          <span className={styles.kpiValue}>{tickets.filter((t) => !t.assignee_name).length}</span>
-          <span className={styles.kpiLabel}>Unassigned</span>
-        </div>
-      </div>
+    <AppShell fillPage title="Technical Support" subtitle="Operations › after-sales support tickets">
+      <StatCardGrid style={{ marginBottom: 16 }}>
+        <StatCard value={firstLoad ? kpiSkeleton : tickets.length} label="In this queue" />
+        <StatCard value={firstLoad ? kpiSkeleton : breached} label="SLA breached" tone={breached ? 'danger' : 'default'} />
+        <StatCard value={firstLoad ? kpiSkeleton : tickets.filter((t) => !t.assignee_name).length} label="Unassigned" />
+      </StatCardGrid>
 
       <div className={historyStyles.toolbar}>
-        <select value={queue} onChange={(e) => setQueue(e.target.value)}>
-          {QUEUES.map((q) => (
-            <option key={q.key} value={q.key}>{q.label}</option>
-          ))}
-        </select>
-        <input type="text" placeholder="Search ticket, partner, customer or product..." value={search} onChange={(e) => setSearch(e.target.value)} />
+        <Dropdown
+          value={queue}
+          onChange={(v) => { if (v) setQueue(v); }}
+          clearable={false}
+          label="Queue"
+          ariaLabel="Ticket queue"
+          options={QUEUES.map((q) => ({ value: q.key, label: q.label }))}
+        />
+        <SearchInput placeholder="Search ticket, partner, customer or product..." value={search} onChange={(v) => setSearch(v)} />
       </div>
 
-      {status && <div className={historyStyles.status}>{status}</div>}
+      {firstLoad ? <SkeletonTable rows={6} columns={7} /> : status && <div className={historyStyles.status}>{status}</div>}
 
       {visible.length > 0 && (
         <div className={historyStyles.tableWrap}>

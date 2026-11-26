@@ -36,10 +36,11 @@ import { TmsBomRequestRecord, TmsProcurementRecord, TmsProjectRecord, TmsTaskRec
 import { TMS_ROLE_KEYS } from '@/lib/tmsConstants';
 import { closingDatePresetRange, ClosingDatePreset } from '@/lib/dateHelpers';
 import AppShell from './AppShell';
-import styles from './dashboard.module.css';
 import calcStyles from './calculator.module.css';
 import analyticsStyles from './analyticsView.module.css';
-import Select from './ui/Select';
+import Dropdown from './ui/Dropdown';
+import StatCard, { StatCardGrid } from './ui/StatCard';
+import { SkeletonCards, SkeletonStatCards } from './ui/Skeleton';
 
 interface AnalyticsViewProps {
   currentUser: { role: UserRole; isPrivileged: boolean };
@@ -52,19 +53,13 @@ type Tone = 'neutral' | 'success' | 'alert';
 // Dashboard already uses (dashboard.module.css's kpiCardNew), so Analytics
 // stops looking like an unstyled leftover of it.
 function KpiTile({ icon: Icon, value, label, tone = 'neutral' }: { icon: LucideIcon; value: string | number; label: string; tone?: Tone }) {
-  const toneClass = tone === 'alert' ? styles.kpiIconWrapperPending : tone === 'success' ? styles.kpiIconWrapperSuccess : '';
   return (
-    <div className={styles.kpiCardNew}>
-      <div className={styles.kpiCardHead}>
-        <span className={`${styles.kpiIconWrapper} ${toneClass}`}>
-          <Icon size={16} strokeWidth={2.2} />
-        </span>
-      </div>
-      <div className={styles.kpiBody}>
-        <div className={`${styles.kpiValueNew} ${tone === 'alert' ? styles.kpiValueAlert : ''}`}>{value}</div>
-        <div className={styles.kpiLabelNew}>{label}</div>
-      </div>
-    </div>
+    <StatCard
+      icon={<Icon size={16} strokeWidth={2.2} />}
+      tone={tone === 'alert' ? 'danger' : tone === 'success' ? 'success' : 'default'}
+      value={value}
+      label={label}
+    />
   );
 }
 
@@ -365,15 +360,20 @@ export default function AnalyticsView({ currentUser }: AnalyticsViewProps) {
 
             {kpis && (
               <div className={analyticsStyles.filterBar}>
-                <Select auto value={closingPreset} onChange={(e) => setClosingPreset(e.target.value as ClosingDatePreset)}>
-                  <option value="all">Closing Date: All</option>
-                  <option value="today">Closing Today</option>
-                  <option value="this_week">Closing This Week</option>
-                  <option value="this_month">Closing This Month</option>
-                  <option value="next_7">Closing Next 7 Days</option>
-                  <option value="next_30">Closing Next 30 Days</option>
-                  <option value="custom">Closing: Custom Range…</option>
-                </Select>
+                <Dropdown<Exclude<ClosingDatePreset, 'all'>>
+                  value={closingPreset === 'all' ? '' : closingPreset}
+                  onChange={(v) => setClosingPreset(v || 'all')}
+                  placeholder="Closing Date: All"
+                  ariaLabel="Closing date"
+                  options={[
+                    { value: 'today', label: 'Closing Today' },
+                    { value: 'this_week', label: 'Closing This Week' },
+                    { value: 'this_month', label: 'Closing This Month' },
+                    { value: 'next_7', label: 'Closing Next 7 Days' },
+                    { value: 'next_30', label: 'Closing Next 30 Days' },
+                    { value: 'custom', label: 'Closing: Custom Range…' }
+                  ]}
+                />
                 {closingPreset === 'custom' && (
                   <>
                     <input type="date" className={calcStyles.formControl} value={closingFrom} onChange={(e) => setClosingFrom(e.target.value)} />
@@ -384,22 +384,22 @@ export default function AnalyticsView({ currentUser }: AnalyticsViewProps) {
             )}
 
             {quotationStats && (
-              <div className={analyticsStyles.kpiGrid}>
+              <StatCardGrid className={analyticsStyles.kpiGrid}>
                 {QUOTATION_STAT_LABELS.map((s) => (
                   <KpiTile key={s.key} icon={s.icon} tone={s.tone} value={quotationStats[s.key]} label={s.label} />
                 ))}
-              </div>
+              </StatCardGrid>
             )}
 
             {kpis && (
-              <div className={analyticsStyles.kpiGrid}>
+              <StatCardGrid className={analyticsStyles.kpiGrid}>
                 <KpiTile icon={IndianRupee} value={`₹${kpis.totalApproxValue.toLocaleString('en-IN')}`} label="Total Approx. Value" />
                 {KPI_LABELS.map((k) => (
                   <KpiTile key={k.key} icon={k.icon} tone={k.tone} value={`${kpis[k.key]}${k.suffix || ''}`} label={k.label} />
                 ))}
                 {isSales && SALES_KPI_LABELS.map((k) => <KpiTile key={k.key} icon={k.icon} value={kpis[k.key]} label={k.label} />)}
                 {isPrivileged && MANAGER_KPI_LABELS.map((k) => <KpiTile key={k.key} icon={k.icon} value={kpis[k.key]} label={k.label} />)}
-              </div>
+              </StatCardGrid>
             )}
           </div>
         )}
@@ -407,33 +407,33 @@ export default function AnalyticsView({ currentUser }: AnalyticsViewProps) {
         {backOfficeKpis && (
           <div className={analyticsStyles.section}>
             <SectionHeader icon={PackageOpen} accentClass={analyticsStyles.accentBackOffice} title="Back Office" />
-            <div className={analyticsStyles.kpiGrid}>
+            <StatCardGrid className={analyticsStyles.kpiGrid}>
               {BACK_OFFICE_KPI_LABELS.map((k) => (
                 <KpiTile key={k.key} icon={k.icon} tone={k.tone} value={backOfficeKpis[k.key]} label={k.label} />
               ))}
-            </div>
+            </StatCardGrid>
           </div>
         )}
 
         {technicalKpis && (
           <div className={analyticsStyles.section}>
             <SectionHeader icon={Wrench} accentClass={analyticsStyles.accentTechnical} title="Technical" />
-            <div className={analyticsStyles.kpiGrid}>
+            <StatCardGrid className={analyticsStyles.kpiGrid}>
               {TECHNICAL_KPI_LABELS.map((k) => (
                 <KpiTile key={k.key} icon={k.icon} tone={k.tone} value={technicalKpis[k.key]} label={k.label} />
               ))}
-            </div>
+            </StatCardGrid>
           </div>
         )}
 
         {showMarketing && marketingStats && (
           <div className={analyticsStyles.section}>
             <SectionHeader icon={Megaphone} accentClass={analyticsStyles.accentMarketing} title="Marketing" />
-            <div className={analyticsStyles.kpiGrid}>
+            <StatCardGrid className={analyticsStyles.kpiGrid}>
               {marketingKpiLabels(marketingStats).map((k) => (
                 <KpiTile key={k.key} icon={k.icon} value={marketingStats[k.key]} label={k.label} />
               ))}
-            </div>
+            </StatCardGrid>
           </div>
         )}
 
@@ -445,10 +445,10 @@ export default function AnalyticsView({ currentUser }: AnalyticsViewProps) {
               title="Meta Lead Ads"
               note="A Meta lead becomes a project only after a sales rep calls it and marks it suitable, so “Qualified on a call” is a quality figure, not a routing one. Counts before that change are not comparable with these."
             />
-            <div className={analyticsStyles.kpiGrid}>
+            <StatCardGrid className={analyticsStyles.kpiGrid}>
               <KpiTile icon={Users} value={metaLeadAnalytics.total} label="Total Meta Leads" />
               <KpiTile icon={TrendingUp} tone="success" value={metaLeadAnalytics.convertedToProject} label="Qualified on a call → Project" />
-            </div>
+            </StatCardGrid>
             <div className={`${calcStyles.sectionPanel} ${analyticsStyles.breakdownWrap}`}>
               <BreakdownList title="By Campaign" buckets={metaLeadAnalytics.byCampaign} />
               <BreakdownList title="By Form" buckets={metaLeadAnalytics.byForm} />
@@ -462,7 +462,12 @@ export default function AnalyticsView({ currentUser }: AnalyticsViewProps) {
           </div>
         )}
 
-        {nothingLoadedYet && <div className={analyticsStyles.emptyState}>Loading analytics…</div>}
+        {nothingLoadedYet && (
+          <div style={{ display: 'grid', gap: 18 }}>
+            <SkeletonStatCards count={4} />
+            <SkeletonCards count={3} />
+          </div>
+        )}
       </div>
     </AppShell>
   );

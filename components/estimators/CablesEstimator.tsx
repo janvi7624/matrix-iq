@@ -9,6 +9,7 @@ import { CostInputs, DomainResult, LineItem } from '@/lib/types';
 import { ModelPreset } from './ConferenceEstimator';
 import { applyOverride, extraProductKeys, overrideMapKey, OverrideMap } from '@/lib/catalogOverrides';
 import styles from '../calculator.module.css';
+import Select from '../ui/Select';
 
 interface CablesEstimatorProps {
   active: boolean;
@@ -105,32 +106,32 @@ export default function CablesEstimator({ active, costInputs, onResultChange, pr
       <div className={`${styles.row} ${styles.columns}`}>
         <div className={styles.field}>
           <label className={styles.label} htmlFor="cableSeriesSelect">Cable type</label>
-          <select id="cableSeriesSelect" className={styles.formControl} value={seriesKey} onChange={(e) => setSeriesKey(e.target.value)}>
+          <Select id="cableSeriesSelect" value={seriesKey} onChange={(e) => setSeriesKey(e.target.value)}>
             {seriesKeys.map((key) => (
               <option key={key} value={key}>{CABLE_SERIES[key].name}</option>
             ))}
-          </select>
+          </Select>
         </div>
         <div className={styles.field}>
           <label className={styles.label} htmlFor="cableModel">Length / SKU</label>
-          <select id="cableModel" className={styles.formControl} value={modelKey} onChange={(e) => setModelKey(e.target.value)}>
+          <Select id="cableModel" value={modelKey} onChange={(e) => setModelKey(e.target.value)}>
             {modelKeys
               .filter((key) => effectiveProducts[key]?.series === seriesKey)
               .sort((a, b) => effectiveProducts[a].lengthMeters - effectiveProducts[b].lengthMeters)
               .map((key) => (
                 <option key={key} value={key}>{key} — {effectiveProducts[key].length}</option>
               ))}
-          </select>
+          </Select>
         </div>
       </div>
       <div className={`${styles.row} ${styles.columns}`}>
         <div className={styles.field}>
           <label className={styles.label} htmlFor="cablePriceTier">Price tier</label>
-          <select id="cablePriceTier" className={styles.formControl} value={priceTier} onChange={(e) => setPriceTier(e.target.value as Tier)}>
+          <Select id="cablePriceTier" value={priceTier} onChange={(e) => setPriceTier(e.target.value as Tier)}>
             <option value="distributor">Distributor price</option>
             <option value="partner">Partner price</option>
             <option value="customer">Customer price</option>
-          </select>
+          </Select>
         </div>
         <div className={styles.field}>
           <label className={styles.label} htmlFor="cableQuantity">Quantity</label>

@@ -3,13 +3,19 @@
 import { FormEvent, Suspense, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Image from 'next/image';
-import Link from 'next/link';
+import Link from '@/components/ui/AppLink';
 import { Eye, EyeOff } from 'lucide-react';
 import base from '@/components/landing/landing.module.css';
 import SiteHeader from '@/components/landing/SiteHeader';
 import visualStyles from '@/components/auth/matrixLoginVisual.module.css';
 import MatrixLoginVisual from '@/components/auth/MatrixLoginVisual';
 import { BRAND } from '@/lib/branding';
+import CommonButton from '@/components/ui/CommonButton';
+import { clearFetchCache } from '@/lib/fetchCached';
+// Registers the shell-data store's sign-out hook, so clearFetchCache() below
+// also clears its sessionStorage copy (the store module isn't otherwise
+// loaded on the login page).
+import '@/lib/shellDataStore';
 
 // The form's fields/ids/validation/error handling/auth call are untouched
 // from the original pre-redesign version — only the surrounding shell (now
@@ -60,6 +66,10 @@ function LoginForm() {
       // headers, so the server returns raw flight-payload text instead of
       // rendered HTML. A full navigation always gets real HTML back.
       const next = searchParams.get('next') || '/';
+      // Fresh session: forget any menu/quick-actions/notification data a
+      // previous session in this tab left behind (an expired session never
+      // ran sign-out). The sidebar then loads once for THIS user.
+      clearFetchCache();
       window.location.href = next;
     } catch {
       setError('Could not reach the login API.');
@@ -116,9 +126,9 @@ function LoginForm() {
               </button>
             </div>
           </div>
-          <button type="submit" className={visualStyles.formSubmit} disabled={busy}>
-            {busy ? 'Signing in...' : 'Sign in'}
-          </button>
+          <CommonButton type="submit" variant="primary" fullWidth style={{ marginTop: 6 }} loading={busy} loadingLabel="Signing in...">
+            Sign in
+          </CommonButton>
         </form>
       </div>
     </div>

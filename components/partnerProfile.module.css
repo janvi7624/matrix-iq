@@ -4,7 +4,7 @@
    would suggest the fields might become editable and are merely greyed out. */
 .readOnlyFacts {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));
   gap: 14px 24px;
   margin: 14px 0 0;
 }

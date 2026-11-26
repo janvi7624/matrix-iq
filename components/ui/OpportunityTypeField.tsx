@@ -1,7 +1,7 @@
 'use client';
 
-import calcStyles from '../calculator.module.css';
 import { OPPORTUNITY_TYPES, OPPORTUNITY_TYPE_LABEL, OpportunityType } from '@/lib/projectLeadOptions';
+import Select from './Select';
 
 interface OpportunityTypeFieldProps {
   value: OpportunityType | '';
@@ -16,9 +16,9 @@ interface OpportunityTypeFieldProps {
 // isn't overwritten; the lead stays editable either way.
 export default function OpportunityTypeField({ value, onChange, required, disabled }: OpportunityTypeFieldProps) {
   return (
-    <select className={calcStyles.formControl} required={required} disabled={disabled} value={value} onChange={(e) => onChange(e.target.value as OpportunityType | '')}>
+    <Select required={required} disabled={disabled} value={value} onChange={(e) => onChange(e.target.value as OpportunityType | '')}>
       <option value="">— Select type —</option>
       {OPPORTUNITY_TYPES.map((t) => <option key={t} value={t}>{OPPORTUNITY_TYPE_LABEL[t]}</option>)}
-    </select>
+    </Select>
   );
 }

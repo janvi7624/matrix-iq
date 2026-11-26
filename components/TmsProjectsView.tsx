@@ -1,13 +1,14 @@
 'use client';
 
 import { FormEvent, useEffect, useMemo, useState } from 'react';
-import Link from 'next/link';
-import { ExternalLink, Layers } from 'lucide-react';
+import Link from '@/components/ui/AppLink';
+import { ExternalLink, Layers, Plus } from 'lucide-react';
 import { DepartmentRecord, TmsPriority, TmsProjectRecord, TmsProjectStatus, TmsProjectType, UserRole } from '@/lib/types';
 import { TMS_DEPARTMENTS } from '@/lib/tmsConstants';
 import { TMS_PRIORITY_LABEL, TMS_PRIORITY_TONE, TMS_PROJECT_CATEGORY_OPTIONS, TMS_PROJECT_STATUS_LABEL, TMS_PROJECT_STATUS_TONE, TMS_ROLE_LABEL, todayIso } from '@/lib/tmsLabels';
 import AppShell from './AppShell';
-import dashboardStyles from './dashboard.module.css';
+import CommonButton from './ui/CommonButton';
+import StatCard, { StatCardGrid } from './ui/StatCard';
 import tmsDashboardStyles from './tmsDashboard.module.css';
 import Modal from './ui/Modal';
 import TmsGuideModal, { useTmsGuideAutoShow } from './TmsGuideModal';
@@ -17,12 +18,14 @@ import StatusBadge from './ui/StatusBadge';
 import PriorityBadge from './ui/PriorityBadge';
 import PersonPicker, { PersonPickerOption } from './ui/PersonPicker';
 import { useToast } from './ui/ToastProvider';
-import { SkeletonRows } from './ui/Skeleton';
+import { Skeleton, SkeletonTable } from './ui/Skeleton';
 import EmptyState from './ui/EmptyState';
 import ErrorState from './ui/ErrorState';
 import { Field, FieldRow } from './ui/Field';
 import Input from './ui/Input';
 import Select from './ui/Select';
+import Dropdown, { inSelection } from './ui/Dropdown';
+import SearchInput from './ui/SearchInput';
 import Textarea from './ui/Textarea';
 import SubmitButton from './ui/SubmitButton';
 import FilterBar from './ui/FilterBar';
@@ -97,14 +100,14 @@ export default function TmsProjectsView({ currentUser }: TmsProjectsViewProps) {
   const [form, setForm] = useState(EMPTY_FORM);
   const [creating, setCreating] = useState(false);
 
-  const [fDepartment, setFDepartment] = useState('');
-  const [fStatus, setFStatus] = useState<TmsProjectStatus | ''>('');
-  const [fPriority, setFPriority] = useState<TmsPriority | ''>('');
-  const [fProjectType, setFProjectType] = useState<TmsProjectType | ''>('');
+  const [fDepartment, setFDepartment] = useState<string[]>([]);
+  const [fStatus, setFStatus] = useState<TmsProjectStatus[]>([]);
+  const [fPriority, setFPriority] = useState<TmsPriority[]>([]);
+  const [fProjectType, setFProjectType] = useState<TmsProjectType[]>([]);
   const [fSearch, setFSearch] = useState('');
   // A user id, matched against the project manager OR the team members —
   // see the filter itself for why both.
-  const [fEmployee, setFEmployee] = useState('');
+  const [fEmployee, setFEmployee] = useState<string[]>([]);
   // Completed projects pile up and crowd out the active ones (same reasoning
   // as Sales Projects' Won/Lost hiding) — hidden by default, but still fully
   // reachable either by this toggle or by filtering Status to Completed.
@@ -171,6 +174,9 @@ export default function TmsProjectsView({ currentUser }: TmsProjectsViewProps) {
   // tab regains focus, and slowly while it is visible. See
   // lib/useAutoRefresh.ts for why the cadence is deliberately slow.
   useAutoRefresh(load);
+  // Skeleton only until the first list arrives — a background refresh keeps
+  // the current rows on screen.
+  const firstLoad = loading && projects.length === 0;
 
   // Everyone who actually appears on a TMS project, as its manager or as a
   // team member, so the dropdown never offers a name that can only return
@@ -193,20 +199,20 @@ export default function TmsProjectsView({ currentUser }: TmsProjectsViewProps) {
   // Completed is hidden unless explicitly asked for — either by this filter
   // directly, or by the Status dropdown itself being set to Completed, which
   // makes hiding it again (via the other condition) a no-op.
-  const hideCompleted = !showCompleted && fStatus !== 'completed';
+  const hideCompleted = !showCompleted && !fStatus.includes('completed');
 
   const filtered = useMemo(() => {
     const q = fSearch.trim().toLowerCase();
     return projects.filter((p) => {
       if (hideCompleted && p.status === 'completed') return false;
-      if (fDepartment && !(p.department_names.length ? p.department_names : [p.department_name]).includes(fDepartment)) return false;
-      if (fStatus && p.status !== fStatus) return false;
-      if (fPriority && p.priority !== fPriority) return false;
-      if (fProjectType && p.project_type !== fProjectType) return false;
+      if (fDepartment.length && !(p.department_names.length ? p.department_names : [p.department_name]).some((d) => fDepartment.includes(d))) return false;
+      if (!inSelection(p.status, fStatus)) return false;
+      if (!inSelection(p.priority, fPriority)) return false;
+      if (!inSelection(p.project_type, fProjectType)) return false;
       // "Vraj's projects" means the ones he is on, whichever way he is on
       // them — managing it and working on it both count. Matched on id, not
       // name, so two people sharing a name never collapse into one filter.
-      if (fEmployee && p.project_manager_id !== fEmployee && !p.team_member_ids.includes(fEmployee)) return false;
+      if (fEmployee.length && !fEmployee.some((id) => p.project_manager_id === id || p.team_member_ids.includes(id))) return false;
       if (q && ![p.project_code, p.name, p.client_name].some((v) => (v || '').toLowerCase().includes(q))) return false;
       return true;
     });
@@ -272,9 +278,9 @@ export default function TmsProjectsView({ currentUser }: TmsProjectsViewProps) {
       render: (p) => (p.sales_project_id ? (
         <>
           <div>{p.sales_person_name || '-'}</div>
-          <Link className={historyStyles.linkButtonSmall} href={`/projects/${p.sales_project_id}`} target="_blank" rel="noopener noreferrer">
-            <ExternalLink size={13} /> View Sales Project
-          </Link>
+          <CommonButton variant="link" size="sm" leadingIcon={<ExternalLink />} href={`/projects/${p.sales_project_id}`} target="_blank" rel="noopener noreferrer">
+            View Sales Project
+          </CommonButton>
         </>
       ) : '-')
     },
@@ -308,7 +314,7 @@ export default function TmsProjectsView({ currentUser }: TmsProjectsViewProps) {
       )
     },
     { key: 'estClose', header: 'Est. Close', render: (p) => formatDate(p.estimated_close_date) },
-    { key: 'actions', header: '', render: (p) => <Link className={historyStyles.button} href={`/tms/projects/${p.id}`}>View</Link> }
+    { key: 'actions', header: '', render: (p) => <CommonButton variant="secondary" size="sm" href={`/tms/projects/${p.id}`}>View</CommonButton> }
   ];
 
   // Moved here from the old TMS Dashboard, now merged into this page (same
@@ -372,12 +378,12 @@ export default function TmsProjectsView({ currentUser }: TmsProjectsViewProps) {
   }
 
   return (
-    <AppShell title="Technical Projects" subtitle="Every technical project — open one for its tasks, BOM requests, procurement and activity.">
+    <AppShell fillPage title="Technical Projects" subtitle="Every technical project — open one for its tasks, BOM requests, procurement and activity.">
       <div className={tmsDashboardStyles.headerRow}>
         <span />
-        <button type="button" onClick={() => setShowGuide(true)} className={tmsDashboardStyles.guideLink}>
+        <CommonButton variant="link" size="sm" onClick={() => setShowGuide(true)}>
           How TMS Works
-        </button>
+        </CommonButton>
       </div>
       {(autoShowGuide || showGuide) && (
         <TmsGuideModal
@@ -387,32 +393,14 @@ export default function TmsProjectsView({ currentUser }: TmsProjectsViewProps) {
           }}
         />
       )}
-      <div className={dashboardStyles.kpiGrid}>
-        <div className={dashboardStyles.kpiCard}>
-          <div className={dashboardStyles.kpiValue}>{projectStats.total}</div>
-          <div className={dashboardStyles.kpiLabel}>Total Projects</div>
-        </div>
-        <button type="button" className={`${dashboardStyles.kpiCard} ${dashboardStyles.kpiCardButton}`} onClick={() => showProjects('Active Projects', projectStats.activeItems)}>
-          <div className={dashboardStyles.kpiValue}>{projectStats.active}</div>
-          <div className={dashboardStyles.kpiLabel}>Active Projects</div>
-        </button>
-        <button type="button" className={`${dashboardStyles.kpiCard} ${dashboardStyles.kpiCardButton}`} onClick={() => showProjects('Completed Projects', projectStats.completedItems)}>
-          <div className={dashboardStyles.kpiValue}>{projectStats.completed}</div>
-          <div className={dashboardStyles.kpiLabel}>Completed Projects</div>
-        </button>
-        <button type="button" className={`${dashboardStyles.kpiCard} ${dashboardStyles.kpiCardAlert} ${dashboardStyles.kpiCardButton}`} onClick={() => showNeedsSetup(projectStats.needsSetupItems)}>
-          <div className={dashboardStyles.kpiValue}>{projectStats.needsSetup}</div>
-          <div className={dashboardStyles.kpiLabel}>Needs Setup</div>
-        </button>
-        <button type="button" className={`${dashboardStyles.kpiCard} ${dashboardStyles.kpiCardAlert} ${dashboardStyles.kpiCardButton}`} onClick={() => showProjects('Near Deadline', projectStats.nearDeadlineItems)}>
-          <div className={dashboardStyles.kpiValue}>{projectStats.nearDeadline}</div>
-          <div className={dashboardStyles.kpiLabel}>Near Deadline</div>
-        </button>
-        <button type="button" className={`${dashboardStyles.kpiCard} ${dashboardStyles.kpiCardAlert} ${dashboardStyles.kpiCardButton}`} onClick={() => showProjects('Delayed Projects', projectStats.delayedItems)}>
-          <div className={dashboardStyles.kpiValue}>{projectStats.delayed}</div>
-          <div className={dashboardStyles.kpiLabel}>Delayed Projects</div>
-        </button>
-      </div>
+      <StatCardGrid>
+        <StatCard value={firstLoad ? <Skeleton width={64} height={24} /> : projectStats.total} label="Total Projects" />
+        <StatCard value={firstLoad ? <Skeleton width={64} height={24} /> : projectStats.active} label="Active Projects" onClick={() => showProjects('Active Projects', projectStats.activeItems)} actionLabel="View active projects" />
+        <StatCard value={firstLoad ? <Skeleton width={64} height={24} /> : projectStats.completed} label="Completed Projects" onClick={() => showProjects('Completed Projects', projectStats.completedItems)} actionLabel="View completed projects" />
+        <StatCard value={firstLoad ? <Skeleton width={64} height={24} /> : projectStats.needsSetup} label="Needs Setup" tone="danger" onClick={() => showNeedsSetup(projectStats.needsSetupItems)} actionLabel="View projects that need setup" />
+        <StatCard value={firstLoad ? <Skeleton width={64} height={24} /> : projectStats.nearDeadline} label="Near Deadline" tone="danger" onClick={() => showProjects('Near Deadline', projectStats.nearDeadlineItems)} actionLabel="View projects near deadline" />
+        <StatCard value={firstLoad ? <Skeleton width={64} height={24} /> : projectStats.delayed} label="Delayed Projects" tone="danger" onClick={() => showProjects('Delayed Projects', projectStats.delayedItems)} actionLabel="View delayed projects" />
+      </StatCardGrid>
 
       <div className={historyStyles.actionRow}>
         {/* Hidden whenever the table is showing its empty state, because that
@@ -423,9 +411,9 @@ export default function TmsProjectsView({ currentUser }: TmsProjectsViewProps) {
             Still shown once the form is open, because this same button is the
             form's Cancel and hiding it would leave no way out. */}
         {(loading || filtered.length > 0 || showForm) && (
-          <button type="button" className={calcStyles.btn} onClick={() => setShowForm((v) => !v)}>
-            {showForm ? 'Cancel' : '+ New Project'}
-          </button>
+          <CommonButton variant="primary" size="md" leadingIcon={showForm ? undefined : <Plus />} onClick={() => setShowForm((v) => !v)}>
+            {showForm ? 'Cancel' : 'New Project'}
+          </CommonButton>
         )}
         <ToolbarButton onClick={load}>
           Refresh
@@ -612,65 +600,74 @@ export default function TmsProjectsView({ currentUser }: TmsProjectsViewProps) {
       )}
 
       <FilterBar>
-        <input type="text" placeholder="Search project code, name, client…" value={fSearch} onChange={(e) => setFSearch(e.target.value)} />
-        <Select auto value={fDepartment} onChange={(e) => setFDepartment(e.target.value)}>
-          <option value="">All departments</option>
-          {TMS_DEPARTMENTS.map((d) => (
-            <option key={d} value={d}>{d}</option>
-          ))}
-        </Select>
-        <Select
-          auto
-          className={historyStyles.filterSelectCapped}
+        <SearchInput placeholder="Search project code, name, client…" value={fSearch} onChange={(v) => setFSearch(v)} />
+        <Dropdown
+          multiple
+          value={fDepartment}
+          onChange={setFDepartment}
+          placeholder="All departments"
+          label="Department"
+          options={TMS_DEPARTMENTS.map((d) => ({ value: d, label: d }))}
+        />
+        <Dropdown
+          multiple
           value={fEmployee}
-          onChange={(e) => setFEmployee(e.target.value)}
-          aria-label="Filter by employee"
-        >
-          <option value="">All employees</option>
-          {employeeOptions.map((u) => (
-            // Department in the label because the same person can appear
-            // across departments and this filter is most often used with the
-            // department one ("AI department, and only Vraj").
-            <option key={u.id} value={u.id}>{u.department ? `${u.name || u.username} — ${u.department}` : u.name || u.username}</option>
-          ))}
-        </Select>
-        <Select auto value={fStatus} onChange={(e) => setFStatus(e.target.value as TmsProjectStatus | '')}>
-          <option value="">All statuses</option>
-          {(Object.keys(TMS_PROJECT_STATUS_LABEL) as TmsProjectStatus[]).map((s) => (
-            <option key={s} value={s}>{TMS_PROJECT_STATUS_LABEL[s]}</option>
-          ))}
-        </Select>
-        <Select auto value={fPriority} onChange={(e) => setFPriority(e.target.value as TmsPriority | '')}>
-          <option value="">All priorities</option>
-          {(Object.keys(TMS_PRIORITY_LABEL) as TmsPriority[]).map((p) => (
-            <option key={p} value={p}>{TMS_PRIORITY_LABEL[p]}</option>
-          ))}
-        </Select>
-        <Select auto value={fProjectType} onChange={(e) => setFProjectType(e.target.value as TmsProjectType | '')}>
-          <option value="">All project types</option>
-          <option value="department">Department Project</option>
-          <option value="combined">Combined Project</option>
-        </Select>
+          onChange={setFEmployee}
+          placeholder="All employees"
+          label="Employee"
+          ariaLabel="Filter by employee"
+          // Department shown with the name because the same person can appear
+          // across departments and this filter is most often used with the
+          // department one ("AI department, and only Vraj").
+          options={employeeOptions.map((u) => ({ value: u.id, label: u.name || u.username, description: u.department || undefined }))}
+        />
+        <Dropdown<TmsProjectStatus>
+          multiple
+          value={fStatus}
+          onChange={setFStatus}
+          placeholder="All statuses"
+          label="Status"
+          options={(Object.keys(TMS_PROJECT_STATUS_LABEL) as TmsProjectStatus[]).map((s) => ({ value: s, label: TMS_PROJECT_STATUS_LABEL[s] }))}
+        />
+        <Dropdown<TmsPriority>
+          multiple
+          value={fPriority}
+          onChange={setFPriority}
+          placeholder="All priorities"
+          label="Priority"
+          options={(Object.keys(TMS_PRIORITY_LABEL) as TmsPriority[]).map((p) => ({ value: p, label: TMS_PRIORITY_LABEL[p] }))}
+        />
+        <Dropdown<TmsProjectType>
+          multiple
+          value={fProjectType}
+          onChange={setFProjectType}
+          placeholder="All project types"
+          label="Type"
+          options={[
+            { value: 'department', label: 'Department Project' },
+            { value: 'combined', label: 'Combined Project' }
+          ]}
+        />
       </FilterBar>
-      {!loading && !loadFailed && <div className={historyStyles.status}>{status}</div>}
-      {!loading && !loadFailed && hiddenCompletedCount > 0 && (
+      {!firstLoad && !loadFailed && <div className={historyStyles.status}>{status === 'Loading...' ? '' : status}</div>}
+      {!firstLoad && !loadFailed && hiddenCompletedCount > 0 && (
         <div className={historyStyles.status}>
           {hiddenCompletedCount} completed project{hiddenCompletedCount === 1 ? '' : 's'} {hiddenCompletedCount === 1 ? 'is' : 'are'} hidden.{' '}
-          <button type="button" className={historyStyles.linkBtn} onClick={() => setShowCompleted(true)}>
+          <CommonButton variant="link" size="sm" onClick={() => setShowCompleted(true)}>
             Show {hiddenCompletedCount === 1 ? 'it' : 'them'}
-          </button>
+          </CommonButton>
           {' '}— or filter Status to Completed.
         </div>
       )}
-      {!loading && !loadFailed && showCompleted && (
+      {!firstLoad && !loadFailed && showCompleted && (
         <div className={historyStyles.status}>
           Completed projects are shown.{' '}
-          <button type="button" className={historyStyles.linkBtn} onClick={() => setShowCompleted(false)}>Hide them again</button>
+          <CommonButton variant="link" size="sm" onClick={() => setShowCompleted(false)}>Hide them again</CommonButton>
         </div>
       )}
 
-      {loading ? (
-        <div className={historyStyles.tableWrap}><SkeletonRows rows={8} columns={8} /></div>
+      {firstLoad ? (
+        <SkeletonTable columns={11} rows={8} />
       ) : loadFailed ? (
         <ErrorState message="Could not load TMS projects — check your connection and try again." onRetry={load} />
       ) : (
@@ -683,7 +680,7 @@ export default function TmsProjectsView({ currentUser }: TmsProjectsViewProps) {
               icon={Layers}
               title={projects.length === 0 ? 'No TMS projects yet' : 'No projects match your filters'}
               message={projects.length === 0 ? 'Create your first technical project to start assigning tasks and tracking work.' : 'Try clearing a filter or search term.'}
-              action={<button type="button" className={calcStyles.btn} onClick={() => setShowForm(true)}>+ New Project</button>}
+              action={<CommonButton variant="primary" size="md" leadingIcon={<Plus />} onClick={() => setShowForm(true)}>New Project</CommonButton>}
             />
           }
         />

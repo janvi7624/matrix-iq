@@ -1,9 +1,13 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Plus } from 'lucide-react';
 import AppShell from './AppShell';
+import CommonButton from './ui/CommonButton';
+import { SkeletonList } from './ui/Skeleton';
 import { useToast } from './ui/ToastProvider';
 import styles from './hrAppreciation.module.css';
+import Select from './ui/Select';
 
 interface Savings {
   costSavingsPerMonth: string;
@@ -262,17 +266,17 @@ export default function HrAppreciationView() {
           ))}
         </div>
         {canSubmit && !showForm && (
-          <button
-            type="button"
-            className={styles.primary}
+          <CommonButton
+            variant="primary"
+            leadingIcon={<Plus />}
             onClick={() => {
               setEditingId(null);
               setForm({ ...EMPTY_FORM, taskGivenDate: today(), taskCompletionDate: today() });
               setShowForm(true);
             }}
           >
-            + Appreciate an employee
-          </button>
+            Appreciate an employee
+          </CommonButton>
         )}
       </div>
 
@@ -283,7 +287,7 @@ export default function HrAppreciationView() {
             {!editingId && (
               <label className={styles.field}>
                 <span>Employee *</span>
-                <select value={form.employeeId} onChange={(e) => setForm({ ...form, employeeId: e.target.value })} required>
+                <Select value={form.employeeId} onChange={(e) => setForm({ ...form, employeeId: e.target.value })} required>
                   <option value="">Select employee…</option>
                   {employees.map((emp) => (
                     <option key={emp.id} value={emp.id}>
@@ -291,7 +295,7 @@ export default function HrAppreciationView() {
                       {emp.department ? ` — ${emp.department}` : ''}
                     </option>
                   ))}
-                </select>
+                </Select>
               </label>
             )}
             <label className={styles.field}>
@@ -410,24 +414,24 @@ export default function HrAppreciationView() {
             <textarea rows={4} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="Describe the achievement and its impact…" required minLength={10} />
           </label>
           <div className={styles.formActions}>
-            <button type="button" className={styles.secondary} onClick={cancelForm} disabled={saving}>
+            <CommonButton variant="secondary" onClick={cancelForm} disabled={saving}>
               Cancel
-            </button>
-            <button type="submit" className={styles.primary} disabled={saving || uploading}>
+            </CommonButton>
+            <CommonButton type="submit" variant="primary" disabled={saving || uploading}>
               {saving ? 'Saving…' : editingId ? 'Save Changes' : 'Submit to HR'}
-            </button>
+            </CommonButton>
           </div>
         </form>
       )}
 
       {loading ? (
-        <div className={styles.empty}>Loading…</div>
+        <SkeletonList rows={4} avatar={false} />
       ) : loadError ? (
         <div className={styles.empty}>
           {loadError}{' '}
-          <button type="button" className={styles.linkBtn} onClick={load}>
+          <CommonButton variant="link" size="sm" onClick={load}>
             Retry
-          </button>
+          </CommonButton>
         </div>
       ) : visible.length === 0 ? (
         <div className={styles.empty}>{tab === 'pending' ? 'Nothing waiting for review.' : 'No appreciations here yet.'}</div>
@@ -465,12 +469,12 @@ export default function HrAppreciationView() {
               )}
               {r.can_edit && (
                 <div className={styles.decide}>
-                  <button type="button" className={styles.secondary} onClick={() => startEdit(r)} disabled={deletingId === r.id}>
+                  <CommonButton variant="secondary" size="sm" onClick={() => startEdit(r)} disabled={deletingId === r.id}>
                     Edit
-                  </button>
-                  <button type="button" className={styles.reject} disabled={deletingId === r.id} onClick={() => handleDelete(r)}>
-                    {deletingId === r.id ? 'Deleting…' : 'Delete'}
-                  </button>
+                  </CommonButton>
+                  <CommonButton variant="destructive" size="sm" loading={deletingId === r.id} loadingLabel="Deleting…" onClick={() => handleDelete(r)}>
+                    Delete
+                  </CommonButton>
                 </div>
               )}
               {isDecider && r.status === 'pending' && (
@@ -481,12 +485,12 @@ export default function HrAppreciationView() {
                     value={remarks[r.id] || ''}
                     onChange={(e) => setRemarks({ ...remarks, [r.id]: e.target.value })}
                   />
-                  <button type="button" className={styles.reject} disabled={deciding === r.id} onClick={() => decide(r, 'rejected')}>
+                  <CommonButton variant="destructive" size="sm" disabled={deciding === r.id} onClick={() => decide(r, 'rejected')}>
                     Reject
-                  </button>
-                  <button type="button" className={styles.approve} disabled={deciding === r.id} onClick={() => decide(r, 'approved')}>
+                  </CommonButton>
+                  <CommonButton variant="success" size="sm" disabled={deciding === r.id} onClick={() => decide(r, 'approved')}>
                     Approve
-                  </button>
+                  </CommonButton>
                 </div>
               )}
             </article>

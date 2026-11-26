@@ -1785,3 +1785,31 @@
   gap: 6px;
   white-space: nowrap;
 }
+
+/* Responsive: these rows hold controls or a title + actions. They wrap
+   onto a second line when the screen is too narrow for them, instead of
+   overflowing or crushing their neighbours. No effect when they fit. */
+.entryHead,
+.tmsPickerRowMeta,
+.tmsLinkedPanelHead,
+.tmsLinkedActionButtons,
+.autoDetailRow,
+.pickerRow {
+    flex-wrap: wrap;
+    row-gap: 8px;
+}
+
+/* Shared vertical spacing between stacked blocks (app/globals.css → "Stack spacing"). */
+.formGrid { composes: mx-block from global; }
+
+.matrixWrap { composes: mx-block from global; }
+
+.commandBar { composes: mx-block from global; }
+
+.dayLegend { composes: mx-block from global; }
+
+.banner { composes: mx-block from global; }
+
+.kpiRow { composes: mx-block from global; }
+
+.sectionHint { composes: mx-block from global; }

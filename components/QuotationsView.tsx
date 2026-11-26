@@ -58,7 +58,7 @@ export default function QuotationsView({ currentUser, canEditPricing, isPrivileg
   }
 
   return (
-    <AppShell title="Quotations" subtitle="Build a new quotation, or search and follow up on quotations you've already created.">
+    <AppShell fillPage={tab === 'existing'} title="Quotations" subtitle="Build a new quotation, or search and follow up on quotations you've already created.">
       <div className={historyStyles.tabBar}>
         {TABS.map((t) => (
           <button

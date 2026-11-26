@@ -1,32 +1,8 @@
 'use client';
 
 import { FormEvent, KeyboardEvent, useEffect, useMemo, useState } from 'react';
-import Link from 'next/link';
-import {
-  AlertTriangle,
-  ArrowRightLeft,
-  FileText,
-  Handshake,
-  Lock,
-  MapPin,
-  MessageSquare,
-  Monitor,
-  MoreVertical,
-  Package,
-  Paperclip,
-  Receipt,
-  StickyNote,
-  UserPlus,
-  Users,
-  Wrench,
-  Clock,
-  Hourglass,
-  Download,
-  Loader2,
-  Pencil,
-  CheckCircle2,
-  XCircle
-} from 'lucide-react';
+import Link from '@/components/ui/AppLink';
+import { AlertTriangle, ArrowRightLeft, FileText, Handshake, Lock, MapPin, MessageSquare, Monitor, MoreVertical, Package, Paperclip, Receipt, StickyNote, UserPlus, Users, Wrench, Clock, Hourglass, Download, Pencil, CheckCircle2, XCircle, Check, X } from 'lucide-react';
 import {
   CustomerResponseRecord,
   DeadlineExtensionReason,
@@ -59,6 +35,10 @@ import { MARKETING_STATUS_LABEL } from '@/lib/marketingRequestHelpers';
 import { getPoPaymentStatus } from '@/lib/poPaymentStatus';
 import { checkProjectCompleteness, PROJECT_FIELD_LABEL } from '@/lib/projectCompleteness';
 import AppShell from './AppShell';
+import CommonButton from './ui/CommonButton';
+import PageBackButton from './ui/PageBackButton';
+import { SkeletonDetail } from './ui/Skeleton';
+import StatCard, { StatCardGrid } from './ui/StatCard';
 import historyStyles from './quotationHistory.module.css';
 import { downloadQuotationFromRecord } from '@/lib/quotationPdfFromRecord';
 import calcStyles from './calculator.module.css';
@@ -79,6 +59,8 @@ import OpportunityTypeField from './ui/OpportunityTypeField';
 import { useProjectLeads } from './ui/useProjectLeads';
 import { OPPORTUNITY_TYPE_LABEL, OpportunityType, nextLeadOnTypeChange } from '@/lib/projectLeadOptions';
 import { fetchCached, invalidateProjectCaches } from '@/lib/fetchCached';
+import RowActions from './ui/RowActions';
+import Select from './ui/Select';
 
 // Every editable field on the Overview card, named as PATCH /api/projects/[id]
 // names it, so the save below is a straight copy of what changed.
@@ -287,13 +269,12 @@ function ProjectQuotationRow({ quotation }: { quotation: QuotationRecord }) {
       <div className={historyStyles.rowActionsInline}>
         {/* Revise leads, as it does in the main list: it is the action
             people come to a past quotation for. */}
-        <Link className={historyStyles.button} href={`/quotation?reviseId=${quotation.id}`}>
-          <Pencil size={13} aria-hidden /> Revise
-        </Link>
-        <button type="button" className={historyStyles.button} onClick={handleDownload} disabled={busy}>
-          {busy ? <Loader2 size={13} aria-hidden /> : <Download size={13} aria-hidden />}
-          {busy ? ' Working…' : ' Download'}
-        </button>
+        <CommonButton variant="secondary" size="sm" leadingIcon={<Pencil />} href={`/quotation?reviseId=${quotation.id}`}>
+          Revise
+        </CommonButton>
+        <CommonButton variant="secondary" size="sm" leadingIcon={<Download />} loading={busy} loadingLabel="Working…" onClick={handleDownload}>
+          Download
+        </CommonButton>
       </div>
     </div>
   );
@@ -1124,8 +1105,10 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
   if (status && !data) {
     return (
       <AppShell title="Project Detail" subtitle="Loading…">
-          <div className={historyStyles.status}>{status}</div>
-          <Link className={historyStyles.button} href="/projects">&larr; All Projects</Link>
+          <div className={styles.topActionsRow}>
+            <PageBackButton fallbackRoute="/projects" />
+          </div>
+          {status === 'Loading...' ? <SkeletonDetail panels={3} pairs={6} withTopRow={false} /> : <div className={historyStyles.status}>{status}</div>}
       </AppShell>
     );
   }
@@ -1209,15 +1192,15 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
   return (
     <AppShell title={project.client_name || project.company || `Project ${project.id}`} subtitle={`Project ${project.id} — the central workspace for this deal.`}>
         <div className={styles.topActionsRow}>
-          <Link className={historyStyles.button} href="/projects">&larr; All Projects</Link>
-          <button type="button" className={historyStyles.button} onClick={handleExportPdf}>Export Timeline PDF</button>
-          <button type="button" className={historyStyles.button} onClick={() => window.print()}>Print</button>
+          <PageBackButton fallbackRoute="/projects" />
+          <CommonButton variant="secondary" onClick={handleExportPdf}>Export Timeline PDF</CommonButton>
+          <CommonButton variant="secondary" onClick={() => window.print()}>Print</CommonButton>
         </div>
 
         {linkedLead && (
           <div className={historyStyles.status} style={{ marginBottom: 8 }}>
             Created From Lead: <strong>{linkedLead.name}</strong>{' '}
-            <Link className={historyStyles.button} href="/leads" style={{ marginLeft: 8 }}>Open Lead</Link>
+            <CommonButton variant="secondary" size="sm" href="/leads" style={{ marginLeft: 8 }}>Open Lead</CommonButton>
           </div>
         )}
 
@@ -1230,12 +1213,12 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
             <strong>New assignment — please confirm.</strong> This project was created automatically from a lead assigned to you.
             {!showClarifyInput ? (
               <div style={{ display: 'flex', gap: 10, marginTop: 10 }}>
-                <button type="button" className={calcStyles.btn} disabled={confirmingAssignment} onClick={handleConfirmAssignment}>
+                <CommonButton variant="primary" disabled={confirmingAssignment} onClick={handleConfirmAssignment}>
                   {confirmingAssignment ? 'Confirming…' : 'Confirm Assignment'}
-                </button>
-                <button type="button" className={historyStyles.button} disabled={confirmingAssignment} onClick={() => setShowClarifyInput(true)}>
+                </CommonButton>
+                <CommonButton variant="secondary" disabled={confirmingAssignment} onClick={() => setShowClarifyInput(true)}>
                   Request Clarification
-                </button>
+                </CommonButton>
               </div>
             ) : (
               <div style={{ marginTop: 10 }}>
@@ -1247,10 +1230,10 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
                   onChange={(e) => setClarificationText(e.target.value)}
                 />
                 <div style={{ display: 'flex', gap: 10, marginTop: 8 }}>
-                  <button type="button" className={historyStyles.button} onClick={() => setShowClarifyInput(false)}>Cancel</button>
-                  <button type="button" className={calcStyles.btn} disabled={confirmingAssignment || !clarificationText.trim()} onClick={handleRequestClarification}>
+                  <CommonButton variant="secondary" onClick={() => setShowClarifyInput(false)}>Cancel</CommonButton>
+                  <CommonButton variant="primary" disabled={confirmingAssignment || !clarificationText.trim()} onClick={handleRequestClarification}>
                     Send Request
-                  </button>
+                  </CommonButton>
                 </div>
               </div>
             )}
@@ -1296,18 +1279,18 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
                   {technicalRequest.can_reassign && teamOptions.length > 1 && (
                     <div className={`${calcStyles.field} ${calcStyles.mb12}`}>
                       <label className={calcStyles.label} htmlFor={`tech-assign-${technicalRequest.id}`}>Assign</label>
-                      <select id={`tech-assign-${technicalRequest.id}`} className={calcStyles.formControl} value={pickedId || technicalRequest.requested_user_id} onChange={(e) => setTechAssignIds((m) => ({ ...m, [technicalRequest.id]: e.target.value }))}>
+                      <Select id={`tech-assign-${technicalRequest.id}`} value={pickedId || technicalRequest.requested_user_id} onChange={(e) => setTechAssignIds((m) => ({ ...m, [technicalRequest.id]: e.target.value }))}>
                         {teamOptions.map((p) => (
                           <option key={p.id} value={p.id}>{p.name}{p.id === technicalRequest.requested_user_id ? ' (requested)' : ''}</option>
                         ))}
-                      </select>
+                      </Select>
                     </div>
                   )}
                   <div className={styles.actionsRow8}>
-                    <button type="button" className={styles.acceptBtn} disabled={decidingTech} onClick={() => decideTechnicalRequest(technicalRequest.id, 'approve')}>
+                    <CommonButton variant="success" disabled={decidingTech} onClick={() => decideTechnicalRequest(technicalRequest.id, 'approve')}>
                       {decidingTech ? 'Saving…' : sendingOther ? `Approve — send ${sendingOther.name}` : 'Approve'}
-                    </button>
-                    <button type="button" className={styles.brandActionBtn} disabled={decidingTech} onClick={() => { setDecliningRequestId(technicalRequest.id); setTechAssignIds((m) => ({ ...m, [technicalRequest.id]: '' })); }}>Decline</button>
+                    </CommonButton>
+                    <CommonButton variant="destructive" disabled={decidingTech} onClick={() => { setDecliningRequestId(technicalRequest.id); setTechAssignIds((m) => ({ ...m, [technicalRequest.id]: '' })); }}>Decline</CommonButton>
                   </div>
                 </>
               ) : (
@@ -1322,10 +1305,10 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
                     placeholder="e.g. Already on site at another client that day — ask again for next week, or request Janvi."
                   />
                   <div className={styles.actionsRow8}>
-                    <button type="button" className={styles.brandActionBtn} disabled={decidingTech || !techDeclineReason.trim()} onClick={() => decideTechnicalRequest(technicalRequest.id, 'decline')}>
+                    <CommonButton variant="destructive" disabled={decidingTech || !techDeclineReason.trim()} onClick={() => decideTechnicalRequest(technicalRequest.id, 'decline')}>
                       {decidingTech ? 'Submitting…' : 'Submit Decline'}
-                    </button>
-                    <button type="button" className={styles.cancelActionBtn} onClick={() => { setDecliningRequestId(null); setTechDeclineReason(''); }}>Cancel</button>
+                    </CommonButton>
+                    <CommonButton variant="secondary" onClick={() => { setDecliningRequestId(null); setTechDeclineReason(''); }}>Cancel</CommonButton>
                   </div>
                 </div>
               )}
@@ -1384,7 +1367,7 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
               {canEdit && (
                 <>
                   {' '}
-                  <button type="button" className={styles.techPendingLink} onClick={() => setTab('overview')}>Add it in Overview</button>
+                  <CommonButton variant="link" size="sm" onClick={() => setTab('overview')}>Add it in Overview</CommonButton>
                 </>
               )}
             </div>
@@ -1446,44 +1429,20 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
         )}
 
         {/* Summary cards */}
-        <div className={historyStyles.summaryCardGrid}>
-          <div className={historyStyles.summaryCard}>
-            <div className={historyStyles.summaryCardLabel}>Client Details</div>
-            <div className={historyStyles.summaryCardValue}>{project.company || '-'}</div>
-            <div className={calcStyles.small}>{project.client_name || '-'} · {project.phone || '-'}</div>
-          </div>
-          <div className={historyStyles.summaryCard}>
-            <div className={historyStyles.summaryCardLabel}>Sales Team</div>
-            <div className={historyStyles.summaryCardValue}>{salesTeam.length ? salesTeam.join(', ') : '-'}</div>
-          </div>
-          <div className={historyStyles.summaryCard}>
-            <div className={historyStyles.summaryCardLabel}>Assigned Technical Team</div>
-            <div className={historyStyles.summaryCardValue}>{technicalTeam.length ? technicalTeam.join(', ') : 'Unassigned'}</div>
-          </div>
-          <div className={historyStyles.summaryCard}>
-            <div className={historyStyles.summaryCardLabel}>Quotation Amount</div>
-            <div className={historyStyles.summaryCardValue}>{latestQuotation ? `₹${latestQuotation.total.toLocaleString('en-IN')}` : '-'}</div>
-          </div>
-          <div className={historyStyles.summaryCard}>
-            <div className={historyStyles.summaryCardLabel}>Expected Closure</div>
-            <div className={historyStyles.summaryCardValue}>{formatDate(project.expected_closing_date)}</div>
-          </div>
-          <div className={historyStyles.summaryCard}>
-            <div className={historyStyles.summaryCardLabel}>Priority</div>
-            <div className={historyStyles.summaryCardValue}>{PRIORITY_LABEL[project.priority]}</div>
-          </div>
-          <div className={historyStyles.summaryCard}>
-            <div className={historyStyles.summaryCardLabel}>Last Activity</div>
-            <div className={historyStyles.summaryCardValue}>{lastActivity ? lastActivity.label : '-'}</div>
-            <div className={calcStyles.small}>{lastActivity ? formatDateTime(lastActivity.at) : ''}</div>
-          </div>
-          <div className={`${historyStyles.summaryCard} ${isOverdue ? styles.followUpCardOverdue : ''}`}>
-            <div className={historyStyles.summaryCardLabel}>Next Follow-up</div>
-            <div className={`${historyStyles.summaryCardValue} ${isOverdue ? styles.followUpValueOverdue : ''}`}>
-              {formatDate(project.next_follow_up_date)}{isOverdue ? ' (overdue)' : ''}
-            </div>
-          </div>
-        </div>
+        <StatCardGrid>
+          <StatCard valueSize="sm" label="Client Details" value={project.company || '-'} sub={`${project.client_name || '-'} · ${project.phone || '-'}`} />
+          <StatCard valueSize="sm" label="Sales Team" value={salesTeam.length ? salesTeam.join(', ') : '-'} />
+          <StatCard valueSize="sm" label="Assigned Technical Team" value={technicalTeam.length ? technicalTeam.join(', ') : 'Unassigned'} />
+          <StatCard label="Quotation Amount" value={latestQuotation ? `₹${latestQuotation.total.toLocaleString('en-IN')}` : '-'} />
+          <StatCard valueSize="sm" label="Expected Closure" value={formatDate(project.expected_closing_date)} />
+          <StatCard valueSize="sm" label="Priority" value={PRIORITY_LABEL[project.priority]} />
+          <StatCard valueSize="sm" label="Last Activity" value={lastActivity ? lastActivity.label : '-'} sub={lastActivity ? formatDateTime(lastActivity.at) : undefined} />
+          <StatCard valueSize="sm"
+            label="Next Follow-up"
+            tone={isOverdue ? 'danger' : 'default'}
+            value={<>{formatDate(project.next_follow_up_date)}{isOverdue ? ' (overdue)' : ''}</>}
+          />
+        </StatCardGrid>
 
         {/* Quick actions */}
         <h2 className={calcStyles.h2}>Quick Actions</h2>
@@ -1579,20 +1538,18 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
 
             {!showDeclineForm ? (
               <div className={styles.actionsRow8}>
-                <button
-                  className={styles.acceptBtn}
+                <CommonButton variant="success"
                   disabled={respondingHandover}
                   onClick={() => respondToHandover(true, '')}
                 >
                   Accept
-                </button>
-                <button
-                  className={styles.brandActionBtn}
+                </CommonButton>
+                <CommonButton variant="destructive"
                   disabled={respondingHandover}
                   onClick={() => setShowDeclineForm(true)}
                 >
                   Decline
-                </button>
+                </CommonButton>
               </div>
             ) : (
               <div className={styles.declineFormPanel}>
@@ -1605,8 +1562,7 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
                   placeholder="Please provide a reason for declining this handover..."
                 />
                 <div className={styles.actionsRow8}>
-                  <button
-                    className={styles.brandActionBtn}
+                  <CommonButton variant="destructive"
                     disabled={respondingHandover || !declineReason.trim()}
                     onClick={() => {
                       respondToHandover(false, declineReason.trim());
@@ -1615,13 +1571,12 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
                     }}
                   >
                     {respondingHandover ? 'Submitting...' : 'Submit Decline'}
-                  </button>
-                  <button
-                    className={styles.cancelActionBtn}
+                  </CommonButton>
+                  <CommonButton variant="secondary"
                     onClick={() => { setShowDeclineForm(false); setDeclineReason(''); }}
                   >
                     Cancel
-                  </button>
+                  </CommonButton>
                 </div>
               </div>
             )}
@@ -1634,8 +1589,7 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
             <div className={styles.bluePanelBody}>
               Handover request sent to <strong>{pendingHandover.to_name || pendingHandover.to_username}</strong> — waiting for their response.
             </div>
-            <button
-              className={styles.cancelRequestBtn}
+            <CommonButton variant="destructive" size="sm"
               disabled={respondingHandover}
               onClick={async () => {
                 const ok = await confirm({ message: 'Cancel this handover request?', danger: true });
@@ -1658,7 +1612,7 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
               }}
             >
               Cancel Request
-            </button>
+            </CommonButton>
           </div>
         )}
 
@@ -1668,7 +1622,7 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
             <div className={styles.panelTitle}>Handover Project</div>
             <div className={`${calcStyles.field} ${calcStyles.mb12}`}>
               <label className={calcStyles.label}>Hand over to</label>
-              <select className={calcStyles.formControl} value={handoverToUserId} onChange={(e) => setHandoverToUserId(e.target.value)}>
+              <Select value={handoverToUserId} onChange={(e) => setHandoverToUserId(e.target.value)}>
                 <option value="">-- Select person --</option>
                 {allUsers
                   .filter((u) => u.username !== currentUser.username)
@@ -1676,38 +1630,34 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
                     const dept = (u as any).department;
                     return <option key={u.id} value={u.id}>{u.name || u.username}{dept ? ` (${dept})` : ''}</option>;
                   })}
-              </select>
+              </Select>
             </div>
             <div className={`${calcStyles.field} ${calcStyles.mb12}`}>
               <label className={calcStyles.label}>Remarks (optional)</label>
               <textarea className={calcStyles.formControl} rows={3} value={handoverRemarks} onChange={(e) => setHandoverRemarks(e.target.value)} placeholder="Reason for handover..." />
             </div>
             <div className={handoverLogs.length > 0 ? styles.actionsRow8Mb14 : styles.actionsRow8}>
-              <button
-                className={styles.indigoActionBtn}
+              <CommonButton variant="primary"
                 disabled={submittingHandover || !handoverToUserId}
                 onClick={submitHandover}
               >
                 {submittingHandover ? 'Sending...' : 'Send Request'}
-              </button>
-              <button
-                className={styles.cancelActionBtn}
+              </CommonButton>
+              <CommonButton variant="secondary"
                 onClick={() => { setShowHandover(false); setHandoverToUserId(''); setHandoverRemarks(''); setShowHandoverHistory(false); }}
               >
                 Cancel
-              </button>
+              </CommonButton>
             </div>
 
             {/* Handover history toggle inside the box */}
             {handoverLogs.length > 0 && (
               <>
-                <button
-                  type="button"
+                <CommonButton variant="link" size="sm" aria-expanded={showHandoverHistory}
                   onClick={() => setShowHandoverHistory((v) => !v)}
-                  className={styles.historyToggleBtn}
                 >
                   {showHandoverHistory ? 'Hide History' : `View History (${handoverLogs.length})`}
-                </button>
+                </CommonButton>
                 {showHandoverHistory && (
                   <div className={styles.historyList}>
                     {handoverLogs.map((log) => {
@@ -1756,27 +1706,25 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
             <div className={styles.panelTitle}>Assign Sales Person</div>
             <div className={`${calcStyles.field} ${calcStyles.mb12}`}>
               <label className={calcStyles.label}>Sales person</label>
-              <select className={calcStyles.formControl} value={assignSalesPersonId} onChange={(e) => setAssignSalesPersonId(e.target.value)}>
+              <Select value={assignSalesPersonId} onChange={(e) => setAssignSalesPersonId(e.target.value)}>
                 <option value="">-- Select person --</option>
                 {orgUsers.map((u) => (
                   <option key={u.id} value={u.id}>{u.name || u.username}</option>
                 ))}
-              </select>
+              </Select>
             </div>
             <div className={styles.actionsRow8}>
-              <button
-                className={styles.indigoActionBtn}
+              <CommonButton variant="primary"
                 disabled={submittingSalesPerson || !assignSalesPersonId}
                 onClick={submitAssignSalesPerson}
               >
                 {submittingSalesPerson ? 'Saving...' : 'Save'}
-              </button>
-              <button
-                className={styles.cancelActionBtn}
+              </CommonButton>
+              <CommonButton variant="secondary"
                 onClick={() => { setShowAssignSalesPerson(false); setAssignSalesPersonId(''); }}
               >
                 Cancel
-              </button>
+              </CommonButton>
             </div>
           </div>
         )}
@@ -1908,17 +1856,17 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
               <div className={calcStyles.field}>
                 <label className={calcStyles.label}>Priority</label>
                 {canEdit ? (
-                  <select className={calcStyles.formControl} value={overviewValue('priority')} onChange={(e) => setOverviewField('priority', e.target.value)}>
+                  <Select value={overviewValue('priority')} onChange={(e) => setOverviewField('priority', e.target.value)}>
                     {(Object.keys(PRIORITY_LABEL) as ProjectPriority[]).map((p) => <option key={p} value={p}>{PRIORITY_LABEL[p]}</option>)}
-                  </select>
+                  </Select>
                 ) : <div className={calcStyles.small}>{PRIORITY_LABEL[project.priority]}</div>}
               </div>
               <div className={calcStyles.field}>
                 <label className={calcStyles.label}>Status</label>
                 {canEdit ? (
-                  <select className={calcStyles.formControl} value={overviewValue('status')} onChange={(e) => setOverviewField('status', e.target.value)}>
+                  <Select value={overviewValue('status')} onChange={(e) => setOverviewField('status', e.target.value)}>
                     {(Object.keys(STATUS_LABEL) as ProjectStatus[]).map((s) => <option key={s} value={s}>{STATUS_LABEL[s]}</option>)}
-                  </select>
+                  </Select>
                 ) : <div className={calcStyles.small}>{STATUS_LABEL[project.status]}</div>}
               </div>
               <div className={calcStyles.field}>
@@ -1936,22 +1884,18 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
                     />
                     {departmentDirty && (
                       <div className={`${calcStyles.row} ${calcStyles.mt4}`}>
-                        <button
-                          type="button"
-                          className={`${historyStyles.button} ${historyStyles.primary}`}
+                        <CommonButton variant="primary"
                           disabled={savingDepartments}
                           onClick={() => void saveDepartments(departmentDraft ?? project.departments ?? [], departmentAmountDraft ?? project.department_amounts ?? {})}
                         >
                           {savingDepartments ? 'Saving…' : 'Save Department'}
-                        </button>
-                        <button
-                          type="button"
-                          className={historyStyles.button}
+                        </CommonButton>
+                        <CommonButton variant="secondary"
                           disabled={savingDepartments}
                           onClick={() => { setDepartmentDraft(null); setDepartmentAmountDraft(null); }}
                         >
                           Cancel
-                        </button>
+                        </CommonButton>
                       </div>
                     )}
                   </>
@@ -1960,19 +1904,19 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
               <div className={calcStyles.field}>
                 <label className={calcStyles.label}>Current stage</label>
                 {canEdit ? (
-                  <select className={calcStyles.formControl} value={overviewValue('stage')} onChange={(e) => setOverviewField('stage', e.target.value)}>
+                  <Select value={overviewValue('stage')} onChange={(e) => setOverviewField('stage', e.target.value)}>
                     {stageSelectOptions.map((s) => <option key={s} value={s}>{STAGE_LABEL[s as ProjectStage]}</option>)}
-                  </select>
+                  </Select>
                 ) : <div className={calcStyles.small}>{STAGE_LABEL[project.stage]}</div>}
               </div>
               <div className={calcStyles.field}>
                 <label className={calcStyles.label}>Cold call responded</label>
                 {canEdit ? (
-                  <select className={calcStyles.formControl} value={overviewValue('coldCallResponded')} onChange={(e) => setOverviewField('coldCallResponded', e.target.value)}>
+                  <Select value={overviewValue('coldCallResponded')} onChange={(e) => setOverviewField('coldCallResponded', e.target.value)}>
                     <option value="">Not yet called</option>
                     <option value="yes">Yes</option>
                     <option value="no">No</option>
-                  </select>
+                  </Select>
                 ) : <div className={calcStyles.small}>{project.cold_call_responded === 'yes' ? 'Yes' : project.cold_call_responded === 'no' ? 'No' : 'Not yet called'}</div>}
               </div>
             </div>
@@ -1981,9 +1925,9 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
                 <label className={calcStyles.label}>Expected closing date (deadline)</label>
                 <div className={calcStyles.small}>{formatDate(project.expected_closing_date)}</div>
                 {canEdit && (
-                  <button type="button" className={`${historyStyles.button} ${calcStyles.mt4}`} onClick={() => setShowExtendDeadline(true)}>
+                  <CommonButton variant="secondary" size="sm" className={calcStyles.mt4} onClick={() => setShowExtendDeadline(true)}>
                     Extend Deadline
-                  </button>
+                  </CommonButton>
                 )}
               </div>
               <div className={calcStyles.field}>
@@ -2004,7 +1948,7 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
                     <CheckCircle2 size={13} aria-hidden="true" />
                     <span>{person.name}</span>
                     {canEdit && (
-                      <button type="button" className={styles.techPendingLink} onClick={() => handleRemoveTechnicalPerson(person.id, person.name)}>Remove</button>
+                      <CommonButton variant="link" size="sm" onClick={() => handleRemoveTechnicalPerson(person.id, person.name)}>Remove</CommonButton>
                     )}
                   </div>
                 ))}
@@ -2013,15 +1957,15 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
                     <Hourglass size={13} aria-hidden="true" />
                     <span>Awaiting approval: <strong>{req.requested_name}</strong></span>
                     {req.can_withdraw && (
-                      <button type="button" className={styles.techPendingLink} onClick={() => withdrawTechnicalRequest(req.id, req.requested_name)}>Withdraw</button>
+                      <CommonButton variant="link" size="sm" onClick={() => withdrawTechnicalRequest(req.id, req.requested_name)}>Withdraw</CommonButton>
                     )}
                   </div>
                 ))}
                 {/* Picking someone raises a request for them / their manager to
                     approve — nothing is assigned from here directly. */}
                 {canEdit && (
-                  <select
-                    className={`${calcStyles.formControl} ${calcStyles.mt4}`}
+                  <Select
+                    className={calcStyles.mt4}
                     value=""
                     aria-label="Request a technical person"
                     onChange={(e) => handleTechnicalPersonSelect(e.target.value)}
@@ -2032,7 +1976,7 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
                       .map((person) => (
                         <option key={person.id} value={person.id}>{person.name}{person.department ? ` — ${person.department}` : ''}</option>
                       ))}
-                  </select>
+                  </Select>
                 )}
               </div>
               <div className={calcStyles.field}>
@@ -2107,12 +2051,12 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
                 <span className={calcStyles.small}>
                   {changedOverviewFields.length === 1 ? '1 unsaved change' : `${changedOverviewFields.length} unsaved changes`}
                 </span>
-                <button type="button" className={calcStyles.btn} disabled={savingDetails} onClick={handleSaveDetails}>
+                <CommonButton variant="primary" disabled={savingDetails} onClick={handleSaveDetails}>
                   {savingDetails ? 'Saving…' : 'Save changes'}
-                </button>
-                <button type="button" className={historyStyles.button} disabled={savingDetails} onClick={() => setOverviewDraft({})}>
+                </CommonButton>
+                <CommonButton variant="secondary" disabled={savingDetails} onClick={() => setOverviewDraft({})}>
                   Discard
-                </button>
+                </CommonButton>
               </div>
             )}
             <div className={`${historyStyles.miniCard} ${calcStyles.mt12}`}>
@@ -2182,7 +2126,7 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
               </div>
             ))}
             <form onSubmit={handleAddResponse} className={calcStyles.mt10}>
-              <select className={`${calcStyles.formControl} ${calcStyles.mb6}`} value={respForm.responseType} onChange={(e) => setRespForm((f) => ({ ...f, responseType: e.target.value as CustomerResponseRecord['response_type'] }))}>
+              <Select className={calcStyles.mb6} value={respForm.responseType} onChange={(e) => setRespForm((f) => ({ ...f, responseType: e.target.value as CustomerResponseRecord['response_type'] }))}>
                 <option value="">-- Response type --</option>
                 <option value="interested">Interested</option>
                 <option value="not_interested">Not interested</option>
@@ -2190,10 +2134,10 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
                 <option value="need_new_quotation">Need new quotation</option>
                 <option value="budget_issue">Budget issue</option>
                 <option value="competitor">Competitor</option>
-              </select>
+              </Select>
               <textarea className={`${calcStyles.formControl} ${calcStyles.mb6}`} rows={2} placeholder="Feedback" value={respForm.feedback} onChange={(e) => setRespForm((f) => ({ ...f, feedback: e.target.value }))} />
               <textarea className={`${calcStyles.formControl} ${calcStyles.mb6}`} rows={2} placeholder="Remarks (optional)" value={respForm.remarks} onChange={(e) => setRespForm((f) => ({ ...f, remarks: e.target.value }))} />
-              <button type="submit" className={calcStyles.btn} disabled={busySection === 'response'}>{busySection === 'response' ? 'Saving…' : 'Log response'}</button>
+              <CommonButton variant="primary" type="submit" disabled={busySection === 'response'}>{busySection === 'response' ? 'Saving…' : 'Log response'}</CommonButton>
             </form>
           </div>
         )}
@@ -2207,7 +2151,7 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
                   {formatDate(n.discussion_date)} — {n.person}: {n.discussion || n.offer_given || '-'}
                   {n.remarks && <div className={calcStyles.small}>Remark: {n.remarks}</div>}
                 </span>
-                {isPrivileged && <button type="button" className={historyStyles.deleteBtn} onClick={() => handleDeleteNegotiation(n.id)}>Delete</button>}
+                {isPrivileged && <CommonButton variant="destructive" size="sm" onClick={() => handleDeleteNegotiation(n.id)}>Delete</CommonButton>}
               </div>
             ))}
             <form onSubmit={handleAddNegotiation} className={calcStyles.mt10}>
@@ -2225,7 +2169,7 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
                 <input type="date" className={calcStyles.formControl} min={todayDateInputValue()} placeholder="Expected closure" value={negForm.expectedClosure} onChange={(e) => setNegForm((f) => ({ ...f, expectedClosure: e.target.value }))} />
               </div>
               <textarea className={`${calcStyles.formControl} ${calcStyles.mb6}`} rows={2} placeholder="Remarks (optional)" value={negForm.remarks} onChange={(e) => setNegForm((f) => ({ ...f, remarks: e.target.value }))} />
-              <button type="submit" className={calcStyles.btn} disabled={busySection === 'negotiation'}>{busySection === 'negotiation' ? 'Saving…' : 'Log discussion'}</button>
+              <CommonButton variant="primary" type="submit" disabled={busySection === 'negotiation'}>{busySection === 'negotiation' ? 'Saving…' : 'Log discussion'}</CommonButton>
             </form>
           </div>
         )}
@@ -2263,7 +2207,7 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
                   </span>
                   <span className={styles.rowBetween}>
                     <StatusBadge tone={paymentStatus.tone} label={paymentStatus.label} />
-                    {isPrivileged && <button type="button" className={historyStyles.deleteBtn} onClick={() => handleDeletePo(po.id)}>Delete</button>}
+                    {isPrivileged && <CommonButton variant="destructive" size="sm" onClick={() => handleDeletePo(po.id)}>Delete</CommonButton>}
                   </span>
                 </div>
               );
@@ -2279,7 +2223,7 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
               </div>
               <input className={`${calcStyles.formControl} ${calcStyles.mb6}`} placeholder="Payment terms" value={poForm.paymentTerms} onChange={(e) => setPoForm((f) => ({ ...f, paymentTerms: e.target.value }))} />
               <textarea className={`${calcStyles.formControl} ${calcStyles.mb6}`} rows={2} placeholder="Remarks (optional)" value={poForm.remarks} onChange={(e) => setPoForm((f) => ({ ...f, remarks: e.target.value }))} />
-              <button type="submit" className={calcStyles.btn} disabled={busySection === 'po'}>{busySection === 'po' ? 'Saving…' : 'Log PO'}</button>
+              <CommonButton variant="primary" type="submit" disabled={busySection === 'po'}>{busySection === 'po' ? 'Saving…' : 'Log PO'}</CommonButton>
             </form>
           </div>
         )}
@@ -2291,11 +2235,11 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
               <div key={inst.id} className={historyStyles.miniCardRow}>
                 <div>{formatDate(inst.installation_date)} — {inst.assigned_engineer || 'Unassigned'}</div>
                 {inst.remarks && <div className={calcStyles.small}>Remark: {inst.remarks}</div>}
-                <select className={`${calcStyles.formControl} ${calcStyles.mt4}`} value={inst.status} onChange={(e) => handleInstallationStatus(inst.id, e.target.value as InstallationRecord['status'])}>
+                <Select className={calcStyles.mt4} value={inst.status} onChange={(e) => handleInstallationStatus(inst.id, e.target.value as InstallationRecord['status'])}>
                   <option value="scheduled">Scheduled</option>
                   <option value="in_progress">In Progress</option>
                   <option value="completed">Completed</option>
-                </select>
+                </Select>
               </div>
             ))}
             <form onSubmit={handleAddInstallation} className={calcStyles.mt10}>
@@ -2304,7 +2248,7 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
                 <input className={calcStyles.formControl} placeholder="Assigned engineer" value={instForm.assignedEngineer} onChange={(e) => setInstForm((f) => ({ ...f, assignedEngineer: e.target.value }))} />
               </div>
               <textarea className={`${calcStyles.formControl} ${calcStyles.mb6}`} rows={2} placeholder="Remarks (optional)" value={instForm.remarks} onChange={(e) => setInstForm((f) => ({ ...f, remarks: e.target.value }))} />
-              <button type="submit" className={calcStyles.btn} disabled={busySection === 'installation'}>{busySection === 'installation' ? 'Saving…' : 'Schedule installation'}</button>
+              <CommonButton variant="primary" type="submit" disabled={busySection === 'installation'}>{busySection === 'installation' ? 'Saving…' : 'Schedule installation'}</CommonButton>
             </form>
           </div>
         )}
@@ -2324,7 +2268,7 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
           <div className={`${historyStyles.detailPanel} ${historyStyles.detailPanelFlush}`}>
             <form onSubmit={handleAddRemark} className={`${historyStyles.followUpForm} ${calcStyles.mb14}`}>
               <input type="text" placeholder="Add a remark to this project's timeline…" value={remarkText} onChange={(e) => setRemarkText(e.target.value)} />
-              <button type="submit" disabled={savingRemark}>{savingRemark ? 'Saving…' : 'Add remark'}</button>
+              <CommonButton variant="primary" size="sm" type="submit" disabled={savingRemark}>{savingRemark ? 'Saving…' : 'Add remark'}</CommonButton>
             </form>
             <div className={historyStyles.timeline}>
               {project.timeline.slice().reverse().map((t) => (
@@ -2346,7 +2290,7 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
             ))}
             <form onSubmit={handleAddNote} className={calcStyles.mt10}>
               <textarea className={`${calcStyles.formControl} ${calcStyles.mb6}`} rows={2} placeholder="Add a note…" value={noteText} onChange={(e) => setNoteText(e.target.value)} />
-              <button type="submit" className={calcStyles.btn} disabled={savingNote}>{savingNote ? 'Saving…' : 'Add note'}</button>
+              <CommonButton variant="primary" type="submit" disabled={savingNote}>{savingNote ? 'Saving…' : 'Add note'}</CommonButton>
             </form>
           </div>
         )}
@@ -2377,10 +2321,13 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
                         <td>{formatDate(ext.createdAt.slice(0, 10))}</td>
                         <td>
                           {canDecide && (
-                            <div className={historyStyles.rowActionsInline}>
-                              <button type="button" className={calcStyles.btn} onClick={() => { setDecidingExtension({ id: ext.id, decision: 'approve' }); setDecisionRemark(''); }}>Approve</button>
-                              <button type="button" className={historyStyles.button} onClick={() => { setDecidingExtension({ id: ext.id, decision: 'reject' }); setDecisionRemark(''); }}>Reject</button>
-                            </div>
+                            <RowActions
+                              label="Extension request actions"
+                              actions={[
+                                { key: 'approve', pinned: true, label: 'Approve', icon: <Check />, onClick: () => { setDecidingExtension({ id: ext.id, decision: 'approve' }); setDecisionRemark(''); } },
+                                { key: 'reject', pinned: true, label: 'Reject', icon: <X />, destructive: true, onClick: () => { setDecidingExtension({ id: ext.id, decision: 'reject' }); setDecisionRemark(''); } }
+                              ]}
+                            />
                           )}
                         </td>
                       </tr>
@@ -2402,8 +2349,8 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
               value={decisionRemark}
               onChange={(e) => setDecisionRemark(e.target.value)}
             />
-            <button type="button" className={calcStyles.btn} disabled={deciding} onClick={handleDecideExtension}>{deciding ? 'Saving…' : 'Confirm'}</button>{' '}
-            <button type="button" className={historyStyles.button} disabled={deciding} onClick={() => setDecidingExtension(null)}>Cancel</button>
+            <CommonButton variant="primary" disabled={deciding} onClick={handleDecideExtension}>{deciding ? 'Saving…' : 'Confirm'}</CommonButton>{' '}
+            <CommonButton variant="secondary" disabled={deciding} onClick={() => setDecidingExtension(null)}>Cancel</CommonButton>
           </div>
         )}
 
@@ -2459,9 +2406,8 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
             </p>
             <div className={calcStyles.field}>
               <label className={calcStyles.label} htmlFor="lost-reason">Lost Reason</label>
-              <select
+              <Select
                 id="lost-reason"
-                className={calcStyles.formControl}
                 value={lostReason}
                 onChange={(e) => setLostReason(e.target.value as LostReason | '')}
               >
@@ -2469,7 +2415,7 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
                 {LOST_REASONS.map((reason) => (
                   <option key={reason} value={reason}>{LOST_REASON_LABEL[reason]}</option>
                 ))}
-              </select>
+              </Select>
             </div>
           </Modal>
         )}
@@ -2556,9 +2502,9 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
                 {!wonHasQuotation && (
                   <div className={styles.wonChecklistHint}>
                     No quotation exists on this project yet.{' '}
-                    <button type="button" className={styles.techPendingLink} onClick={() => { setCloseWonOpen(false); setTab('quotations'); }}>
+                    <CommonButton variant="link" size="sm" onClick={() => { setCloseWonOpen(false); setTab('quotations'); }}>
                       Create one
-                    </button>
+                    </CommonButton>
                   </div>
                 )}
               </div>
@@ -2624,7 +2570,7 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
             </p>
             <div className={calcStyles.field}>
               <label className={calcStyles.label} htmlFor="sales-owner">Sales person</label>
-              <select id="sales-owner" className={calcStyles.formControl} value={salesOwnerId} disabled={!salesUsers || savingSalesOwner} onChange={(e) => setSalesOwnerId(e.target.value)}>
+              <Select id="sales-owner" value={salesOwnerId} disabled={!salesUsers || savingSalesOwner} onChange={(e) => setSalesOwnerId(e.target.value)}>
                 <option value="">{!salesUsers ? 'Loading…' : salesUsers.length === 0 ? 'No active sales people' : '-- Select person --'}</option>
                 {(salesUsers || []).map((u) => (
                   // The current owner can't be picked again — the server rejects it.
@@ -2632,7 +2578,7 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
                     {u.name || u.username}{u.department ? ` (${u.department})` : ''}{u.username === project.created_by ? ' — current' : ''}
                   </option>
                 ))}
-              </select>
+              </Select>
             </div>
           </Modal>
         )}

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import AppShell from './AppShell';
 import StatusBadge from './ui/StatusBadge';
 import PriorityBadge from './ui/PriorityBadge';
+import { SkeletonTable } from './ui/Skeleton';
 import { TmsProjectRecord } from '@/lib/types';
 import { TMS_PROJECT_STATUS_LABEL, TMS_PROJECT_STATUS_TONE, TMS_PRIORITY_LABEL, TMS_PRIORITY_TONE } from '@/lib/tmsLabels';
 import historyStyles from './quotationHistory.module.css';
@@ -41,12 +42,12 @@ export default function MySoldProjectsView({ currentUser }: { currentUser: { nam
   }, []);
 
   return (
-    <AppShell title="My Sold Projects" subtitle={`TMS status for projects ${currentUser.name} sold — read-only.`}>
+    <AppShell fillPage title="My Sold Projects" subtitle={`TMS status for projects ${currentUser.name} sold — read-only.`}>
       <div className={styles.pageWrap}>
         {error && <div className={historyStyles.loginError}>{error}</div>}
 
         {loading ? (
-          <div className={historyStyles.status}>Loading…</div>
+          <SkeletonTable columns={8} rows={6} />
         ) : projects.length === 0 ? (
           <div className={historyStyles.empty}>
             No TMS projects yet. A project appears here once a deal you sold is assigned to the Technical Team.

@@ -3,7 +3,11 @@
 import { DemoProductLine, DomainKey } from '@/lib/types';
 import { DOMAIN_DISPLAY_NAME } from '@/lib/domainLabels';
 import { DEMO_MODEL_SEPARATOR, getDemoProductGroups } from '@/lib/domainProducts';
+import { Plus, X } from 'lucide-react';
+import CommonButton from './ui/CommonButton';
+import CommonChip from './ui/CommonChip';
 import styles from './demoProductPicker.module.css';
+import Select from './ui/Select';
 
 // Demo Schedule picker: Domain → Product → Model → Qty.
 //  - Every catalog product offers its models in a dropdown, plus
@@ -87,22 +91,21 @@ export default function DemoProductPicker({
           {ALL_DOMAINS.map((d) => {
             const on = domains.includes(d);
             return (
-              <label key={d} className={`${styles.chip} ${on ? styles.chipOn : ''}`}>
-                <input type="checkbox" checked={on} onChange={() => toggleDomain(d)} />
-                <span className={styles.tick}>{on ? '✓' : '+'}</span>
-                {DOMAIN_DISPLAY_NAME[d]}
-              </label>
+              <CommonChip
+                key={d}
+                selected={on}
+                leadingIcon={<Plus />}
+                onClick={() => toggleDomain(d)}
+                label={DOMAIN_DISPLAY_NAME[d]}
+              />
             );
           })}
-          <label className={`${styles.chip} ${otherDomainOn ? styles.chipOn : ''}`}>
-            <input
-              type="checkbox"
-              checked={otherDomainOn}
-              onChange={() => (otherDomainOn ? onChange(lines.filter((l) => !OTHER_DOMAIN_RE.test(l.product))) : add('Other (): '))}
-            />
-            <span className={styles.tick}>{otherDomainOn ? '✓' : '+'}</span>
-            Other domain
-          </label>
+          <CommonChip
+            selected={otherDomainOn}
+            leadingIcon={<Plus />}
+            onClick={() => (otherDomainOn ? onChange(lines.filter((l) => !OTHER_DOMAIN_RE.test(l.product))) : add('Other (): '))}
+            label="Other domain"
+          />
         </div>
       </div>
 
@@ -143,7 +146,7 @@ export default function DemoProductPicker({
                           const isOther = model !== null && !g.models.includes(model);
                           return (
                             <div key={i} className={styles.row}>
-                              <select
+                              <Select
                                 className={styles.select}
                                 value={model === null ? '' : isOther ? OTHER : model}
                                 onChange={(e) => {
@@ -156,7 +159,7 @@ export default function DemoProductPicker({
                                   <option key={m} value={m}>{m}</option>
                                 ))}
                                 <option value={OTHER}>Other (type model name)</option>
-                              </select>
+                              </Select>
                               {isOther && (
                                 <input
                                   className={styles.input}
@@ -168,14 +171,14 @@ export default function DemoProductPicker({
                               )}
                               <Qty value={l.quantity} onChange={(n) => setQty(i, n)} />
                               {rows.length > 1 && (
-                                <button type="button" className={styles.iconBtn} onClick={() => remove(i)} aria-label="Remove this model">✕</button>
+                                <CommonButton variant="destructive" size="sm" iconOnly onClick={() => remove(i)} aria-label="Remove this model"><X /></CommonButton>
                               )}
                             </div>
                           );
                         })}
-                        <button type="button" className={styles.addBtn} onClick={() => add(serialize(label, g.product, null))}>
-                          + Add another model
-                        </button>
+                        <CommonButton variant="ghost" size="sm" leadingIcon={<Plus />} className={styles.addBtn} onClick={() => add(serialize(label, g.product, null))}>
+                          Add another model
+                        </CommonButton>
                       </div>
                     )}
                   </div>
@@ -214,13 +217,13 @@ export default function DemoProductPicker({
                         />
                         <Qty value={l.quantity} onChange={(n) => setQty(i, n)} />
                         {customRows.length > 1 && (
-                          <button type="button" className={styles.iconBtn} onClick={() => remove(i)} aria-label="Remove">✕</button>
+                          <CommonButton variant="destructive" size="sm" iconOnly onClick={() => remove(i)} aria-label="Remove"><X /></CommonButton>
                         )}
                       </div>
                     ))}
-                    <button type="button" className={styles.addBtn} onClick={() => add(serialize(label, '', null))}>
-                      + Add another product
-                    </button>
+                    <CommonButton variant="ghost" size="sm" leadingIcon={<Plus />} className={styles.addBtn} onClick={() => add(serialize(label, '', null))}>
+                      Add another product
+                    </CommonButton>
                   </div>
                 )}
               </div>
@@ -245,14 +248,14 @@ export default function DemoProductPicker({
                   <input className={styles.input} placeholder="Product / model" value={m[2]} onChange={(e) => set(m[1], e.target.value)} />
                   <Qty value={l.quantity} onChange={(n) => setQty(i, n)} />
                   {otherDomainRows.length > 1 && (
-                    <button type="button" className={styles.iconBtn} onClick={() => remove(i)} aria-label="Remove">✕</button>
+                    <CommonButton variant="destructive" size="sm" iconOnly onClick={() => remove(i)} aria-label="Remove"><X /></CommonButton>
                   )}
                 </div>
               );
             })}
-            <button type="button" className={styles.addBtn} onClick={() => add('Other (): ')}>
-              + Add another
-            </button>
+            <CommonButton variant="ghost" size="sm" leadingIcon={<Plus />} className={styles.addBtn} onClick={() => add('Other (): ')}>
+              Add another
+            </CommonButton>
           </div>
         </div>
       )}

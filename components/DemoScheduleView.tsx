@@ -1,9 +1,8 @@
 'use client';
 
 import { FormEvent, Suspense, useEffect, useState } from 'react';
-import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { UserCheck, Wrench } from 'lucide-react';
+import { UserCheck, Wrench, Send, FileText, Eye, CheckCircle2, Ban, Trash2 } from 'lucide-react';
 import approvalStyles from './demoApproval.module.css';
 import { DemoMode, DemoOutcome, DemoPriority, DemoProductLine, DemoRequestStatus, DemoScheduleRecord, DomainKey, QuotationRecord, UserRole } from '@/lib/types';
 import { TechnicalRosterEntry } from '@/lib/technicalRoster';
@@ -21,12 +20,17 @@ import { useToast } from './ui/ToastProvider';
 import { useConfirm } from './ui/ConfirmDialog';
 import ProjectSelect from './ui/ProjectSelect';
 import Button from './ui/Button';
+import CommonButton from './ui/CommonButton';
+import CommonChip from './ui/CommonChip';
 import StatusBadge, { StatusTone } from './ui/StatusBadge';
 import { DEMO_STATUS_LABEL, stagesForMode } from '@/lib/demoStages';
 import WorkflowStepper, { StepperStep } from './ui/WorkflowStepper';
 import { fetchCached } from '@/lib/fetchCached';
 import DemoBrief from './DemoBrief';
 import briefStyles from './demoBrief.module.css';
+import { SkeletonTable } from './ui/Skeleton';
+import RowActions from './ui/RowActions';
+import Select from '@/components/ui/Select';
 
 
 const EMPTY_FORM = {
@@ -209,12 +213,12 @@ function ManagerApprovalForm({ demoId, technicalRoster, onDone }: { demoId: stri
         <div className={approvalStyles.grid}>
           <label className={approvalStyles.field}>
             <span className={approvalStyles.label}>Assign different engineer <span className={approvalStyles.hint}>(optional)</span></span>
-            <select className={approvalStyles.control} value={reassignedEngineerId} onChange={(e) => setReassignedEngineerId(e.target.value)}>
+            <Select value={reassignedEngineerId} onChange={(e) => setReassignedEngineerId(e.target.value)}>
               <option value="">-- Keep as assigned --</option>
               {technicalRoster.map((person) => (
                 <option key={person.id} value={person.id}>{person.name}</option>
               ))}
-            </select>
+            </Select>
           </label>
           <label className={approvalStyles.field}>
             <span className={approvalStyles.label}>Modify schedule <span className={approvalStyles.hint}>(optional)</span></span>
@@ -401,15 +405,15 @@ function DemoRow({
           {record.outcome && <div className={calcStyles.small}>Outcome: {OUTCOME_LABEL[record.outcome]}</div>}
         </td>
         <td>{record.created_by_name || record.created_by}</td>
-        <td className={historyStyles.actionGroupButtons}>
+        <td>
+          <div className={historyStyles.actionGroupButtons}>
           {record.status === 'draft' && isOwner && (
             <>
               {/* The sales person assigns the technical person before this
                   goes for approval — a partner can never pick one (see the
                   PATCH guard in app/api/demo-schedule/[id]). Shown inline so
                   the whole action is one row, not a trip to another screen. */}
-              <select
-                className={calcStyles.formControl}
+              <Select dropdownSize="sm" auto
                 value={record.assigned_technical_person_id || ''}
                 onChange={(e) => onAssignTechnical(record.id, e.target.value)}
                 aria-label="Assign technical person"
@@ -418,27 +422,42 @@ function DemoRow({
                 {technicalRoster.map((person) => (
                   <option key={person.id} value={person.id}>{person.name || person.username}</option>
                 ))}
-              </select>
-              <Button variant="primary" compact onClick={() => onSubmitDraft(record.id)}>Submit for Approval</Button>
+              </Select>
             </>
-          )}
-          {record.status === 'pending_backoffice' && (
-            <Link className={`${historyStyles.actionBtn} ${historyStyles.actionBtnPrimary} ${historyStyles.actionBtnCompact}`} href={`/backoffice?demoId=${record.id}`}>Generate DC →</Link>
-          )}
-          {(record.status === 'dc_generated' || record.status === 'material_dispatched' || record.status === 'material_returned') && (
-            <Link className={`${historyStyles.actionBtn} ${historyStyles.actionBtnSecondary} ${historyStyles.actionBtnCompact}`} href={`/backoffice?demoId=${record.id}`}>View DC →</Link>
           )}
           {/* A virtual demo has no dispatch to wait for, so it becomes
               completable as soon as the manager has approved it. */}
-          {(record.status === 'material_dispatched' || record.status === 'ready_for_demo') && (isTechnical || currentUser.role === 'backoffice') && (
-            <Button variant="success" compact onClick={() => onMarkCompleted(record.id)}>Mark Demo Completed</Button>
-          )}
-          {!['cancelled', 'dc_closed', 'material_returned', 'demo_completed'].includes(record.status) && (isOwner || isPrivileged) && (
-            <Button variant="ghost" compact onClick={() => onCancel(record.id)}>Cancel</Button>
-          )}
-          {isPrivileged && (
-            <Button variant="danger" compact onClick={() => onDelete(record.id)}>Delete</Button>
-          )}
+          <RowActions
+            label={`Actions for demo ${record.client_name || record.id}`}
+            actions={[
+              { key: 'submit', label: 'Submit for Approval', icon: <Send />, variant: 'primary', hidden: !(record.status === 'draft' && isOwner), onClick: () => onSubmitDraft(record.id) },
+              { key: 'generate-dc', label: 'Generate DC', icon: <FileText />, variant: 'primary', hidden: record.status !== 'pending_backoffice', href: `/backoffice?demoId=${record.id}` },
+              {
+                key: 'view-dc',
+                label: 'View DC',
+                icon: <Eye />,
+                hidden: !(record.status === 'dc_generated' || record.status === 'material_dispatched' || record.status === 'material_returned'),
+                href: `/backoffice?demoId=${record.id}`
+              },
+              {
+                key: 'complete',
+                label: 'Mark Demo Completed',
+                icon: <CheckCircle2 />,
+                variant: 'success',
+                hidden: !((record.status === 'material_dispatched' || record.status === 'ready_for_demo') && (isTechnical || currentUser.role === 'backoffice')),
+                onClick: () => onMarkCompleted(record.id)
+              },
+              {
+                key: 'cancel',
+                label: 'Cancel demo',
+                icon: <Ban />,
+                hidden: !(!['cancelled', 'dc_closed', 'material_returned', 'demo_completed'].includes(record.status) && (isOwner || isPrivileged)),
+                onClick: () => onCancel(record.id)
+              },
+              { key: 'delete', label: 'Delete', icon: <Trash2 />, destructive: true, hidden: !isPrivileged, onClick: () => onDelete(record.id) }
+            ]}
+          />
+          </div>
         </td>
       </tr>
 
@@ -510,12 +529,12 @@ function DemoRow({
             <div className={`${calcStyles.row} ${calcStyles.columns}`}>
               <div className={calcStyles.field}>
                 <label className={calcStyles.label}>Outcome *</label>
-                <select className={calcStyles.formControl} value={report.outcome} onChange={(e) => setReport((r) => ({ ...r, outcome: e.target.value as DemoOutcome }))}>
+                <Select value={report.outcome} onChange={(e) => setReport((r) => ({ ...r, outcome: e.target.value as DemoOutcome }))}>
                   <option value="">-- Select outcome --</option>
                   {(Object.keys(OUTCOME_LABEL) as Exclude<DemoOutcome, ''>[]).map((o) => (
                     <option key={o} value={o}>{OUTCOME_LABEL[o]}</option>
                   ))}
-                </select>
+                </Select>
               </div>
               <div className={calcStyles.field}>
                 <label className={calcStyles.label}>Customer rating (1-5)</label>
@@ -563,9 +582,9 @@ function DemoRow({
                 </div>
               )}
             </div>
-            <button type="button" className={calcStyles.btn} disabled={saving} onClick={handleSaveReport}>
-              {saving ? 'Saving…' : 'Save report'}
-            </button>
+            <CommonButton variant="primary" loading={saving} loadingLabel="Saving…" onClick={handleSaveReport}>
+              Save report
+            </CommonButton>
            </div>
           </td>
         </tr>
@@ -723,7 +742,7 @@ function DemoScheduleContent({ currentUser }: { currentUser: { username: string;
   }
 
   return (
-    <AppShell title="Demo Schedule" subtitle="Request a demo — technical availability, then manager approval, then Back Office handles materials.">
+    <AppShell fillPage={!canCreate} title="Demo Schedule" subtitle="Request a demo — technical availability, then manager approval, then Back Office handles materials.">
         {canCreate && (
         <>
         <h2 className={`${calcStyles.h2} ${calcStyles.h2Flush}`}>Request a demo</h2>
@@ -748,12 +767,12 @@ function DemoScheduleContent({ currentUser }: { currentUser: { username: string;
             </div>
             <div className={calcStyles.field}>
               <label className={calcStyles.label}>Quotation</label>
-              <select className={calcStyles.formControl} value={form.quotationId} onChange={(e) => setForm((f) => ({ ...f, quotationId: e.target.value }))} disabled={!form.projectId}>
+              <Select value={form.quotationId} onChange={(e) => setForm((f) => ({ ...f, quotationId: e.target.value }))} disabled={!form.projectId}>
                 <option value="">-- None / not linked yet --</option>
                 {projectQuotations.map((q) => (
                   <option key={q.id} value={q.id}>{q.quotation_number} — ₹{q.total.toLocaleString('en-IN')}</option>
                 ))}
-              </select>
+              </Select>
             </div>
             <div className={calcStyles.field}>
               <label className={calcStyles.label}>Client name *</label>
@@ -774,15 +793,14 @@ function DemoScheduleContent({ currentUser }: { currentUser: { username: string;
                 of it and is done once the demo has happened. */}
             <div className={calcStyles.field}>
               <label className={calcStyles.label} htmlFor="demo-mode">How is the demo given?</label>
-              <select
+              <Select
                 id="demo-mode"
-                className={calcStyles.formControl}
                 value={form.mode}
                 onChange={(e) => setForm((f) => ({ ...f, mode: e.target.value as DemoMode }))}
               >
                 <option value="onsite">At the client&apos;s site — equipment is sent</option>
                 <option value="virtual">Virtual / online — nothing is sent</option>
-              </select>
+              </Select>
               <span className={calcStyles.small}>
                 {form.mode === 'virtual'
                   ? 'No delivery challan, dispatch or material return. Approved by the manager, then marked done after the demo.'
@@ -809,22 +827,22 @@ function DemoScheduleContent({ currentUser }: { currentUser: { username: string;
             </div>
             <div className={calcStyles.field}>
               <label className={calcStyles.label}>Priority</label>
-              <select className={calcStyles.formControl} value={form.priority} onChange={(e) => setForm((f) => ({ ...f, priority: e.target.value as DemoPriority }))}>
+              <Select value={form.priority} onChange={(e) => setForm((f) => ({ ...f, priority: e.target.value as DemoPriority }))}>
                 <option value="low">Low</option>
                 <option value="medium">Medium</option>
                 <option value="high">High</option>
-              </select>
+              </Select>
             </div>
           </div>
           <div className={`${calcStyles.row} ${calcStyles.columns}`}>
             <div className={calcStyles.field}>
               <label className={calcStyles.label}>Assigned technical person</label>
-              <select className={calcStyles.formControl} value={form.assignedTechnicalPersonId} onChange={(e) => setForm((f) => ({ ...f, assignedTechnicalPersonId: e.target.value }))}>
+              <Select value={form.assignedTechnicalPersonId} onChange={(e) => setForm((f) => ({ ...f, assignedTechnicalPersonId: e.target.value }))}>
                 <option value="">-- Select --</option>
                 {technicalRoster.map((person) => (
                   <option key={person.id} value={person.id}>{person.name}</option>
                 ))}
-              </select>
+              </Select>
             </div>
             <div className={calcStyles.field}>
               <label className={calcStyles.label}>Assigned rep</label>
@@ -851,12 +869,12 @@ function DemoScheduleContent({ currentUser }: { currentUser: { username: string;
             </div>
           )}
           <div className={calcStyles.formActionsRow}>
-            <button type="submit" className={calcStyles.btn} disabled={creating}>
-              {creating ? 'Sending…' : 'Submit for Technical Approval'}
-            </button>
-            <button type="button" className={calcStyles.secondaryButton} disabled={creating} onClick={(e) => handleCreate(e, false)}>
+            <CommonButton type="submit" variant="primary" loading={creating} loadingLabel="Sending…">
+              Submit for Technical Approval
+            </CommonButton>
+            <CommonButton variant="secondary" disabled={creating} onClick={(e) => handleCreate(e, false)}>
               Save as Draft
-            </button>
+            </CommonButton>
           </div>
         </form>
         </>
@@ -871,33 +889,26 @@ function DemoScheduleContent({ currentUser }: { currentUser: { username: string;
               ['all', `All (${records.length})`]
             ] as const
           ).map(([key, label]) => (
-            <button
+            <CommonChip
               key={key}
-              type="button"
-              aria-pressed={view === key}
+              selected={view === key}
               onClick={() => {
                 setView(key);
                 setViewChosen(true);
               }}
-              className={briefStyles.tag}
-              style={{
-                cursor: 'pointer',
-                border: '1px solid ' + (view === key ? 'var(--mx-brand, #dc2626)' : 'var(--mx-border-strong, #d1d5db)'),
-                background: view === key ? 'var(--mx-brand, #dc2626)' : 'transparent',
-                color: view === key ? '#fff' : undefined,
-                padding: '6px 14px',
-                fontSize: 13,
-                textTransform: 'none'
-              }}
             >
               {label}
-            </button>
+            </CommonChip>
           ))}
-          <button type="button" className={historyStyles.button} onClick={load} style={{ marginLeft: 'auto' }}>
+          <CommonButton onClick={load} style={{ marginLeft: 'auto' }}>
             Refresh
-          </button>
+          </CommonButton>
         </div>
-        <div className={historyStyles.status}>{status}</div>
+        {!loaded && status === 'Loading...' ? (
+          <SkeletonTable columns={9} rows={6} />
+        ) : (
+          <div className={historyStyles.status}>{status}</div>
+        )}
         {loaded && (
           <div className={historyStyles.tableWrap}>
           <table className={historyStyles.table}>

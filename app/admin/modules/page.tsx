@@ -2,21 +2,19 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ModuleConfigRecord, RoleRecord, UserRole } from '@/lib/types';
+import { ArrowDown, ArrowUp, LayoutGrid, Pencil, RotateCcw, Save } from 'lucide-react';
 import AppShell from '@/components/AppShell';
+import CommonButton from '@/components/ui/CommonButton';
 import { MODULE_ICON_OPTIONS, resolveModuleIcon } from '@/lib/icons';
-import historyStyles from '@/components/quotationHistory.module.css';
-import calcStyles from '@/components/calculator.module.css';
 import { useToast } from '@/components/ui/ToastProvider';
 import pageStyles from './modulesPage.module.css';
+import { refreshShellData } from '@/lib/shellDataStore';
+import { SkeletonTable } from '@/components/ui/Skeleton';
+import Dropdown from '@/components/ui/Dropdown';
+import SearchInput from '@/components/ui/SearchInput';
 
 function iconOptionLabel(key: string): string {
   return key.split('-').map((w) => w[0].toUpperCase() + w.slice(1)).join(' ');
-}
-
-// Short column header for a role — first word, capped so the table stays readable.
-function shortLabel(label: string): string {
-  const first = label.split(' ')[0];
-  return first.length > 6 ? first.slice(0, 6) : first;
 }
 
 // The fields this page may change. Everything else on a ModuleConfigRecord
@@ -68,6 +66,7 @@ export default function ModuleManagerPage() {
   const [roles, setRoles] = useState<RoleRecord[]>([]);
   const [status, setStatus] = useState('Loading...');
   const [saving, setSaving] = useState(false);
+  const [q, setQ] = useState('');
   const toast = useToast();
 
   const load = useCallback(async () => {
@@ -195,6 +194,8 @@ export default function ModuleManagerPage() {
       // on what was actually written, and a partial failure above must not
       // leave the table claiming everything saved.
       await load();
+      // Visibility/order/labels feed the sidebar — refresh the once-per-login menu.
+      void refreshShellData();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Could not save these changes.');
       // Deliberately NOT reloading — the draft is kept so the edits aren't
@@ -204,99 +205,181 @@ export default function ModuleManagerPage() {
     }
   }
 
+  // Icon picker options — each shows its icon, so you choose by looking, not by name.
+  const iconOptions = MODULE_ICON_OPTIONS.map((key) => {
+    const Icon = resolveModuleIcon(key);
+    return { value: key, label: iconOptionLabel(key), icon: Icon ? <Icon size={16} /> : undefined };
+  });
+
+  const query = q.trim().toLowerCase();
+  const matches = (m: ModuleConfigRecord) => !query || `${m.label} ${m.href} ${m.section}`.toLowerCase().includes(query);
+
   return (
     <AppShell title="Module Manager" subtitle="Administration › enable, disable, rename, reorder, and set role visibility for every module — no code required.">
-        <div className={historyStyles.status}>{status}</div>
-        <div className={historyStyles.status}>
-          Disabling a module hides it from the Dashboard for everyone (data is never deleted). Role columns control who sees it when enabled.
-          <strong> Changes are not applied until you press Save.</strong>
-        </div>
+      {status && status !== 'Loading...' && <div className={pageStyles.notice}>{status}</div>}
 
-        {/* Sticky, because the table runs well past a screen — a Save button
-            at the bottom would be out of sight from the row being edited. */}
-        <div className={`${pageStyles.saveBar} ${dirty ? pageStyles.saveBarActive : ''}`}>
-          <span className={pageStyles.saveBarText}>
-            {dirty
-              ? `${pendingCount} unsaved change${pendingCount === 1 ? '' : 's'}`
-              : 'No unsaved changes'}
-          </span>
-          <button type="button" className={historyStyles.toggleBtn} onClick={discard} disabled={!dirty || saving}>
+      {/* Search + save state in one sticky bar: always in reach while editing any row. */}
+      <div className={`${pageStyles.saveBar} ${dirty ? pageStyles.saveBarActive : ''}`}>
+        <SearchInput inline value={q} onChange={setQ} placeholder="Search modules or links…" aria-label="Search modules" />
+        <span className={pageStyles.saveBarText} aria-live="polite">
+          {dirty ? (
+            <>
+              <span className={pageStyles.dot} aria-hidden="true" />
+              {pendingCount} unsaved change{pendingCount === 1 ? '' : 's'}
+            </>
+          ) : (
+            'All changes saved'
+          )}
+        </span>
+        <div className={pageStyles.saveActions}>
+          <CommonButton variant="ghost" size="md" leadingIcon={<RotateCcw />} onClick={discard} disabled={!dirty || saving}>
             Discard
-          </button>
-          <button type="button" className={pageStyles.saveBtn} onClick={save} disabled={!dirty || saving}>
-            {saving ? 'Saving…' : 'Save changes'}
-          </button>
+          </CommonButton>
+          <CommonButton variant="primary" size="md" leadingIcon={<Save />} onClick={save} disabled={!dirty} loading={saving} loadingLabel="Saving…">
+            Save changes
+          </CommonButton>
         </div>
+      </div>
 
-        {[...bySection.entries()].map(([section, list]) => (
-          <div key={section} className={pageStyles.sectionBlock}>
-            <h2 className={calcStyles.h2}>
-              {section}
-              {reorderedSections.includes(section) && <span className={pageStyles.pendingChip}>order changed</span>}
-            </h2>
-            <div className={historyStyles.tableWrap}>
-              <table className={historyStyles.table}>
+      <p className={pageStyles.hint}>
+        Turning a module off hides it for everyone (its data is kept). The role columns choose who sees it while it&apos;s on. Nothing is applied until you press <strong>Save changes</strong>.
+      </p>
+
+      {status === 'Loading...' && <SkeletonTable rows={8} columns={5} />}
+
+      {[...bySection.entries()].map(([section, list]) => {
+        const visible = list.filter(matches);
+        if (!visible.length) return null;
+        const onCount = list.filter((m) => m.enabled).length;
+        return (
+          <section key={section} className={pageStyles.section} aria-labelledby={`sec-${section}`}>
+            <header className={pageStyles.sectionHead}>
+              <span className={pageStyles.sectionIcon} aria-hidden="true">
+                <LayoutGrid />
+              </span>
+              <h2 id={`sec-${section}`} className={pageStyles.sectionTitle}>{section}</h2>
+              <span className={pageStyles.sectionCount}>
+                {onCount} of {list.length} on
+              </span>
+              {reorderedSections.includes(section) && <span className={pageStyles.pendingChip}>Order changed</span>}
+            </header>
+
+            <div className={pageStyles.tableWrap}>
+              <table className={pageStyles.table} data-mobile-layout="scroll">
                 <thead>
                   <tr>
-                    <th>Order</th>
-                    <th>Icon</th>
-                    <th>Label</th>
-                    <th>Href</th>
-                    <th>Enabled</th>
-                    {roles.map((r) => <th key={r.key} className={pageStyles.centerCell} title={r.label}>{shortLabel(r.label)}</th>)}
+                    <th className={pageStyles.colOrder}>Order</th>
+                    <th className={pageStyles.colModule}>Module</th>
+                    <th className={pageStyles.colEnabled}>Enabled</th>
+                    {roles.map((r) => (
+                      <th key={r.key} className={pageStyles.colRole} title={r.label}>
+                        {r.label}
+                      </th>
+                    ))}
                   </tr>
                 </thead>
                 <tbody>
-                  {list.map((m, i) => (
-                    <tr key={m.id} className={changedIds.has(m.id) ? pageStyles.rowDirty : undefined}>
-                      <td>
-                        <div className={pageStyles.reorderRow}>
-                          <button type="button" className={historyStyles.toggleBtn} disabled={i === 0} onClick={() => move(section, m.id, -1)}>↑</button>
-                          <button type="button" className={historyStyles.toggleBtn} disabled={i === list.length - 1} onClick={() => move(section, m.id, 1)}>↓</button>
-                        </div>
-                      </td>
-                      <td>
-                        <div className={calcStyles.inlineFlexGap6}>
-                          {(() => {
-                            const Icon = resolveModuleIcon(m.icon);
-                            return Icon ? <Icon size={16} /> : <span title="Legacy custom icon">{m.icon}</span>;
-                          })()}
-                          <select
-                            className={`${calcStyles.formControl} ${pageStyles.iconSelect}`}
-                            value={resolveModuleIcon(m.icon) ? m.icon : ''}
-                            onChange={(e) => editModule(m.id, { icon: e.target.value })}
-                          >
-                            {!resolveModuleIcon(m.icon) && <option value="">(legacy)</option>}
-                            {MODULE_ICON_OPTIONS.map((key) => (
-                              <option key={key} value={key}>{iconOptionLabel(key)}</option>
-                            ))}
-                          </select>
-                        </div>
-                      </td>
-                      <td>
-                        <input
-                          className={calcStyles.formControl}
-                          value={m.label}
-                          onChange={(e) => editModule(m.id, { label: e.target.value })}
-                        />
-                        {m.isCustom && <span className={`${historyStyles.rolePill} ${historyStyles.rolePillBackoffice} ${pageStyles.ml6}`}>Custom</span>}
-                      </td>
-                      <td className={historyStyles.num}>{m.href}</td>
-                      <td>
-                        <input type="checkbox" checked={m.enabled} onChange={(e) => editModule(m.id, { enabled: e.target.checked })} />
-                      </td>
-                      {roles.map((r) => (
-                        <td key={r.key} className={pageStyles.centerCell}>
-                          <input type="checkbox" checked={m.visibleToRoles.includes(r.key)} onChange={() => toggleRole(m.id, r.key)} />
+                  {visible.map((m) => {
+                    const i = list.indexOf(m);
+                    const Icon = resolveModuleIcon(m.icon);
+                    const changed = changedIds.has(m.id);
+                    return (
+                      <tr key={m.id} className={[changed ? pageStyles.rowDirty : '', m.enabled ? '' : pageStyles.rowOff].filter(Boolean).join(' ') || undefined}>
+                        {/* Order (disabled while searching — positions are within the whole section) */}
+                        <td className={pageStyles.colOrder}>
+                          <div className={pageStyles.order}>
+                            <button type="button" className={pageStyles.orderBtn} aria-label={`Move ${m.label} up`} disabled={i === 0 || !!query} onClick={() => move(section, m.id, -1)}>
+                              <ArrowUp />
+                            </button>
+                            <span className={pageStyles.orderNum}>{i + 1}</span>
+                            <button type="button" className={pageStyles.orderBtn} aria-label={`Move ${m.label} down`} disabled={i === list.length - 1 || !!query} onClick={() => move(section, m.id, 1)}>
+                              <ArrowDown />
+                            </button>
+                          </div>
                         </td>
-                      ))}
-                    </tr>
-                  ))}
+
+                        {/* Icon + label + icon picker + link */}
+                        <td className={pageStyles.colModule}>
+                          <div className={pageStyles.identity}>
+                            <span className={pageStyles.iconTile} aria-hidden="true">
+                              {Icon ? <Icon /> : <span title="Legacy custom icon">{m.icon}</span>}
+                            </span>
+                            <div className={pageStyles.nameBlock}>
+                              <div className={pageStyles.nameField}>
+                                <input
+                                  id={`mod-label-${m.id}`}
+                                  className={pageStyles.nameInput}
+                                  value={m.label}
+                                  placeholder="Module name"
+                                  aria-label={`Label for ${m.href}`}
+                                  onChange={(e) => editModule(m.id, { label: e.target.value })}
+                                />
+                                <Pencil className={pageStyles.nameEditIcon} aria-hidden="true" />
+                              </div>
+                              <div className={pageStyles.metaLine}>
+                                <div className={pageStyles.iconPick}>
+                                  <Dropdown
+                                    size="sm"
+                                    fullWidth
+                                    clearable={false}
+                                    searchable
+                                    ariaLabel={`Icon for ${m.label}`}
+                                    placeholder="Legacy icon"
+                                    value={Icon ? m.icon : ''}
+                                    onChange={(v) => {
+                                      if (v) editModule(m.id, { icon: v });
+                                    }}
+                                    options={iconOptions}
+                                  />
+                                </div>
+                                <code className={pageStyles.href}>{m.href}</code>
+                                {m.isCustom && <span className={pageStyles.customPill}>Custom</span>}
+                                {changed && <span className={pageStyles.editedPill}>Edited</span>}
+                              </div>
+                            </div>
+                          </div>
+                        </td>
+
+                        <td className={pageStyles.colEnabled}>
+                          <button
+                            type="button"
+                            role="switch"
+                            aria-checked={m.enabled}
+                            aria-label={`${m.label} ${m.enabled ? 'on' : 'off'}`}
+                            className={`${pageStyles.switch} ${m.enabled ? pageStyles.switchOn : ''}`}
+                            onClick={() => editModule(m.id, { enabled: !m.enabled })}
+                          >
+                            <span className={pageStyles.switchTrack} aria-hidden="true">
+                              <span className={pageStyles.switchThumb} />
+                            </span>
+                          </button>
+                        </td>
+
+                        {roles.map((r) => (
+                          <td key={r.key} className={pageStyles.colRole}>
+                            <input
+                              type="checkbox"
+                              className={pageStyles.roleBox}
+                              aria-label={`${r.label} can see ${m.label}`}
+                              disabled={!m.enabled}
+                              checked={m.visibleToRoles.includes(r.key)}
+                              onChange={() => toggleRole(m.id, r.key)}
+                            />
+                          </td>
+                        ))}
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
-          </div>
-        ))}
+          </section>
+        );
+      })}
+
+      {status === '' && query && ![...bySection.values()].some((list) => list.some(matches)) && (
+        <div className={pageStyles.notice}>No modules match “{q}”.</div>
+      )}
     </AppShell>
   );
 }

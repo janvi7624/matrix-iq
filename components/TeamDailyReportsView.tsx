@@ -22,14 +22,18 @@ import calcStyles from './calculator.module.css';
 import historyStyles from './quotationHistory.module.css';
 import styles from './dailyReport.module.css';
 import Button from './ui/Button';
+import CommonButton from './ui/CommonButton';
 import Input from './ui/Input';
-import Select from './ui/Select';
+import Dropdown from './ui/Dropdown';
+import { setListParam } from '@/lib/listParam';
+import SearchInput from './ui/SearchInput';
 import FilterBar from './ui/FilterBar';
 import StatTile from './ui/StatTile';
+import { StatCardGrid } from './ui/StatCard';
 import Modal, { ModalCancelButton, ModalOkButton } from './ui/Modal';
 import EmptyState from './ui/EmptyState';
 import ErrorState from './ui/ErrorState';
-import { SkeletonRows } from './ui/Skeleton';
+import { SkeletonForm, SkeletonStatCards, SkeletonTable } from './ui/Skeleton';
 import { useToast } from './ui/ToastProvider';
 import TeamDailyReportsSheet from './TeamDailyReportsSheet';
 import DailyReportPdfExport from './DailyReportPdfExport';
@@ -37,6 +41,7 @@ import TaskCategoryEditor from './TaskCategoryEditor';
 import sheetStyles from './teamSheet.module.css';
 import { useAutoRefresh } from '@/lib/useAutoRefresh';
 import { formatIstDateTime } from '@/lib/dailyReportTime';
+import RowActions from './ui/RowActions';
 
 type Period = 'day' | 'month' | 'quarter' | 'year' | 'custom';
 
@@ -78,6 +83,18 @@ function formatDateTime(iso: string): string {
   if (!iso) return '—';
   const parsed = new Date(iso);
   return Number.isNaN(parsed.getTime()) ? iso : formatIstDateTime(parsed);
+}
+
+type DepartmentOption = { id: string; name: string };
+
+// Departments seen in any response, so the multi-select keeps offering every
+// department after the range view (whose `departments` follow the filter)
+// has been narrowed to one or two of them.
+function mergeDepartments(prev: DepartmentOption[], next: DepartmentOption[] | undefined): DepartmentOption[] {
+  if (!next?.length) return prev;
+  const known = new Set(prev.map((d) => d.id));
+  const added = next.filter((d) => !known.has(d.id));
+  return added.length ? [...prev, ...added].sort((a, b) => a.name.localeCompare(b.name)) : prev;
 }
 
 function istToday(): string {
@@ -126,8 +143,10 @@ export default function TeamDailyReportsView({
   const [categoriesOpen, setCategoriesOpen] = useState(false);
 
   const [date, setDate] = useState(initialDate ?? istToday());
-  const [departmentId, setDepartmentId] = useState('');
-  const [status, setStatus] = useState('all');
+  // Multi-select filters: an empty list means "all".
+  const [departmentId, setDepartmentId] = useState<string[]>([]);
+  const [status, setStatus] = useState<string[]>([]);
+  const [knownDepartments, setKnownDepartments] = useState<DepartmentOption[]>([]);
   const [search, setSearch] = useState('');
   const [data, setData] = useState<TeamDailyReportResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -200,13 +219,14 @@ export default function TeamDailyReportsView({
     setLoadFailed('');
     try {
       const params = new URLSearchParams({ date });
-      if (departmentId) params.set('departmentId', departmentId);
-      if (status !== 'all') params.set('status', status);
+      setListParam(params, 'departmentId', departmentId);
+      setListParam(params, 'status', status);
       if (search.trim()) params.set('search', search.trim());
       const response = await fetch(`/api/daily-reports/team?${params.toString()}`);
       const body = await response.json().catch(() => null);
       if (!response.ok) throw new Error(body?.error || `Request failed (${response.status})`);
       setData(body as TeamDailyReportResponse);
+      setKnownDepartments((prev) => mergeDepartments(prev, (body as TeamDailyReportResponse).departments));
     } catch (error) {
       setLoadFailed(error instanceof Error ? error.message : 'Could not load team daily reports.');
     } finally {
@@ -220,12 +240,13 @@ export default function TeamDailyReportsView({
     setLoadFailed('');
     try {
       const params = new URLSearchParams({ from: activeRange.from, to: activeRange.to, label: activeRange.label });
-      if (departmentId) params.set('departmentId', departmentId);
+      setListParam(params, 'departmentId', departmentId);
       if (search.trim()) params.set('search', search.trim());
       const response = await fetch(`/api/daily-reports/team/range?${params.toString()}`);
       const body = await response.json().catch(() => null);
       if (!response.ok) throw new Error(body?.error || `Request failed (${response.status})`);
       setRangeData(body as TeamDailyReportRangeResponse);
+      setKnownDepartments((prev) => mergeDepartments(prev, (body as TeamDailyReportRangeResponse).departments));
     } catch (error) {
       setLoadFailed(error instanceof Error ? error.message : 'Could not load team daily reports.');
     } finally {
@@ -433,7 +454,9 @@ export default function TeamDailyReportsView({
 
   function exportRangePdf() {
     if (!rangeData) return;
-    const departmentLabel = departmentId ? rangeData.departments.find((d) => d.id === departmentId)?.name || 'Department' : 'All Departments';
+    const departmentLabel = departmentId.length
+      ? departmentId.map((id) => knownDepartments.find((d) => d.id === id)?.name || 'Department').join(', ')
+      : 'All Departments';
     exportListToPdf(
       `Daily Report — ${departmentLabel} — ${rangeData.label}`,
       ['Employee', 'Department', 'Report days', 'Filed', 'On time', 'Late', 'Missing', 'On leave', 'Before joining', 'Warnings', 'On-time %'],
@@ -468,27 +491,29 @@ export default function TeamDailyReportsView({
   const modeSwitch = (
     <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 12 }}>
     <div className={sheetStyles.presetGroup} role="group" aria-label="View">
-      <button
-        type="button"
-        className={`${sheetStyles.preset} ${mode === 'day' ? sheetStyles.presetActive : ''}`}
+      <CommonButton
+        variant="ghost"
+        size="sm"
+        selected={mode === 'day'}
         onClick={() => setMode('day')}
       >
         Day view
-      </button>
-      <button
-        type="button"
-        className={`${sheetStyles.preset} ${mode === 'sheet' ? sheetStyles.presetActive : ''}`}
+      </CommonButton>
+      <CommonButton
+        variant="ghost"
+        size="sm"
+        selected={mode === 'sheet'}
         onClick={() => setMode('sheet')}
       >
         Sheet view
-      </button>
+      </CommonButton>
     </div>
     {/* Sits beside the view switch because it shapes what the reports in
         both views can say. Opens read-only for a department the viewer can
         see but does not manage. */}
-    <button type="button" className={historyStyles.button} onClick={() => setCategoriesOpen(true)}>
+    <CommonButton variant="secondary" size="md" onClick={() => setCategoriesOpen(true)}>
       Task categories
-    </button>
+    </CommonButton>
     </div>
   );
 
@@ -517,11 +542,13 @@ export default function TeamDailyReportsView({
       {modeSwitch}
       {categoryDialog}
       <FilterBar>
-        <Select auto value={period} onChange={(e) => setPeriod(e.target.value as Period)} aria-label="Period">
-          {PERIOD_OPTIONS.map((opt) => (
-            <option key={opt.value} value={opt.value}>{opt.label}</option>
-          ))}
-        </Select>
+        <Dropdown
+          value={period}
+          onChange={(v) => v && setPeriod(v)}
+          options={PERIOD_OPTIONS}
+          clearable={false}
+          ariaLabel="Period"
+        />
 
         {period === 'day' && (
           <Input
@@ -538,38 +565,51 @@ export default function TeamDailyReportsView({
         )}
         {period === 'month' && (
           <>
-            <Select auto value={rangeMonth} onChange={(e) => setRangeMonth(Number(e.target.value))} aria-label="Month">
-              {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
-                <option key={m} value={m}>{new Date(2026, m - 1, 1).toLocaleDateString('en-IN', { month: 'long' })}</option>
-              ))}
-            </Select>
-            <Select auto value={rangeYear} onChange={(e) => setRangeYear(Number(e.target.value))} aria-label="Year">
-              {selectableYears(now, bounds).map((y) => (
-                <option key={y} value={y}>{y}</option>
-              ))}
-            </Select>
+            <Dropdown
+              value={String(rangeMonth)}
+              onChange={(v) => v && setRangeMonth(Number(v))}
+              options={Array.from({ length: 12 }, (_, i) => i + 1).map((m) => ({
+                value: String(m),
+                label: new Date(2026, m - 1, 1).toLocaleDateString('en-IN', { month: 'long' })
+              }))}
+              clearable={false}
+              ariaLabel="Month"
+            />
+            <Dropdown
+              value={String(rangeYear)}
+              onChange={(v) => v && setRangeYear(Number(v))}
+              options={selectableYears(now, bounds).map((y) => ({ value: String(y), label: String(y) }))}
+              clearable={false}
+              ariaLabel="Year"
+            />
           </>
         )}
         {period === 'quarter' && (
           <>
-            <Select auto value={rangeQuarter} onChange={(e) => setRangeQuarter(Number(e.target.value))} aria-label="Quarter">
-              {[1, 2, 3, 4].map((q) => (
-                <option key={q} value={q}>Q{q}</option>
-              ))}
-            </Select>
-            <Select auto value={rangeYear} onChange={(e) => setRangeYear(Number(e.target.value))} aria-label="Year">
-              {selectableYears(now, bounds).map((y) => (
-                <option key={y} value={y}>{y}</option>
-              ))}
-            </Select>
+            <Dropdown
+              value={String(rangeQuarter)}
+              onChange={(v) => v && setRangeQuarter(Number(v))}
+              options={[1, 2, 3, 4].map((q) => ({ value: String(q), label: `Q${q}` }))}
+              clearable={false}
+              ariaLabel="Quarter"
+            />
+            <Dropdown
+              value={String(rangeYear)}
+              onChange={(v) => v && setRangeYear(Number(v))}
+              options={selectableYears(now, bounds).map((y) => ({ value: String(y), label: String(y) }))}
+              clearable={false}
+              ariaLabel="Year"
+            />
           </>
         )}
         {period === 'year' && (
-          <Select auto value={rangeYear} onChange={(e) => setRangeYear(Number(e.target.value))} aria-label="Year">
-            {selectableYears(now, bounds).map((y) => (
-              <option key={y} value={y}>{y}</option>
-            ))}
-          </Select>
+          <Dropdown
+            value={String(rangeYear)}
+            onChange={(v) => v && setRangeYear(Number(v))}
+            options={selectableYears(now, bounds).map((y) => ({ value: String(y), label: String(y) }))}
+            clearable={false}
+            ariaLabel="Year"
+          />
         )}
         {period === 'custom' && (
           <>
@@ -578,31 +618,29 @@ export default function TeamDailyReportsView({
           </>
         )}
 
-        {period === 'day'
-          ? data && data.departments.length > 1 && (
-              <Select auto value={departmentId} onChange={(e) => setDepartmentId(e.target.value)} aria-label="Department">
-                <option value="">All departments</option>
-                {data.departments.map((department) => (
-                  <option key={department.id} value={department.id}>{department.name}</option>
-                ))}
-              </Select>
-            )
-          : rangeData && rangeData.departments.length > 1 && (
-              <Select auto value={departmentId} onChange={(e) => setDepartmentId(e.target.value)} aria-label="Department">
-                <option value="">All departments</option>
-                {rangeData.departments.map((department) => (
-                  <option key={department.id} value={department.id}>{department.name}</option>
-                ))}
-              </Select>
-            )}
-        {period === 'day' && (
-          <Select auto value={status} onChange={(e) => setStatus(e.target.value)} aria-label="Submission status">
-            {STATUS_FILTERS.map((filter) => (
-              <option key={filter.value} value={filter.value}>{filter.label}</option>
-            ))}
-          </Select>
+        {(period === 'day' ? data : rangeData) && knownDepartments.length > 1 && (
+          <Dropdown
+            multiselect
+            value={departmentId}
+            onChange={setDepartmentId}
+            placeholder="All departments"
+            label="Department"
+            options={knownDepartments.map((department) => ({ value: department.id, label: department.name }))}
+            ariaLabel="Department"
+          />
         )}
-        <input type="text" value={search} placeholder="Search employee or department…" onChange={(e) => setSearch(e.target.value)} aria-label="Search" />
+        {period === 'day' && (
+          <Dropdown
+            multiselect
+            value={status}
+            onChange={setStatus}
+            placeholder="All statuses"
+            label="Status"
+            options={STATUS_FILTERS.filter((filter) => filter.value !== 'all')}
+            ariaLabel="Submission status"
+          />
+        )}
+        <SearchInput value={search} placeholder="Search employee or department…" onChange={(v) => setSearch(v)} aria-label="Search" />
         {period !== 'day' && rangeData && rangeData.rows.length > 0 && (
           <Button variant="secondary" compact icon={<Download size={14} />} onClick={exportRangePdf}>Summary PDF</Button>
         )}
@@ -629,7 +667,7 @@ export default function TeamDailyReportsView({
                   </div>
                 </div>
               )}
-              <div className={styles.kpiRow}>
+              <StatCardGrid className={styles.kpiRow}>
                 <StatTile value={data.kpis.expected} label="Expected" />
                 <StatTile value={data.kpis.submitted} label="Submitted" tone="success" />
                 <StatTile value={data.kpis.submitted_late} label="Submitted late" tone="warning" />
@@ -637,7 +675,7 @@ export default function TeamDailyReportsView({
                 <StatTile value={data.kpis.pending_leave} label="Pending leave" tone="info" />
                 <StatTile value={data.kpis.approved_leave} label="Approved leave" tone="accent" />
                 {data.kpis.not_configured > 0 && <StatTile value={data.kpis.not_configured} label="Not expected" />}
-              </div>
+              </StatCardGrid>
               <p className={styles.sectionHint}>
                 Deadline for {date}: {formatDateTime(data.deadline_at)}. Drafts are private to their owner and count as missing until submitted.
               </p>
@@ -645,7 +683,10 @@ export default function TeamDailyReportsView({
           )}
 
           {loading && !data ? (
-            <div className={historyStyles.tableWrap}><SkeletonRows rows={6} columns={6} /></div>
+            <>
+              <div style={{ marginBottom: 'var(--mx-space-4)' }}><SkeletonStatCards count={6} minWidth={132} withIcon={false} /></div>
+              <SkeletonTable columns={8} rows={6} />
+            </>
           ) : !data || data.rows.length === 0 ? (
             <EmptyState
               icon={ClipboardCheck}
@@ -694,38 +735,24 @@ export default function TeamDailyReportsView({
                           the old Review column — never once used — did not. */}
                       <td>{row.report_id ? row.entry_count : '—'}</td>
                       <td>
-                        <div className={historyStyles.rowActionsInline}>
-                          {row.report_id ? (
-                            <>
-                              <button type="button" className={historyStyles.rowAction} onClick={() => openReport(row, 'view')}>
-                                <Eye size={14} /> View
-                              </button>
-                              <button type="button" className={historyStyles.rowAction} onClick={() => openReport(row, 'edit')}>
-                                <Pencil size={14} /> Edit
-                              </button>
-                            </>
-                          ) : data.can_file_for_others ? (
-                            <button type="button" className={`${historyStyles.rowAction} ${historyStyles.rowActionPrimary}`} onClick={() => openFileForThem(row)}>
-                              <FilePlus2 size={14} /> File for Them
-                            </button>
-                          ) : (
-                            <span className={calcStyles.small}>—</span>
-                          )}
-                          {/* "They weren't here" — the other honest answer to
-                              a missing report, and the one that stops the
-                              warning instead of inventing a report to avoid
-                              it. Hidden once a live claim already covers the
-                              date; see canOfferMarkLeave. */}
-                          {canOfferMarkLeave(row, data.can_file_for_others) && (
-                            <button
-                              type="button"
-                              className={historyStyles.rowAction}
-                              onClick={() => { setLeaveFor(row); setLeaveReason(''); }}
-                            >
-                              <CalendarOff size={14} /> Mark Leave
-                            </button>
-                          )}
-                        </div>
+                        {(() => {
+                          // "They weren't here" (Mark Leave) is the other honest answer to a
+                          // missing report; hidden once a live claim covers the date — see canOfferMarkLeave.
+                          const showMarkLeave = canOfferMarkLeave(row, data.can_file_for_others);
+                          const hasAny = Boolean(row.report_id) || data.can_file_for_others || showMarkLeave;
+                          if (!hasAny) return <span className={calcStyles.small}>—</span>;
+                          return (
+                            <RowActions
+                              label={`Report actions for ${row.employee_name}`}
+                              actions={[
+                                { key: 'view', label: 'View', icon: <Eye size={14} />, hidden: !row.report_id, onClick: () => openReport(row, 'view') },
+                                { key: 'edit', label: 'Edit', icon: <Pencil size={14} />, hidden: !row.report_id, onClick: () => openReport(row, 'edit') },
+                                { key: 'file', label: 'File for Them', icon: <FilePlus2 size={14} />, variant: 'primary', hidden: Boolean(row.report_id) || !data.can_file_for_others, onClick: () => openFileForThem(row) },
+                                { key: 'leave', label: 'Mark Leave', icon: <CalendarOff size={14} />, hidden: !showMarkLeave, onClick: () => { setLeaveFor(row); setLeaveReason(''); } }
+                              ]}
+                            />
+                          );
+                        })()}
                       </td>
                     </tr>
                   ))}
@@ -738,20 +765,23 @@ export default function TeamDailyReportsView({
         <>
           {rangeData && (
             <>
-              <div className={styles.kpiRow}>
+              <StatCardGrid className={styles.kpiRow}>
                 <StatTile value={rangeData.totals.report_days} label="Report days (each)" />
                 <StatTile value={rangeData.totals.submitted} label="Filed" tone="success" />
                 <StatTile value={rangeData.totals.submitted_late} label="Late" tone="warning" />
                 <StatTile value={rangeData.totals.missing} label="Missing" tone="danger" />
                 <StatTile value={rangeData.totals.leave_covered} label="On leave" tone="info" />
                 <StatTile value={rangeData.totals.before_joining} label="Before joining" />
-              </div>
+              </StatCardGrid>
               <p className={styles.sectionHint}>{rangeData.label} ({rangeData.from} to {rangeData.to}) — working days only.</p>
             </>
           )}
 
           {loading && !rangeData ? (
-            <div className={historyStyles.tableWrap}><SkeletonRows rows={6} columns={6} /></div>
+            <>
+              <div style={{ marginBottom: 'var(--mx-space-4)' }}><SkeletonStatCards count={6} minWidth={132} withIcon={false} /></div>
+              <SkeletonTable columns={11} rows={6} />
+            </>
           ) : !activeRange ? (
             <EmptyState icon={ClipboardCheck} title="Pick a valid range" message="The 'from' date must not be after the 'to' date." />
           ) : !rangeData || rangeData.rows.length === 0 ? (
@@ -878,7 +908,7 @@ export default function TeamDailyReportsView({
           }
         >
           {dialogLoading ? (
-            <SkeletonRows rows={5} columns={3} />
+            <SkeletonForm fields={4} />
           ) : dialog.kind === 'file' ? (
             <>
               <div className={`${styles.banner} ${styles.bannerNotice}`}>

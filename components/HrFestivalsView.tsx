@@ -1,10 +1,14 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { Trash2, Pencil, Plus, X } from 'lucide-react';
+import { ArrowRight, Trash2, Pencil, Plus, X } from 'lucide-react';
 import AppShell from './AppShell';
+import CommonButton from './ui/CommonButton';
+import { SkeletonTable } from './ui/Skeleton';
 import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
+import RowActions from './ui/RowActions';
+import { TableWrap } from './ui/Table';
 
 interface FestivalRecord {
   id: string;
@@ -111,14 +115,14 @@ export default function HrFestivalsView() {
   const today = new Date().toISOString().slice(0, 10);
 
   return (
-    <AppShell title="Festival Greetings" subtitle="HR › Indian festival calendar for company-wide greetings">
+    <AppShell fillPage title="Festival Greetings" subtitle="HR › Indian festival calendar for company-wide greetings">
       <div className={historyStyles.toolbar}>
-        <button type="button" className={`${historyStyles.button} ${historyStyles.primary}`} onClick={startAdd}>
-          <Plus size={16} /> Add Festival
-        </button>
-        <a href="/festival-campaigns" className={historyStyles.button} style={{ marginLeft: 8 }}>
-          Client festival emails →
-        </a>
+        <CommonButton variant="primary" leadingIcon={<Plus />} onClick={startAdd}>
+          Add Festival
+        </CommonButton>
+        <CommonButton href="/festival-campaigns" variant="secondary" trailingIcon={<ArrowRight />} style={{ marginLeft: 8 }}>
+          Client festival emails
+        </CommonButton>
       </div>
 
       {showForm && (
@@ -189,19 +193,24 @@ export default function HrFestivalsView() {
           </div>
           {error && <p style={{ color: 'var(--mx-danger)', marginTop: 8 }}>{error}</p>}
           <div className={`${calcStyles.inlineFlexGap8} ${calcStyles.mt8}`}>
-            <button type="submit" className={`${historyStyles.button} ${historyStyles.primary}`} disabled={saving}>
-              {saving ? 'Saving…' : editId ? 'Save Changes' : 'Add Festival'}
-            </button>
-            <button type="button" className={historyStyles.button} onClick={() => setShowForm(false)}>
-              <X size={14} /> Cancel
-            </button>
+            <CommonButton type="submit" variant="primary" loading={saving} loadingLabel="Saving…">
+              {editId ? 'Save Changes' : 'Add Festival'}
+            </CommonButton>
+            <CommonButton variant="secondary" leadingIcon={<X />} onClick={() => setShowForm(false)}>
+              Cancel
+            </CommonButton>
           </div>
         </form>
       )}
 
-      {status && <p className={calcStyles.small}>{status}</p>}
+      {status === 'Loading…' ? (
+        <SkeletonTable columns={5} rows={6} />
+      ) : (
+        status && <p className={calcStyles.small}>{status}</p>
+      )}
 
       {festivals.length > 0 && (
+        <TableWrap>
         <table className={historyStyles.table}>
           <thead>
             <tr>
@@ -223,27 +232,19 @@ export default function HrFestivalsView() {
                   {f.provisional && <span style={{ color: 'var(--mx-warning)', marginLeft: 6 }}>Provisional — confirm date</span>}
                 </td>
                 <td>
-                  <button
-                    type="button"
-                    className={`${historyStyles.actionBtn} ${historyStyles.actionBtnSecondary}`}
-                    onClick={() => startEdit(f)}
-                    aria-label={`Edit ${f.name}`}
-                  >
-                    <Pencil size={14} />
-                  </button>
-                  <button
-                    type="button"
-                    className={`${historyStyles.actionBtn} ${historyStyles.actionBtnDanger}`}
-                    onClick={() => handleDelete(f.id, f.name)}
-                    aria-label={`Delete ${f.name}`}
-                  >
-                    <Trash2 size={14} />
-                  </button>
+                  <RowActions
+                    label={`Actions for ${f.name}`}
+                    actions={[
+                      { key: 'edit', label: 'Edit', icon: <Pencil />, onClick: () => startEdit(f) },
+                      { key: 'delete', label: 'Delete', icon: <Trash2 />, destructive: true, onClick: () => handleDelete(f.id, f.name) }
+                    ]}
+                  />
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
+        </TableWrap>
       )}
     </AppShell>
   );

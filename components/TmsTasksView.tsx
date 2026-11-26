@@ -1,8 +1,8 @@
 'use client';
 
 import { FormEvent, useEffect, useMemo, useState } from 'react';
-import Link from 'next/link';
-import { AlertTriangle, CheckCircle2, ClipboardList, Clock, ListChecks, Users } from 'lucide-react';
+import Link from '@/components/ui/AppLink';
+import { AlertTriangle, CheckCircle2, ClipboardList, Clock, ListChecks, Plus, Users } from 'lucide-react';
 import { DepartmentRecord, TmsPriority, TmsProjectRecord, TmsTaskRecord, TmsTaskStatus, UserRole } from '@/lib/types';
 import { TMS_DEPARTMENTS, TMS_MANAGER_TIER_ROLES } from '@/lib/tmsConstants';
 import { TMS_PRIORITY_LABEL, TMS_PRIORITY_TONE, TMS_ROLE_LABEL, TMS_TASK_STATUS_LABEL, TMS_TASK_STATUS_TONE, todayIso } from '@/lib/tmsLabels';
@@ -17,7 +17,7 @@ import PriorityBadge from './ui/PriorityBadge';
 import StatusBadge from './ui/StatusBadge';
 import PersonPicker, { PersonPickerOption } from './ui/PersonPicker';
 import { useToast } from './ui/ToastProvider';
-import { SkeletonRows } from './ui/Skeleton';
+import { SkeletonTable } from './ui/Skeleton';
 import EmptyState from './ui/EmptyState';
 import ErrorState from './ui/ErrorState';
 import Modal from './ui/Modal';
@@ -26,11 +26,14 @@ import Input from './ui/Input';
 import Select from './ui/Select';
 import Textarea from './ui/Textarea';
 import SubmitButton from './ui/SubmitButton';
+import CommonButton from './ui/CommonButton';
+import StatCard, { StatCardGrid } from './ui/StatCard';
 import FilterBar from './ui/FilterBar';
-import ToolbarButton from './ui/ToolbarButton';
+import Dropdown, { inSelection } from './ui/Dropdown';
 import Table, { TableColumn, TableWrap } from './ui/Table';
 import TmsPersonDashboard from './TmsPersonDashboard';
 import { useAutoRefresh } from '@/lib/useAutoRefresh';
+import { ClearFiltersButton, DateRange, DateRangeFilter, inDateRange, ListToolbar, QuickFilters, RefreshButton } from './ui/ListControls';
 import { fetchCached } from '@/lib/fetchCached';
 
 const EMPTY_FORM = {
@@ -52,7 +55,7 @@ const EMPTY_FORM = {
 // question: what's on me, how is the team doing, and where is every task.
 type TaskTab = 'mine' | 'team' | 'all';
 
-type ViewMode = 'daily' | 'all';
+type QuickKey = 'all' | DailyBucket;
 type SortKey = 'due_date' | 'priority' | 'created';
 type DailyBucket = 'today' | 'due_today' | 'overdue' | 'completed_today' | 'pending';
 
@@ -149,14 +152,15 @@ export default function TmsTasksView({ currentUser }: TmsTasksViewProps) {
   const [creating, setCreating] = useState(false);
 
   const [tab, setTab] = useState<TaskTab>('mine');
-  const [viewMode, setViewMode] = useState<ViewMode>('daily');
-  const [dailyBucket, setDailyBucket] = useState<DailyBucket>('today');
-  const [fDate, setFDate] = useState(todayIso());
-  const [fProject, setFProject] = useState('');
-  const [fDepartment, setFDepartment] = useState('');
-  const [fAssignee, setFAssignee] = useState('');
-  const [fStatus, setFStatus] = useState<TmsTaskStatus | ''>('');
-  const [fPriority, setFPriority] = useState<TmsPriority | ''>('');
+  // "All Tasks" opens on everything: no quick filter, no date filter. The
+  // quick filters (Active today / Due today / Overdue / …) are one click away.
+  const [quick, setQuick] = useState<QuickKey>('all');
+  const [dueRange, setDueRange] = useState<DateRange>({ from: '', to: '' });
+  const [fProject, setFProject] = useState<string[]>([]);
+  const [fDepartment, setFDepartment] = useState<string[]>([]);
+  const [fAssignee, setFAssignee] = useState<string[]>([]);
+  const [fStatus, setFStatus] = useState<TmsTaskStatus[]>([]);
+  const [fPriority, setFPriority] = useState<TmsPriority[]>([]);
   const [sortKey, setSortKey] = useState<SortKey>('due_date');
 
   const tmsDepartments = useMemo(
@@ -231,17 +235,18 @@ export default function TmsTasksView({ currentUser }: TmsTasksViewProps) {
 
   const filtered = useMemo(() => {
     return tasks.filter((t) => {
-      if (fProject && t.project_id !== fProject) return false;
-      if (fDepartment && t.department_name !== fDepartment) return false;
-      if (fAssignee && t.assignee_id !== fAssignee) return false;
-      if (fStatus && t.status !== fStatus) return false;
-      if (fPriority && t.priority !== fPriority) return false;
+      if (!inSelection(t.project_id, fProject)) return false;
+      if (!inSelection(t.department_name, fDepartment)) return false;
+      if (!inSelection(t.assignee_id, fAssignee)) return false;
+      if (!inSelection(t.status, fStatus)) return false;
+      if (!inSelection(t.priority, fPriority)) return false;
+      if (!inDateRange(t.due_date, dueRange)) return false;
       return true;
     });
-  }, [tasks, fProject, fDepartment, fAssignee, fStatus, fPriority]);
+  }, [tasks, fProject, fDepartment, fAssignee, fStatus, fPriority, dueRange]);
 
   const dailyBuckets = useMemo(() => {
-    const date = fDate || todayIso();
+    const date = todayIso();
     const active = (t: TmsTaskRecord) => t.status !== 'completed' && t.status !== 'cancelled';
     return {
       today: filtered.filter((t) => active(t) && t.start_date && t.start_date <= date && (!t.due_date || t.due_date >= date)),
@@ -250,9 +255,20 @@ export default function TmsTasksView({ currentUser }: TmsTasksViewProps) {
       completed_today: filtered.filter((t) => t.completion_date === date),
       pending: filtered.filter((t) => t.status === 'to_do' || t.status === 'in_progress' || t.status === 'on_hold')
     };
-  }, [filtered, fDate]);
+  }, [filtered]);
 
-  const dailyRows = viewMode === 'daily' ? dailyBuckets[dailyBucket] : filtered;
+  const dailyRows = quick === 'all' ? filtered : dailyBuckets[quick];
+
+  const filtersActive = Boolean(fProject.length || fDepartment.length || fAssignee.length || fStatus.length || fPriority.length || dueRange.from || dueRange.to);
+  function clearFilters() {
+    setFProject([]);
+    setFDepartment([]);
+    setFAssignee([]);
+    setFStatus([]);
+    setFPriority([]);
+    setDueRange({ from: '', to: '' });
+    setQuick('all');
+  }
 
   const sortedRows = useMemo(() => {
     const rows = [...dailyRows];
@@ -391,10 +407,10 @@ export default function TmsTasksView({ currentUser }: TmsTasksViewProps) {
   }, [isManagerTier, tasks]);
 
   const bucketLabel: Record<DailyBucket, string> = {
-    today: "Today's Tasks",
-    due_today: 'Due Today',
+    today: 'Active today',
+    due_today: 'Due today',
     overdue: 'Overdue',
-    completed_today: 'Completed Today',
+    completed_today: 'Completed today',
     pending: 'Pending'
   };
 
@@ -432,15 +448,15 @@ export default function TmsTasksView({ currentUser }: TmsTasksViewProps) {
       key: 'actions',
       header: '',
       render: (t) => (
-        <Link className={historyStyles.button} href={`/tms/tasks/${t.id}`}>
+        <CommonButton size="sm" href={`/tms/tasks/${t.id}`}>
           {!isManagerTier && (ENGINEER_ACTIONS_BY_STATUS[t.status] || []).length > 0 ? 'Update' : 'View'}
-        </Link>
+        </CommonButton>
       )
     }
   ];
 
   return (
-    <AppShell title="TMS Tasks" subtitle="Day-by-day task planning and completion — no time tracking.">
+    <AppShell fillPage={tab === 'all'} title="TMS Tasks" subtitle="Day-by-day task planning and completion — no time tracking.">
       <div className={tmsTaskStyles.tabRow} role="tablist" aria-label="Task views">
         <button type="button" role="tab" aria-selected={tab === 'mine'} className={tab === 'mine' ? tmsTaskStyles.tabActive : tmsTaskStyles.tab} onClick={() => setTab('mine')}>
           <ListChecks size={14} /> My Work
@@ -455,35 +471,20 @@ export default function TmsTasksView({ currentUser }: TmsTasksViewProps) {
           <ClipboardList size={14} /> All Tasks
           <span className={tmsTaskStyles.tabCount}>{tasks.length}</span>
         </button>
-        <button type="button" className={tmsTaskStyles.newBtn} onClick={() => setShowForm(true)}>+ New Task</button>
+        <CommonButton variant="primary" leadingIcon={<Plus />} className={tmsTaskStyles.newBtn} onClick={() => setShowForm(true)}>New Task</CommonButton>
       </div>
 
       {tab === 'mine' && (
       <>
-      <div className={historyStyles.summaryCardGrid}>
-        <div className={historyStyles.summaryCard}>
-          <div className={historyStyles.summaryCardLabel}>My Tasks</div>
-          <div className={historyStyles.summaryCardValue}>{myWorkStats.myTasks}</div>
-        </div>
-        <div className={`${historyStyles.summaryCard} ${myWorkStats.dueToday ? tmsDashboardStyles.summaryCardAlertWarning : ''}`}>
-          <div className={historyStyles.summaryCardLabel}>Due Today</div>
-          <div className={historyStyles.summaryCardValue}>{myWorkStats.dueToday}</div>
-        </div>
-        <div className={`${historyStyles.summaryCard} ${myWorkStats.overdue ? tmsDashboardStyles.summaryCardAlertDanger : ''}`}>
-          <div className={historyStyles.summaryCardLabel}>Overdue</div>
-          <div className={historyStyles.summaryCardValue}>{myWorkStats.overdue}</div>
-        </div>
-        <div className={historyStyles.summaryCard}>
-          <div className={historyStyles.summaryCardLabel}>Completed This Week</div>
-          <div className={historyStyles.summaryCardValue}>{myWorkStats.completedThisWeek}</div>
-        </div>
+      <StatCardGrid>
+        <StatCard value={myWorkStats.myTasks} label="My Tasks" />
+        <StatCard value={myWorkStats.dueToday} label="Due Today" tone={myWorkStats.dueToday ? 'warning' : 'default'} />
+        <StatCard value={myWorkStats.overdue} label="Overdue" tone={myWorkStats.overdue ? 'danger' : 'default'} />
+        <StatCard value={myWorkStats.completedThisWeek} label="Completed This Week" />
         {myWorkStats.myProgress !== null && (
-          <div className={historyStyles.summaryCard}>
-            <div className={historyStyles.summaryCardLabel}>My Progress</div>
-            <div className={historyStyles.summaryCardValue}>{myWorkStats.myProgress}%</div>
-          </div>
+          <StatCard value={`${myWorkStats.myProgress}%`} label="My Progress" />
         )}
-      </div>
+      </StatCardGrid>
 
       <div className={`${calcStyles.sectionPanel} ${tmsDashboardStyles.nextActionPanel} ${nextAction ? tmsDashboardStyles.nextActionPanelAlert : tmsDashboardStyles.nextActionPanelOk}`}>
         <div className={tmsDashboardStyles.nextActionLabel}>Next Action</div>
@@ -498,7 +499,7 @@ export default function TmsTasksView({ currentUser }: TmsTasksViewProps) {
                 {nextAction.project_name} · {myTaskBuckets.overdue[0] === nextAction ? `Overdue — was due ${nextAction.due_date}` : 'Due today'}
               </div>
             </div>
-            <Link className={calcStyles.btn} href={`/tms/tasks/${nextAction.id}`}>Open Task</Link>
+            <CommonButton variant="primary" href={`/tms/tasks/${nextAction.id}`}>Open Task</CommonButton>
           </div>
         ) : (
           <div className={tmsDashboardStyles.nextActionAllClear}>
@@ -530,20 +531,22 @@ export default function TmsTasksView({ currentUser }: TmsTasksViewProps) {
       {tab === 'team' && isManagerTier && teamOverviewStats && (
         <>
           <div className={dashboardStyles.sectionHeading}>Team Overview</div>
-          <div className={dashboardStyles.kpiGrid}>
-            <div className={dashboardStyles.kpiCard}>
-              <div className={dashboardStyles.kpiValue}>{teamOverviewStats.engineers}</div>
-              <div className={dashboardStyles.kpiLabel}>Engineers</div>
-            </div>
-            <button type="button" className={`${dashboardStyles.kpiCard} ${dashboardStyles.kpiCardButton}`} onClick={() => showTasks('Pending Tasks', teamOverviewStats.pendingTasksItems)}>
-              <div className={dashboardStyles.kpiValue}>{teamOverviewStats.pendingTasks}</div>
-              <div className={dashboardStyles.kpiLabel}>Pending Tasks</div>
-            </button>
-            <button type="button" className={`${dashboardStyles.kpiCard} ${dashboardStyles.kpiCardAlert} ${dashboardStyles.kpiCardButton}`} onClick={() => showTasks('Overdue Tasks', teamOverviewStats.overdueTasksItems)}>
-              <div className={dashboardStyles.kpiValue}>{teamOverviewStats.overdueTasks}</div>
-              <div className={dashboardStyles.kpiLabel}>Overdue Tasks</div>
-            </button>
-          </div>
+          <StatCardGrid>
+            <StatCard value={teamOverviewStats.engineers} label="Engineers" />
+            <StatCard
+              value={teamOverviewStats.pendingTasks}
+              label="Pending Tasks"
+              onClick={() => showTasks('Pending Tasks', teamOverviewStats.pendingTasksItems)}
+              actionLabel="View pending tasks"
+            />
+            <StatCard
+              value={teamOverviewStats.overdueTasks}
+              label="Overdue Tasks"
+              tone="danger"
+              onClick={() => showTasks('Overdue Tasks', teamOverviewStats.overdueTasksItems)}
+              actionLabel="View overdue tasks"
+            />
+          </StatCardGrid>
 
           {taskDistribution.length > 0 && (
             <div className={`${calcStyles.sectionPanel} ${tmsDashboardStyles.panelSpaced}`}>
@@ -574,22 +577,21 @@ export default function TmsTasksView({ currentUser }: TmsTasksViewProps) {
                   <thead><tr><th>Engineer</th><th>Projects</th><th>Tasks</th><th>Overdue</th><th></th></tr></thead>
                   <tbody>
                     {teamWorkload.map((w) => (
-                      <tr key={w.id} className={tmsDashboardStyles.clickableRow} onClick={() => setFAssignee((v) => (v === w.id ? '' : w.id))}>
-                        <td className={fAssignee === w.id ? tmsDashboardStyles.rowHighlight : undefined}>{w.name}</td>
+                      <tr key={w.id} className={tmsDashboardStyles.clickableRow} onClick={() => setFAssignee((v) => (v.length === 1 && v[0] === w.id ? [] : [w.id]))}>
+                        <td className={fAssignee.includes(w.id) ? tmsDashboardStyles.rowHighlight : undefined}>{w.name}</td>
                         <td>{w.projectCount}</td>
                         <td>{w.tasks}</td>
                         <td className={w.overdue ? tmsDashboardStyles.overdueCount : undefined}>{w.overdue}</td>
                         <td>
-                          <button
-                            type="button"
-                            className={historyStyles.button}
+                          <CommonButton
+                            size="sm"
                             onClick={(e) => {
                               e.stopPropagation();
                               setOpenPersonId(w.id);
                             }}
                           >
                             Profile
-                          </button>
+                          </CommonButton>
                         </td>
                       </tr>
                     ))}
@@ -603,76 +605,83 @@ export default function TmsTasksView({ currentUser }: TmsTasksViewProps) {
 
       {tab === 'all' && (
       <>
-      <div className={historyStyles.actionRow}>
-        {/* "+ New Task" lives in the tab bar now — one button, always in
-            the same place, instead of one here plus another inside the
-            table's empty state. */}
-        <ToolbarButton onClick={load}>Refresh</ToolbarButton>
-        <span className={historyStyles.verticalDivider} />
-        <ToolbarButton primary={viewMode === 'daily'} onClick={() => setViewMode('daily')}>
-          Daily View
-        </ToolbarButton>
-        <ToolbarButton primary={viewMode === 'all'} onClick={() => setViewMode('all')}>
-          All Tasks
-        </ToolbarButton>
-      </div>
-
-      {viewMode === 'daily' && (
-        <div className={historyStyles.bucketRow}>
-          {(Object.keys(bucketLabel) as DailyBucket[]).map((key) => (
-            <ToolbarButton
-              key={key}
-              primary={dailyBucket === key}
-              onClick={() => setDailyBucket(key)}
-            >
-              {bucketLabel[key]} ({dailyBuckets[key].length})
-            </ToolbarButton>
-          ))}
-        </div>
-      )}
+      {/* Quick filters on the left (All is the default — the whole list),
+          refresh as an icon on the right. "+ New Task" lives in the tab bar. */}
+      <ListToolbar
+        left={
+          <QuickFilters<QuickKey>
+            ariaLabel="Task quick filters"
+            value={quick}
+            onChange={setQuick}
+            options={[
+              { value: 'all', label: 'All', count: filtered.length },
+              ...(Object.keys(bucketLabel) as DailyBucket[]).map((key) => ({ value: key, label: bucketLabel[key], count: dailyBuckets[key].length }))
+            ]}
+          />
+        }
+        right={<RefreshButton onRefresh={load} loading={loading} label="Refresh tasks" />}
+      />
 
       <FilterBar>
-        {viewMode === 'daily' && <Input auto type="date" value={fDate} onChange={(e) => setFDate(e.target.value)} />}
-        <Select auto value={fProject} onChange={(e) => setFProject(e.target.value)}>
-          <option value="">All projects</option>
-          {projects.map((p) => (
-            <option key={p.id} value={p.id}>{p.name}</option>
-          ))}
-        </Select>
-        <Select auto value={fDepartment} onChange={(e) => setFDepartment(e.target.value)}>
-          <option value="">All departments</option>
-          {TMS_DEPARTMENTS.map((d) => (
-            <option key={d} value={d}>{d}</option>
-          ))}
-        </Select>
-        <Select auto value={fAssignee} onChange={(e) => setFAssignee(e.target.value)}>
-          <option value="">All assignees</option>
-          {users.map((u) => (
-            <option key={u.id} value={u.id}>{u.name || u.username}</option>
-          ))}
-        </Select>
-        <Select auto value={fStatus} onChange={(e) => setFStatus(e.target.value as TmsTaskStatus | '')}>
-          <option value="">All statuses</option>
-          {(Object.keys(TMS_TASK_STATUS_LABEL) as TmsTaskStatus[]).map((s) => (
-            <option key={s} value={s}>{TMS_TASK_STATUS_LABEL[s]}</option>
-          ))}
-        </Select>
-        <Select auto value={fPriority} onChange={(e) => setFPriority(e.target.value as TmsPriority | '')}>
-          <option value="">All priorities</option>
-          {(Object.keys(TMS_PRIORITY_LABEL) as TmsPriority[]).map((p) => (
-            <option key={p} value={p}>{TMS_PRIORITY_LABEL[p]}</option>
-          ))}
-        </Select>
-        <Select auto value={sortKey} onChange={(e) => setSortKey(e.target.value as SortKey)}>
-          <option value="due_date">Sort: Due Date</option>
-          <option value="priority">Sort: Priority</option>
-          <option value="created">Sort: Created</option>
-        </Select>
+        <DateRangeFilter label="Due" value={dueRange} onChange={setDueRange} />
+        <Dropdown
+          multiple
+          value={fProject}
+          onChange={setFProject}
+          placeholder="All projects"
+          label="Project"
+          options={projects.map((p) => ({ value: p.id, label: p.name }))}
+        />
+        <Dropdown
+          multiple
+          value={fDepartment}
+          onChange={setFDepartment}
+          placeholder="All departments"
+          label="Department"
+          options={TMS_DEPARTMENTS.map((d) => ({ value: d, label: d }))}
+        />
+        <Dropdown
+          multiple
+          value={fAssignee}
+          onChange={setFAssignee}
+          placeholder="All assignees"
+          label="Assignee"
+          options={users.map((u) => ({ value: u.id, label: u.name || u.username }))}
+        />
+        <Dropdown<TmsTaskStatus>
+          multiple
+          value={fStatus}
+          onChange={setFStatus}
+          placeholder="All statuses"
+          label="Status"
+          options={(Object.keys(TMS_TASK_STATUS_LABEL) as TmsTaskStatus[]).map((st) => ({ value: st, label: TMS_TASK_STATUS_LABEL[st] }))}
+        />
+        <Dropdown<TmsPriority>
+          multiple
+          value={fPriority}
+          onChange={setFPriority}
+          placeholder="All priorities"
+          label="Priority"
+          options={(Object.keys(TMS_PRIORITY_LABEL) as TmsPriority[]).map((p) => ({ value: p, label: TMS_PRIORITY_LABEL[p] }))}
+        />
+        <Dropdown
+          value={sortKey}
+          onChange={(v) => setSortKey(v || 'due_date')}
+          clearable={false}
+          ariaLabel="Sort"
+          options={[
+            { value: 'due_date' as SortKey, label: 'Sort: Due Date' },
+            { value: 'priority' as SortKey, label: 'Sort: Priority' },
+            { value: 'created' as SortKey, label: 'Sort: Created' }
+          ]}
+        />
+        <ClearFiltersButton visible={filtersActive || quick !== 'all'} onClear={clearFilters} />
       </FilterBar>
       {!loading && !loadFailed && <div className={historyStyles.status}>{status}</div>}
 
-      {loading ? (
-        <div className={historyStyles.tableWrap}><SkeletonRows rows={8} columns={7} /></div>
+      {/* Skeleton on first load only — a background refresh keeps the table on screen. */}
+      {loading && tasks.length === 0 ? (
+        <SkeletonTable columns={8} rows={8} />
       ) : loadFailed ? (
         <ErrorState message="Could not load TMS tasks — check your connection and try again." onRetry={load} />
       ) : (
@@ -684,8 +693,8 @@ export default function TmsTasksView({ currentUser }: TmsTasksViewProps) {
             <EmptyState
               icon={ClipboardList}
               title={tasks.length === 0 ? 'No Tasks Assigned' : 'No tasks here'}
-              message={tasks.length === 0 ? "You're currently all caught up." : 'Nothing matches this view — try a different bucket or filter.'}
-              action={<button type="button" className={calcStyles.btn} onClick={() => setShowForm(true)}>+ New Task</button>}
+              message={tasks.length === 0 ? "You're currently all caught up." : 'Nothing matches these filters — try another quick filter or clear the filters.'}
+              action={<CommonButton variant="primary" leadingIcon={<Plus />} onClick={() => setShowForm(true)}>New Task</CommonButton>}
             />
           }
         />

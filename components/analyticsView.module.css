@@ -76,3 +76,12 @@
 .breakdownList { display: flex; flex-direction: column; gap: 6px; }
 .breakdownRow { display: flex; justify-content: space-between; font-size: 13px; padding: 5px 10px; border-radius: 6px; background: var(--mx-surface-sunken); }
 .breakdownCount { font-weight: 700; }
+
+/* Responsive: these rows hold controls or a title + actions. They wrap
+   onto a second line when the screen is too narrow for them, instead of
+   overflowing or crushing their neighbours. No effect when they fit. */
+.sectionHeader,
+.breakdownRow {
+    flex-wrap: wrap;
+    row-gap: 8px;
+}

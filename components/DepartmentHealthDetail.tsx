@@ -1,14 +1,16 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import Link from 'next/link';
+import Link from '@/components/ui/AppLink';
 import { Info, X } from 'lucide-react';
 import { useModalBehavior } from '@/lib/useModalBehavior';
 import { ProjectRecord } from '@/lib/types';
 import { STAGE_LABEL } from '@/lib/projectStages';
 import { BAND_COLOR, BAND_TEXT, type HealthBand } from './ui/HealthGauge';
 import ErrorState from './ui/ErrorState';
-import { SkeletonRows } from './ui/Skeleton';
+import CommonButton from './ui/CommonButton';
+import StatCard, { StatCardGrid } from './ui/StatCard';
+import { Skeleton, SkeletonList, SkeletonStatCards, SkeletonText } from './ui/Skeleton';
 import StatusBadge from './ui/StatusBadge';
 import PersonPerformanceDashboard from './PersonPerformanceDashboard';
 import notifyStyles from './ui/notify.module.css';
@@ -117,15 +119,20 @@ export default function DepartmentHealthDetail({ department, onClose, myProjects
             <h2 className={styles.title} id="deptHealthTitle">{department}</h2>
             {data?.description && <p className={styles.description}>{data.description}</p>}
           </div>
-          <button type="button" className={styles.closeBtn} onClick={onClose} aria-label="Close">
-            <X size={18} />
-          </button>
+          <CommonButton variant="ghost" size="md" iconOnly leadingIcon={<X size={18} />} onClick={onClose} aria-label="Close" />
         </div>
 
         {error ? (
           <ErrorState message={error} onRetry={() => { setError(''); setReloadKey((k) => k + 1); }} />
         ) : !data ? (
-          <div className={styles.loadingWrap}><SkeletonRows rows={5} columns={3} /></div>
+          <div className={styles.loadingWrap} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+              <Skeleton width={96} height={44} />
+              <div style={{ flex: 1 }}><SkeletonText lines={2} /></div>
+            </div>
+            <SkeletonStatCards count={4} minWidth={140} withIcon={false} />
+            <SkeletonList rows={5} avatar />
+          </div>
         ) : (
           <>
             {/* Score against the scale — the number plus where it actually sits
@@ -170,26 +177,23 @@ export default function DepartmentHealthDetail({ department, onClose, myProjects
             {data.breakdown.length > 0 && (
               <>
                 <h3 className={styles.sectionTitle}>Department totals</h3>
-                <div className={styles.totalsGrid}>
+                <StatCardGrid className={styles.totalsGrid}>
                   {data.breakdown.map((row) =>
                     row.items && row.items.length > 0 ? (
-                      <button
+                      <StatCard
                         key={row.label}
-                        type="button"
-                        className={`${styles.totalCard} ${styles.totalCardClickable} ${totalFilter === row.label ? styles.totalCardActive : ''}`}
+                        size="compact"
+                        value={row.value}
+                        label={row.label}
+                        selected={totalFilter === row.label}
                         onClick={() => setTotalFilter((f) => (f === row.label ? null : row.label))}
-                      >
-                        <div className={styles.totalValue}>{row.value}</div>
-                        <div className={styles.totalLabel}>{row.label}</div>
-                      </button>
+                        actionLabel={`Show ${row.label}`}
+                      />
                     ) : (
-                      <div key={row.label} className={styles.totalCard}>
-                        <div className={styles.totalValue}>{row.value}</div>
-                        <div className={styles.totalLabel}>{row.label}</div>
-                      </div>
+                      <StatCard key={row.label} size="compact" value={row.value} label={row.label} />
                     )
                   )}
-                </div>
+                </StatCardGrid>
                 {totalFilter && (() => {
                   const items = data.breakdown.find((r) => r.label === totalFilter)?.items || [];
                   return items.length === 0 ? null : (

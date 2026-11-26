@@ -76,20 +76,15 @@
    a dark-bg assumption into some other light-surface use of the class. */
 .sub { font-size: 12.5px; color: rgba(255, 255, 255, 0.65); }
 .headerActions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
-.headerBackLink { white-space: nowrap; }
-.headerBackLinkLabel { display: inline; }
 
 /* Sidebar's mobile hamburger (sidebar.module.css .toggleBtn) is
    position:fixed at top:14/left:14, 40x40, active at the same 768px
    breakpoint — without this the header's own logo/brand sits directly
-   underneath it and gets covered. Push the header content right, clear of
-   the button, and drop the "Back to Dashboard" text (the hamburger already
-   provides primary nav on mobile, so the label is redundant weight) so the
-   actions row has room to actually settle instead of cramming logout/bell/
-   search/back-link onto one line. */
+   underneath it and gets covered. (The app bar itself is now
+   components/ui/CommonHeader, which applies the same offset; this rule
+   remains for the error/404 pages that still use .header.) */
 @media (max-width: 768px) {
     .header { padding-left: 62px; }
-    .headerBackLinkLabel { display: none; }
 }
 .breadcrumb {
     font-size: 11px;
@@ -227,7 +222,8 @@
 .status { font-size: 13px; color: var(--mx-ink-muted); margin-bottom: 10px; }
 .truncateCell { display: inline-block; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: bottom; cursor: help; }
 .mutedInline { color: var(--mx-ink-faint); font-size: 12.5px; font-style: italic; }
-.table { width: 100%; border-collapse: collapse; background: var(--mx-surface); border-radius: var(--mx-radius-sm); overflow: hidden; box-shadow: var(--mx-shadow-xs); }
+/* Phone card layout — see "Responsive tables" in app/globals.css. */
+.table { composes: mx-rtable from global; width: 100%; border-collapse: collapse; background: var(--mx-surface); border-radius: var(--mx-radius-sm); overflow: hidden; box-shadow: var(--mx-shadow-xs); }
 .table th, .table td { text-align: left; padding: 10px 12px; font-size: 13.5px; border-bottom: 1px solid #eef0f2; vertical-align: top; }
 .table th { background: var(--mx-surface-sunken); font-weight: 600; color: #374151; position: sticky; top: 0; }
 .table tr:hover td { background: var(--mx-surface-sunken); }
@@ -272,8 +268,9 @@
 
 .tableWrap {
     /* Every table in the app scrolls through this wrapper, so the visible
-       scrollbar is opted into once, here, rather than per view. */
-    composes: mx-visible-scroll from global;
+       scrollbar is opted into once, here, rather than per view. mx-rtable-wrap:
+       the phone card layout turns its scrolling off (app/globals.css). */
+    composes: mx-visible-scroll mx-rtable-wrap from global;
     overflow-x: auto;
     border-radius: var(--mx-radius-sm);
 }
@@ -360,23 +357,26 @@
    that were worst off: the free-text ones, Progress (whose bar was
    overflowing into the actions beside it) and Actions, which now carries two
    buttons. Still totals 100%. */
-.colClient { width: 11%; }
+.colClient { width: 12%; }
 .colSalesPerson { width: 8%; }
 /* Holds "Robotics", the longest of the three department labels. */
-.colDepartment { width: 8%; }
+.colDepartment { width: 9%; }
 .colProjectLead { width: 9%; }
-.colSource { width: 7%; }
+.colSource { width: 8%; }
 .colApproxPrice { width: 9%; }
-.colStage { width: 8%; }
+.colStage { width: 9%; }
 /* nowrap: at 5% the header split as "Closin / g %". */
 .colClosingPct { width: 7%; white-space: nowrap; }
 .colLastRemark { width: 12%; }
 .colProgress { width: 9%; white-space: nowrap; }
 /* Also used by AdminExpensesView, which has its own narrower needs — so the
    Project Dashboard's wider actions cell is a separate class below. */
-.colActions { width: 8%; }
-/* Two buttons (View, Details) plus Delete for a superadmin. */
-.colActionsWide { width: 12%; }
+/* Row actions are a ⋮ menu now. A fixed px width (not %): these classes are
+   also used by table-layout:fixed tables, where a % is taken literally. */
+.colActions { width: 64px; white-space: nowrap; }
+/* Projects (table-layout:fixed): a narrow share of the width for the ⋮ menu.
+   The other columns sum to 92%, so no leftover space pools here. */
+.colActionsWide { width: 5%; min-width: 56px; white-space: nowrap; }
 
 /* A status badge is nowrap by default; in a fixed-width column a long label
    ("Pending Confirmation") would spill into the next column. Let it wrap. */
@@ -451,7 +451,10 @@
    at 1920px, so 1420px scrolled sideways at all three. At 960px the table
    fits every one of them, and a phone — where twelve columns cannot be read
    whatever the width — still scrolls as before. */
-.tableViewport .table { min-width: 960px; overflow: visible; }
+/* Below ~1200px the 11 Project Dashboard columns would get narrower than
+   their own words ("Departme/nt", "Negotiatio/n"); scroll sideways instead
+   — the scroll hint + pinned-column cues show there is more. */
+.tableViewport .table { min-width: 1240px; overflow: visible; }
 .tableViewport .table th { z-index: 2; }
 /* On a short screen the filters/tiles above leave little room, so lean on
    the viewport rather than the fixed cap: still far less scrolling than a
@@ -525,18 +528,8 @@
     border-radius: 6px;
     font-size: 13px;
 }
-.followUpForm button {
-    background: #dc2626;
-    color: #fff;
-    border: none;
-    border-radius: 6px;
-    padding: 6px 14px;
-    font-size: 12.5px;
-    font-weight: 600;
-    cursor: pointer;
-    white-space: nowrap;
-}
-.followUpForm button:hover { background: #b91c1c; }
+/* Its submit button is a CommonButton (primary, sm) — no descendant
+   `button` styling here, which used to override CommonButton's look. */
 
 .teamGrid {
     display: grid;
@@ -654,10 +647,12 @@
     transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
 }
 .modeToggleBtn:hover { color: #111827; }
-.modeToggleBtnActive {
-    background: var(--mx-surface);
-    color: var(--mx-brand-hover);
-    box-shadow: var(--mx-shadow-sm);
+/* Same solid selected fill as CommonButton/CommonChip (--mx-selected-*). */
+.modeToggleBtnActive,
+.modeToggleBtnActive:hover {
+    background: var(--mx-selected-bg);
+    color: var(--mx-selected-fg);
+    box-shadow: var(--mx-shadow-pressed-sm);
 }
 .autofillNotice {
     font-size: 12.5px;
@@ -750,7 +745,7 @@
 
 .cardGrid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(min(280px, 100%), 1fr));
     gap: 14px;
     margin: 18px 0;
 }
@@ -1570,7 +1565,6 @@
 .deltaNegative { color: var(--mx-success); font-weight: var(--mx-weight-medium); }
 .deltaNeutral { color: var(--mx-ink-muted); font-weight: var(--mx-weight-medium); }
 .revisionTag { margin-left: 6px; }
-.statusSelect { padding: 4px 6px; border-radius: var(--mx-radius-xs); border: none; box-shadow: var(--mx-shadow-pressed-sm); font-size: var(--mx-text-meta); }
 .expiredNote { font-size: 11px; color: var(--mx-ink-faint); }
 /* Quotation row actions (components/QuotationTable.tsx).
 
@@ -1805,7 +1799,6 @@
 /* A select's intrinsic width is its widest option, which in a fixed-layout
    cell overflows rather than clipping. Same fix the filter bar above already
    needed for its selects. */
-.tableFixed .statusSelect { max-width: 100%; min-width: 0; }
 .quotationViewport .table th {
     z-index: 2;
 }
@@ -2002,3 +1995,46 @@
    "29/9/2026, 2:40:04 pm" mid-value and doubling every row's height. */
 .cellDate { white-space: nowrap; }
 .cellTime { display: block; font-size: 11.5px; color: var(--mx-ink-faint); white-space: nowrap; }
+
+/* Phone width: a row of options must scroll inside itself, never widen the page. */
+.modeToggle { max-width: 100%; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+.modeToggle::-webkit-scrollbar { display: none; }
+.modeToggle > * { flex-shrink: 0; }
+
+/* Responsive: these rows hold controls or a title + actions. They wrap
+   onto a second line when the screen is too narrow for them, instead of
+   overflowing or crushing their neighbours. No effect when they fit. */
+.permGroupHeader,
+.notifHeader,
+.errorActionsRow,
+.teamSummaryHead {
+    flex-wrap: wrap;
+    row-gap: 8px;
+}
+
+/* A row-actions column pinned to the right edge of its scroll wrapper, so the
+   ⋮ stays reachable while the other columns scroll sideways underneath it
+   (divider + shadow from .mx-sticky-actions in app/globals.css). */
+.colActionsSticky {
+    composes: mx-sticky-actions from global;
+    position: sticky;
+    right: 0;
+    z-index: 1;
+    background: var(--mx-surface);
+}
+
+/* Shared vertical spacing between stacked blocks (app/globals.css → "Stack spacing"). */
+.tableWrap { composes: mx-block from global; }
+
+.wizardCardTitle { composes: mx-block from global; }
+
+.successPanel { composes: mx-block from global; }
+
+.qdSection { composes: mx-block from global; }
+
+.toolbar { composes: mx-block from global; }
+
+.imageStrip { composes: mx-block from global; }
+
+.actionRow { composes: mx-block from global; }
+

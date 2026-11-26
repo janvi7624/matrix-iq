@@ -8,8 +8,10 @@ import {
   partnerProgressPercent
 } from '@/lib/partnerQuotationRequestStages';
 import historyStyles from './quotationHistory.module.css';
+import CommonButton from './ui/CommonButton';
 import calcStyles from './calculator.module.css';
 import styles from './partnerPortal.module.css';
+import Select from '@/components/ui/Select';
 
 // The partner asking us to price something, and the list of what they have
 // already asked for.
@@ -128,9 +130,9 @@ export default function PartnerQuotationRequestsPanel({ onQuoted }: { onQuoted?:
           <div className={styles.detailHeaderMeta}>Ask our sales team to price something for one of your projects</div>
         </div>
         {!open && (
-          <button type="button" className={calcStyles.btn} onClick={() => { setOpen(true); setError(''); }}>
+          <CommonButton variant="primary" onClick={() => { setOpen(true); setError(''); }}>
             Request a quotation
-          </button>
+          </CommonButton>
         )}
       </div>
 
@@ -140,8 +142,7 @@ export default function PartnerQuotationRequestsPanel({ onQuoted }: { onQuoted?:
 
           <div className={calcStyles.field}>
             <label className={calcStyles.label}>Which project is this for? *</label>
-            <select
-              className={calcStyles.formControl}
+            <Select
               value={form.projectId}
               onChange={(e) => setForm({ ...form, projectId: e.target.value })}
               required
@@ -153,7 +154,7 @@ export default function PartnerQuotationRequestsPanel({ onQuoted }: { onQuoted?:
                   {p.company ? ` — ${p.company}` : ''}
                 </option>
               ))}
-            </select>
+            </Select>
             {projects.length === 0 && (
               // Said plainly rather than leaving an empty dropdown: a
               // quotation is always FOR something, so there is nothing to
@@ -211,25 +212,24 @@ export default function PartnerQuotationRequestsPanel({ onQuoted }: { onQuoted?:
             </div>
             <div className={calcStyles.field}>
               <label className={calcStyles.label}>Urgency</label>
-              <select
-                className={calcStyles.formControl}
+              <Select
                 value={form.urgency}
                 onChange={(e) => setForm({ ...form, urgency: e.target.value })}
               >
                 {QUOTATION_REQUEST_URGENCIES.map((u) => (
                   <option key={u} value={u}>{u[0].toUpperCase() + u.slice(1)}</option>
                 ))}
-              </select>
+              </Select>
             </div>
           </div>
 
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-            <button type="submit" className={calcStyles.btn} disabled={sending || projects.length === 0}>
-              {sending ? 'Sending…' : 'Send request'}
-            </button>
-            <button type="button" className={historyStyles.button} disabled={sending} onClick={() => { setOpen(false); setError(''); }}>
+            <CommonButton type="submit" variant="primary" disabled={projects.length === 0} loading={sending} loadingLabel="Sending…">
+              Send request
+            </CommonButton>
+            <CommonButton disabled={sending} onClick={() => { setOpen(false); setError(''); }}>
               Cancel
-            </button>
+            </CommonButton>
           </div>
         </form>
       )}

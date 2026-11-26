@@ -1,23 +1,20 @@
 'use client';
 
 import { AnchorHTMLAttributes, ButtonHTMLAttributes } from 'react';
-import styles from '../quotationHistory.module.css';
+import CommonButton from './CommonButton';
 
-// Wraps quotationHistory.module.css's .button/.primary/.deleteBtn family —
-// visually distinct from components/ui/Button.tsx's .actionBtn family used
-// elsewhere in the app. Deliberately NOT merged with Button: they render
-// differently, and swapping call sites over would change their appearance.
-export default function ToolbarButton({ primary, className, ...rest }: ButtonHTMLAttributes<HTMLButtonElement> & { primary?: boolean }) {
-  const classes = [styles.button, primary ? styles.primary : '', className || ''].filter(Boolean).join(' ');
-  return <button type="button" className={classes} {...rest} />;
+// Back-compat wrappers over CommonButton. ToolbarButton = secondary (or
+// primary), ToolbarLink = a plain <a> styled as a secondary button (its
+// callers point at file-download API routes, so it must not be next/link),
+// DeleteButton = small destructive row action.
+export default function ToolbarButton({ primary, ...rest }: ButtonHTMLAttributes<HTMLButtonElement> & { primary?: boolean }) {
+  return <CommonButton variant={primary ? 'primary' : 'secondary'} {...rest} />;
 }
 
-export function ToolbarLink({ className, ...rest }: AnchorHTMLAttributes<HTMLAnchorElement>) {
-  const classes = [styles.button, className || ''].filter(Boolean).join(' ');
-  return <a className={classes} {...rest} />;
+export function ToolbarLink({ href = '#', ...rest }: AnchorHTMLAttributes<HTMLAnchorElement>) {
+  return <CommonButton href={href} native variant="secondary" {...rest} />;
 }
 
-export function DeleteButton({ className, ...rest }: ButtonHTMLAttributes<HTMLButtonElement>) {
-  const classes = [styles.deleteBtn, className || ''].filter(Boolean).join(' ');
-  return <button type="button" className={classes} {...rest} />;
+export function DeleteButton(props: ButtonHTMLAttributes<HTMLButtonElement>) {
+  return <CommonButton variant="destructive" size="sm" {...props} />;
 }

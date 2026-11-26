@@ -1,7 +1,8 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { Search, X, Check } from 'lucide-react';
+import { Search, Check } from 'lucide-react';
+import CommonChip from './CommonChip';
 import calcStyles from '../calculator.module.css';
 import styles from './personPicker.module.css';
 
@@ -28,7 +29,7 @@ interface PersonPickerProps {
 
 // Search-box + result-card picker — the explicit alternative to "a huge
 // plain dropdown" (this codebase's existing person-pickers, e.g. Sales
-// person on Projects, are plain <select> elements; this is the first
+// person on Projects, are plain native select elements; this is the first
 // searchable one, built for TMS's Tahir-findability problem, generic
 // enough to reuse anywhere a short list of colleagues needs picking).
 export default function PersonPicker({ options, selectedIds, onChange, multiple = false, placeholder = 'Search…', roleLabel, emptyMessage = 'No matching people found.' }: PersonPickerProps) {
@@ -59,20 +60,14 @@ export default function PersonPicker({ options, selectedIds, onChange, multiple 
       {selected.length > 0 && (
         <div className={styles.selectedRow}>
           {selected.map((p) => (
-            <span
+            <CommonChip
               key={p.id}
-              className={styles.selectedChip}
-            >
-              {p.name || p.username}
-              <button
-                type="button"
-                onClick={() => remove(p.id)}
-                aria-label={`Remove ${p.name || p.username}`}
-                className={styles.chipRemoveBtn}
-              >
-                <X size={12} />
-              </button>
-            </span>
+              size="sm"
+              tone="brand"
+              label={p.name || p.username}
+              onRemove={() => remove(p.id)}
+              removeLabel={`Remove ${p.name || p.username}`}
+            />
           ))}
         </div>
       )}

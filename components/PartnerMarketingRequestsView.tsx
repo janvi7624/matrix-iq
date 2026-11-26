@@ -11,10 +11,13 @@ import {
 import { MARKETING_PRIORITY_META, MARKETING_REQUEST_TYPE_LABEL } from '@/lib/marketingRequestHelpers';
 import MarketingRequestWizard, { MarketingRequestForm } from './MarketingRequestWizard';
 import PartnerShell from './PartnerShell';
+import CommonHeader from './ui/CommonHeader';
+import StatCard, { StatCardGrid } from './ui/StatCard';
+import { SkeletonCards, SkeletonStatCards } from './ui/Skeleton';
 import { useToast } from './ui/ToastProvider';
 import historyStyles from './quotationHistory.module.css';
-import calcStyles from './calculator.module.css';
 import styles from './partnerPortal.module.css';
+import Select from '@/components/ui/Select';
 
 interface PartnerProjectOption {
   id: string;
@@ -42,7 +45,7 @@ function Field({ label, value }: { label: string; value: string }) {
  * The partner's own project picker.
  *
  * Replaces the internal ProjectSelect, which self-fetches /api/projects — a
- * route Layer 1 refuses to a partner session. A plain <select> is enough
+ * route Layer 1 refuses to a partner session. A plain <Select> is enough
  * here: a partner has their own submissions, not the whole company's
  * pipeline, so there is nothing to type-to-filter through.
  */
@@ -56,7 +59,7 @@ function PartnerProjectPicker({
   onChange: (id: string) => void;
 }) {
   return (
-    <select className={calcStyles.formControl} value={value} onChange={(e) => onChange(e.target.value)}>
+    <Select value={value} onChange={(e) => onChange(e.target.value)}>
       <option value="">-- Not linked to a specific project --</option>
       {projects.map((p) => (
         <option key={p.id} value={p.id}>
@@ -64,7 +67,7 @@ function PartnerProjectPicker({
           {p.company ? ` — ${p.company}` : ''}
         </option>
       ))}
-    </select>
+    </Select>
   );
 }
 
@@ -191,17 +194,19 @@ export default function PartnerMarketingRequestsView({ partner }: { partner: Par
       {tab === 'list' && !open && (
         <>
           {requests.length > 0 && (
-            <div className={styles.statCardRow}>
+            <StatCardGrid>
               {PARTNER_MARKETING_STAGE_ORDER.map((stage) => (
-                <div key={stage} className={styles.statCard}>
-                  <div className={styles.statCardLabel}>{PARTNER_MARKETING_STAGE_LABEL[stage]}</div>
-                  <div className={styles.statCardValue}>{counts[stage] ?? 0}</div>
-                </div>
+                <StatCard key={stage} value={counts[stage] ?? 0} label={PARTNER_MARKETING_STAGE_LABEL[stage]} />
               ))}
-            </div>
+            </StatCardGrid>
           )}
 
-          {status && <div className={historyStyles.status}>{status}</div>}
+          {status === 'Loading...' ? (
+            <>
+              <SkeletonStatCards count={PARTNER_MARKETING_STAGE_ORDER.length} withIcon={false} />
+              <SkeletonCards count={6} />
+            </>
+          ) : status && <div className={historyStyles.status}>{status}</div>}
 
           <div className={styles.cardGrid}>
             {requests.map((r) => (
@@ -232,15 +237,13 @@ export default function PartnerMarketingRequestsView({ partner }: { partner: Par
 
       {tab === 'list' && open && (
         <>
-          <div className={styles.detailHeader}>
-            <div>
-              <div className={styles.detailHeaderTitle}>{open.title}</div>
-              <div className={styles.detailHeaderMeta}>
-                {MARKETING_REQUEST_TYPE_LABEL[open.request_type]} · {open.product_category} · raised {formatDate(open.created_at)}
-              </div>
-            </div>
-            <button type="button" className={historyStyles.button} onClick={() => setOpenId(null)}>← Back to all requests</button>
-          </div>
+          <CommonHeader
+            tone="light"
+            title={open.title}
+            subtitle={<>{MARKETING_REQUEST_TYPE_LABEL[open.request_type]} · {open.product_category} · raised {formatDate(open.created_at)}</>}
+            onBack={() => setOpenId(null)}
+            backLabel="Back to all requests"
+          />
 
           {/* Terminal-negative is not a step on the path, so the stepper is
               replaced rather than shown with nothing highlighted. */}

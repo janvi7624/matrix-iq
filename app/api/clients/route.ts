@@ -4,6 +4,7 @@ import { isModuleAccessAllowed } from '@/lib/moduleConfigStore';
 import { clientMasterStore } from '@/lib/clientMasterStore';
 import { paginateClients, ClientSortKey } from '@/lib/clientMasterQuery';
 import { apiErrorResponse } from '@/lib/apiError';
+import { getListParam } from '@/lib/listParam';
 
 // Client Master's project-derived half is deliberately org-wide within its
 // configured roles — see lib/clientMasterStore.ts's own comment for why
@@ -33,13 +34,13 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(paginateClients(clients, {
       search: params.get('search') || undefined,
-      company: params.get('company') || undefined,
-      owner: params.get('owner') || undefined,
-      handlerName: params.get('handlerName') || undefined,
-      type: (params.get('type') as 'customer' | 'prospect' | '') || undefined,
-      outcome: params.get('outcome') || undefined,
+      company: getListParam(params, 'company'),
+      owner: getListParam(params, 'owner'),
+      handlerName: getListParam(params, 'handlerName'),
+      type: getListParam(params, 'type') as ('customer' | 'prospect')[],
+      outcome: getListParam(params, 'outcome'),
       active: params.get('active') || undefined,
-      handler: params.get('handler') || undefined,
+      handler: getListParam(params, 'handler'),
       dateFrom: params.get('dateFrom') || undefined,
       dateTo: params.get('dateTo') || undefined,
       sortKey: (params.get('sortKey') as ClientSortKey) || undefined,

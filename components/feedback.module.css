@@ -46,7 +46,7 @@
     display: grid;
     /* Name, then rating, then comment. Collapses to stacked rows on a narrow
        window via the media query below rather than squeezing three columns. */
-    grid-template-columns: minmax(180px, 1fr) auto minmax(200px, 1.2fr);
+    grid-template-columns: minmax(180px, 1fr) auto minmax(min(200px, 100%), 1.2fr);
     gap: 10px;
     align-items: center;
     padding: 10px 0;

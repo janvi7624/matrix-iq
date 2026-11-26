@@ -8,16 +8,17 @@ import QuotationTable from './QuotationTable';
 import AppShell from './AppShell';
 import historyStyles from './quotationHistory.module.css';
 import { useToast } from './ui/ToastProvider';
-import { SkeletonRows } from './ui/Skeleton';
+import { SkeletonTable } from './ui/Skeleton';
 import ErrorState from './ui/ErrorState';
-import { TableWrap } from './ui/Table';
 import FilterBar from './ui/FilterBar';
-import Select from './ui/Select';
+import Dropdown from './ui/Dropdown';
+import SearchInput from './ui/SearchInput';
 import Input from './ui/Input';
 import ToolbarButton, { ToolbarLink } from './ui/ToolbarButton';
 import Table from './ui/Table';
 import { formatMoney } from '@/lib/format';
 import { computeEffectiveStatusClient } from '@/lib/quotationStatus';
+import { setListParam } from '@/lib/listParam';
 
 const STATUS_OPTIONS: { value: QuotationEffectiveStatus; label: string }[] = [
   { value: 'draft', label: 'Draft' },
@@ -66,8 +67,12 @@ export default function MyQuotationsView({ embedded }: MyQuotationsViewProps = {
   const [loading, setLoading] = useState(true);
   const [loadFailed, setLoadFailed] = useState(false);
   const [searchValue, setSearchValue] = useState('');
-  const [fSalesPerson, setFSalesPerson] = useState('');
-  const [fStatus, setFStatus] = useState<QuotationEffectiveStatus | ''>('');
+  const [fSalesPerson, setFSalesPerson] = useState<string[]>([]);
+  const [fStatus, setFStatus] = useState<QuotationEffectiveStatus[]>([]);
+  // Every sales person seen in any load so far. The option list used to come
+  // from the current results alone, so once one person was picked the list
+  // shrank to just them and a second could never be added.
+  const [seenSalesPeople, setSeenSalesPeople] = useState<string[]>([]);
   const [fProjectId, setFProjectId] = useState('');
   const [fFrom, setFFrom] = useState('');
   const [fTo, setFTo] = useState('');
@@ -100,8 +105,8 @@ export default function MyQuotationsView({ embedded }: MyQuotationsViewProps = {
     try {
       const params = new URLSearchParams();
       if (searchValue.trim()) params.set('q', searchValue.trim());
-      if (fSalesPerson.trim()) params.set('salesPerson', fSalesPerson.trim());
-      if (fStatus) params.set('status', fStatus);
+      setListParam(params, 'salesPerson', fSalesPerson);
+      setListParam(params, 'status', fStatus);
       if (fProjectId.trim()) params.set('projectId', fProjectId.trim());
       if (fFrom) params.set('dateFrom', fFrom);
       if (fTo) params.set('dateTo', fTo);
@@ -110,6 +115,14 @@ export default function MyQuotationsView({ embedded }: MyQuotationsViewProps = {
       if (!response.ok) throw new Error(String(response.status));
       const data: QuotationRecord[] = await response.json();
       setRows(data);
+      setSeenSalesPeople((prev) => {
+        const next = new Set(prev);
+        for (const r of data) {
+          if (r.prepared_by) next.add(r.prepared_by);
+          else if (r.created_by) next.add(r.created_by);
+        }
+        return next.size === prev.length ? prev : Array.from(next).sort();
+      });
       setStatus(data.length ? `${data.length} quotation${data.length === 1 ? '' : 's'} found.` : '');
       setLoaded(true);
     } catch {
@@ -208,13 +221,11 @@ export default function MyQuotationsView({ embedded }: MyQuotationsViewProps = {
     // typed a quotation in on their behalf. The filter itself already
     // matches prepared_by on the server (searchQuotationsFiltered), so
     // these display names work as filter values without any extra lookup.
-    const set = new Set<string>();
-    for (const r of rows) {
-      if (r.prepared_by) set.add(r.prepared_by);
-      else if (r.created_by) set.add(r.created_by);
-    }
+    // Collected across every load (seenSalesPeople) plus whatever is picked,
+    // so narrowing to one person never removes the others from the list.
+    const set = new Set<string>([...seenSalesPeople, ...fSalesPerson]);
     return Array.from(set).sort();
-  }, [rows]);
+  }, [seenSalesPeople, fSalesPerson]);
 
   async function handleDelete(id: string) {
     try {
@@ -279,6 +290,10 @@ export default function MyQuotationsView({ embedded }: MyQuotationsViewProps = {
               {peopleCount} {peopleCount === 1 ? 'person' : 'people'} · {rows.length} quotation{rows.length === 1 ? '' : 's'}
             </span>
           </div>
+          {/* Extra wrapper: on a fill-the-screen page a box that directly holds a
+              table wrapper is stretched to take the remaining height — this
+              summary keeps its own height, the quotations table below fills. */}
+          <div>
           <Table
             rows={teamSummary}
             rowKey={(row) => row.name}
@@ -325,36 +340,36 @@ export default function MyQuotationsView({ embedded }: MyQuotationsViewProps = {
               }
             ]}
           />
+          </div>
         </div>
       )}
       <FilterBar>
-        <input
-          type="text"
+        <SearchInput
           placeholder="Search by quotation number, client, company, prepared by..."
           value={searchValue}
-          onChange={(e) => setSearchValue(e.target.value)}
+          onChange={(v) => setSearchValue(v)}
           onKeyDown={(e) => {
             if (e.key === 'Enter') load();
           }}
         />
         {isPrivileged && (
-          <Select auto value={fSalesPerson} onChange={(e) => setFSalesPerson(e.target.value)}>
-            <option value="">All sales people</option>
-            {salesPeople.map((s) => (
-              <option key={s} value={s}>
-                {s}
-              </option>
-            ))}
-          </Select>
+          <Dropdown
+            multiselect
+            value={fSalesPerson}
+            onChange={setFSalesPerson}
+            placeholder="All sales people"
+            label="Sales person"
+            options={salesPeople.map((s) => ({ value: s, label: s }))}
+          />
         )}
-        <Select auto value={fStatus} onChange={(e) => setFStatus(e.target.value as QuotationEffectiveStatus | '')}>
-          <option value="">All statuses</option>
-          {STATUS_OPTIONS.map((s) => (
-            <option key={s.value} value={s.value}>
-              {s.label}
-            </option>
-          ))}
-        </Select>
+        <Dropdown
+          multiselect
+          value={fStatus}
+          onChange={(v) => setFStatus(v as QuotationEffectiveStatus[])}
+          placeholder="All statuses"
+          label="Status"
+          options={STATUS_OPTIONS}
+        />
         <input
           type="text"
           placeholder="Project ID"
@@ -387,9 +402,7 @@ export default function MyQuotationsView({ embedded }: MyQuotationsViewProps = {
       </FilterBar>
       {!loading && !loadFailed && <div className={historyStyles.status}>{status}</div>}
       {loading ? (
-        <TableWrap>
-          <SkeletonRows rows={8} columns={10} />
-        </TableWrap>
+        <SkeletonTable rows={8} columns={10} />
       ) : loadFailed ? (
         <ErrorState message="Could not load quotations — check your connection and try again." onRetry={load} />
       ) : (
@@ -414,7 +427,7 @@ export default function MyQuotationsView({ embedded }: MyQuotationsViewProps = {
 
   if (embedded) return content;
   return (
-    <AppShell title="Existing Quotations" subtitle={subtitle}>
+    <AppShell fillPage title="Existing Quotations" subtitle={subtitle}>
       {content}
     </AppShell>
   );

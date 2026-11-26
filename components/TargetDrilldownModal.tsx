@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import Modal, { ModalOkButton } from './ui/Modal';
 import StatusBadge, { StatusTone } from './ui/StatusBadge';
 import ErrorState from './ui/ErrorState';
-import { SkeletonRows } from './ui/Skeleton';
+import { SkeletonStatCards, SkeletonTable } from './ui/Skeleton';
 import Table from './ui/Table';
 import { formatMoney } from '@/lib/format';
 import { TargetPeriodType } from '@/lib/targetPeriod';
@@ -89,7 +89,10 @@ export default function TargetDrilldownModal({ employeeId, employeeName, periodT
       {error ? (
         <ErrorState message={error} onRetry={() => setReloadKey((k) => k + 1)} />
       ) : !data ? (
-        <div className={styles.loadingWrap}><SkeletonRows rows={5} columns={3} /></div>
+        <div className={styles.loadingWrap} style={{ display: 'grid', gap: 18 }}>
+          <SkeletonStatCards count={5} withIcon={false} minWidth={150} />
+          <SkeletonTable rows={5} columns={5} />
+        </div>
       ) : (
         <>
           <h3 className={styles.sectionTitle}>Employee Target Dashboard — {data.target.displayPeriod}</h3>

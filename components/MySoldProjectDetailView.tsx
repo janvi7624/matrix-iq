@@ -1,10 +1,11 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import Link from 'next/link';
 import AppShell from './AppShell';
+import PageBackButton from '@/components/ui/PageBackButton';
 import StatusBadge from './ui/StatusBadge';
 import PriorityBadge from './ui/PriorityBadge';
+import { SkeletonDetail } from './ui/Skeleton';
 import { TmsProjectRecord, TmsTaskRecord } from '@/lib/types';
 import {
   TMS_PROJECT_STATUS_LABEL, TMS_PROJECT_STATUS_TONE,
@@ -48,8 +49,10 @@ export default function MySoldProjectDetailView({ id }: { id: string }) {
     return (
       <AppShell title="My Sold Projects" subtitle="TMS status — read-only">
         <div className={styles.pageWrap}>
+          <div className={styles.backLink}>
+            <PageBackButton fallbackRoute="/tms/my-sold-projects" />
+          </div>
           <div className={historyStyles.loginError}>{error}</div>
-          <Link className={historyStyles.button} href="/tms/my-sold-projects">← Back to My Sold Projects</Link>
         </div>
       </AppShell>
     );
@@ -58,7 +61,12 @@ export default function MySoldProjectDetailView({ id }: { id: string }) {
   if (!data) {
     return (
       <AppShell title="My Sold Projects" subtitle="TMS status — read-only">
-        <div className={styles.pageWrap}><div className={historyStyles.status}>Loading…</div></div>
+        <div className={styles.pageWrap}>
+          <div className={styles.backLink}>
+            <PageBackButton fallbackRoute="/tms/my-sold-projects" />
+          </div>
+          <SkeletonDetail panels={2} pairs={6} withTopRow={false} />
+        </div>
       </AppShell>
     );
   }
@@ -69,7 +77,7 @@ export default function MySoldProjectDetailView({ id }: { id: string }) {
     <AppShell title={project.name} subtitle={`TMS status for a deal you sold — read-only`}>
       <div className={styles.pageWrap}>
         <div className={styles.backLink}>
-          <Link className={historyStyles.button} href="/tms/my-sold-projects">← Back to My Sold Projects</Link>
+          <PageBackButton fallbackRoute="/tms/my-sold-projects" />
         </div>
 
         <div className={styles.readOnlyNote}>

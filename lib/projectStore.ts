@@ -7,7 +7,7 @@ import { isUserADepartmentManager, departmentsManagedBy } from './departmentStor
 import { projectLabel } from './projectLabel';
 import { resolveSalesPersonName } from './projectSalesPersonName';
 import { resolveProjectLead } from './projectLeadStore';
-import { departmentValueOf } from './projectDepartmentOptions';
+import { departmentsValueOf, isProjectDepartment } from './projectDepartmentOptions';
 import { PROJECT_STAGES } from './types';
 
 const VALID_PROJECT_STATUSES: ProjectStatus[] = ['active', 'on_hold', 'won', 'lost'];
@@ -311,22 +311,26 @@ async function listLightForDashboard(viewerUsername: string): Promise<ProjectRec
   return rows.map(toRecord);
 }
 
+/**
+ * The list filters below each take one value (every legacy caller) or a list
+ * (a multi-select filter — any of them matches; an empty list = no filter).
+ */
 export interface ProjectListQuery {
   search?: string;
-  stage?: ProjectStage;
-  status?: ProjectStatus;
-  priority?: string;
-  salesPerson?: string;
-  source?: string;
-  department?: string;
-  type?: string;
-  /** A project lead's user id — matches what they lead OR what they personally own. */
-  lead?: string;
+  stage?: ProjectStage | ProjectStage[];
+  status?: ProjectStatus | ProjectStatus[];
+  priority?: string | string[];
+  salesPerson?: string | string[];
+  source?: string | string[];
+  department?: string | string[];
+  type?: string | string[];
+  /** Project lead user id(s) — matches what any of them leads OR personally owns. */
+  lead?: string | string[];
   from?: string;
   to?: string;
   closingFrom?: string;
   closingTo?: string;
-  confirmation?: string;
+  confirmation?: string | string[];
   awaitingMine?: boolean;
   awaitingTeam?: boolean;
   /**
@@ -341,6 +345,17 @@ export interface ProjectListQuery {
 }
 
 const MAX_PROJECT_PAGE_SIZE = 200;
+const NO_MATCH_ID = '00000000-0000-0000-0000-000000000000';
+
+/** One value or a list -> trimmed, non-empty, de-duplicated list ('all' = no filter). */
+function toFilterList(value: string | readonly string[] | undefined | null): string[] {
+  const out: string[] = [];
+  for (const raw of Array.isArray(value) ? value : value ? [value] : []) {
+    const v = String(raw).trim();
+    if (v && v !== 'all' && !out.includes(v)) out.push(v);
+  }
+  return out;
+}
 
 /**
  * Every WHERE condition components/ProjectsView.tsx's filter bar can express,
@@ -375,28 +390,43 @@ async function buildProjectWhere(
   // enum drift) matches nothing rather than reaching the DB as a raw string —
   // Postgres's own enum columns would otherwise reject it with a 500 that
   // echoes the enum's internal name straight back to the caller.
-  if (options.includeStatus && query.status) {
-    and.push(VALID_PROJECT_STATUSES.includes(query.status) ? { status: query.status } : { id: '00000000-0000-0000-0000-000000000000' });
+  const statuses = toFilterList(query.status);
+  const stages = toFilterList(query.stage);
+  const priorities = toFilterList(query.priority);
+  const salesPeople = toFilterList(query.salesPerson);
+  const sources = toFilterList(query.source);
+  const departments = toFilterList(query.department);
+  const types = toFilterList(query.type);
+  const leadIds = toFilterList(query.lead);
+  const confirmations = toFilterList(query.confirmation);
+  // Each filter takes one value or several (any of them matches). Unknown
+  // statuses/stages are dropped; if none of the asked-for values is valid the
+  // filter matches nothing, as a single bad value always did.
+  if (options.includeStatus && statuses.length) {
+    const valid = statuses.filter((s) => VALID_PROJECT_STATUSES.includes(s as ProjectStatus));
+    and.push(valid.length ? { status: { [Op.in]: valid } } : { id: NO_MATCH_ID });
   }
-  if (query.priority) and.push({ priority: query.priority });
-  if (query.salesPerson) and.push({ sales_person: query.salesPerson });
-  if (query.source) and.push({ source: query.source });
-  if (query.department) and.push({ departments: { [Op.contains]: [query.department] } });
-  if (query.stage) {
-    and.push(VALID_PROJECT_STAGES.has(query.stage) ? { stage: query.stage } : { id: '00000000-0000-0000-0000-000000000000' });
+  if (priorities.length) and.push({ priority: { [Op.in]: priorities } });
+  if (salesPeople.length) and.push({ sales_person: { [Op.in]: salesPeople } });
+  if (sources.length) and.push({ source: { [Op.in]: sources } });
+  // JSONB array column: "carries any of these departments" = OR of containment.
+  if (departments.length) and.push({ [Op.or]: departments.map((d) => ({ departments: { [Op.contains]: [d] } })) });
+  if (stages.length) {
+    const valid = stages.filter((s) => VALID_PROJECT_STAGES.has(s));
+    and.push(valid.length ? { stage: { [Op.in]: valid } } : { id: NO_MATCH_ID });
   }
-  if (query.type) and.push({ opportunity_type: query.type });
+  if (types.length) and.push({ opportunity_type: { [Op.in]: types } });
 
-  if (query.lead) {
-    const lead = await resolveProjectLead(query.lead);
-    // An unresolvable id (stale link, tampered param) matches nothing rather
-    // than silently falling through to "no lead filter" and showing
-    // everyone's projects.
-    and.push(
-      lead
-        ? { [Op.or]: [{ project_lead_id: query.lead }, { created_by: lead.id }, { sales_person: lead.username }] }
-        : { id: '00000000-0000-0000-0000-000000000000' }
-    );
+  if (leadIds.length) {
+    const leads = await Promise.all(leadIds.map((id) => resolveProjectLead(id)));
+    // An unresolvable id (stale link, tampered param) contributes nothing; if
+    // none resolves the filter matches nothing rather than silently falling
+    // through to "no lead filter" and showing everyone's projects.
+    const clauses = leadIds.flatMap((id, i) => {
+      const lead = leads[i];
+      return lead ? [{ project_lead_id: id }, { created_by: lead.id }, { sales_person: lead.username }] : [];
+    });
+    and.push(clauses.length ? { [Op.or]: clauses } : { id: NO_MATCH_ID });
   }
 
   const validFrom = query.from && isPlainDate(query.from) ? query.from : undefined;
@@ -419,11 +449,11 @@ async function buildProjectWhere(
     and.push({ lead_confirmation_status: 'pending_confirmation', created_by: viewerUserId });
   } else if (query.awaitingTeam) {
     and.push({ lead_confirmation_status: 'pending_confirmation', created_by: { [Op.ne]: viewerUserId } });
-  } else if (query.confirmation) {
-    and.push({ lead_confirmation_status: query.confirmation });
+  } else if (confirmations.length) {
+    and.push({ lead_confirmation_status: { [Op.in]: confirmations } });
   }
 
-  if (options.includeStatus && !query.status && !query.includeClosed) {
+  if (options.includeStatus && !statuses.length && !query.includeClosed) {
     and.push({ status: { [Op.notIn]: ['won', 'lost'] } });
   }
 
@@ -496,7 +526,7 @@ async function getProjectFacets(viewerUsername: string, viewerUserId: string, qu
     statusCounts[plain.status] = Number(plain.count) || 0;
   }
 
-  const hiddenClosedCount = query.status || query.includeClosed ? 0 : statusCounts.won + statusCounts.lost;
+  const hiddenClosedCount = toFilterList(query.status).length || query.includeClosed ? 0 : statusCounts.won + statusCounts.lost;
 
   const whereFull = await buildProjectWhere(viewerUsername, viewerUserId, query, { includeStatus: true });
   const [total, valueRows] = await Promise.all([
@@ -506,9 +536,9 @@ async function getProjectFacets(viewerUsername: string, viewerUserId: string, qu
   const totalValue = valueRows.reduce((sum, row) => {
     const plain = row.get({ plain: true }) as { approx_price: string | number | null; departments: unknown; department_amounts: unknown };
     const approx = plain.approx_price === null || plain.approx_price === undefined ? '' : Number(plain.approx_price);
-    return sum + departmentValueOf(
+    return sum + departmentsValueOf(
       { approx_price: approx as number | '', departments: (plain.departments as never) ?? [], department_amounts: (plain.department_amounts as never) ?? {} },
-      (query.department as never) || ''
+      toFilterList(query.department).filter(isProjectDepartment)
     );
   }, 0);
 

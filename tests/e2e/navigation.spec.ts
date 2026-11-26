@@ -15,18 +15,41 @@ test.afterAll(async () => {
   await deleteQaUser(viewer.id);
 });
 
-test('the sidebar "Back to Dashboard" link returns to the real dashboard, not a dead route', async ({ page }) => {
+test('the main header has no back button', async ({ page }) => {
   await loginAsFixture(page, viewer);
   await page.goto('/leads', { waitUntil: 'domcontentloaded' });
   await page.waitForTimeout(1200);
-  const backLink = page.locator('a:has-text("Back to Dashboard")').first();
-  if (await backLink.count()) {
-    await backLink.click();
-    await page.waitForLoadState('domcontentloaded');
-    await page.waitForTimeout(800);
-    const notFound = await page.locator('text=404').count();
-    expect(notFound).toBe(0);
-  }
+  await expect(page.locator('header').first().getByRole('link', { name: 'Go back' })).toHaveCount(0);
+  // A top-level list page reached from the sidebar has no in-page back either.
+  await expect(page.locator('main').getByRole('link', { name: 'Go back' })).toHaveCount(0);
+});
+
+test('a sub-page shows the back button first in its own content and falls back to its parent', async ({ page }) => {
+  await loginAsFixture(page, viewer);
+  await page.goto('/admin/users/import', { waitUntil: 'domcontentloaded' });
+  await page.waitForTimeout(1200);
+  const main = page.locator('main');
+  const back = main.getByRole('link', { name: 'Go back' });
+  await expect(back).toBeVisible();
+  expect(await main.locator('a, button').first().getAttribute('aria-label')).toBe('Go back');
+  const box = await back.boundingBox();
+  expect(box!.width).toBeGreaterThanOrEqual(44);
+  expect(box!.height).toBeGreaterThanOrEqual(44);
+  // Fresh tab, no in-app history → nearest parent page.
+  await back.click();
+  await page.waitForTimeout(1200);
+  expect(new URL(page.url()).pathname).toBe('/admin/users');
+});
+
+test('the in-page back button returns to the previous in-app screen', async ({ page }) => {
+  await loginAsFixture(page, viewer);
+  await page.goto('/projects', { waitUntil: 'domcontentloaded' });
+  await page.waitForTimeout(1000);
+  await page.goto('/admin/users/import', { waitUntil: 'domcontentloaded' });
+  await page.waitForTimeout(1200);
+  await page.locator('main').getByRole('link', { name: 'Go back' }).click();
+  await page.waitForTimeout(1200);
+  expect(new URL(page.url()).pathname).toBe('/projects');
 });
 
 test('direct URL access to a protected page without a session redirects to login', async ({ page }) => {

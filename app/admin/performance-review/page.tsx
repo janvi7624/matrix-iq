@@ -5,10 +5,14 @@ import { useSearchParams } from 'next/navigation';
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { PublicUser } from '@/lib/types';
 import AppShell from '@/components/AppShell';
+import CommonButton from '@/components/ui/CommonButton';
+import StatCard, { StatCardGrid } from '@/components/ui/StatCard';
 import historyStyles from '@/components/quotationHistory.module.css';
 import calcStyles from '@/components/calculator.module.css';
 import pageStyles from './performanceReviewPage.module.css';
+import { SkeletonDetail, SkeletonStatCards } from '@/components/ui/Skeleton';
 import { reviewScopeNote, reviewSectionsFor } from '@/lib/performanceReviewScope';
+import Select from '@/components/ui/Select';
 
 interface PerformanceReview {
   user: { username: string; name: string; department: string; designation: string; employeeId: string; joiningDate: string; role: string };
@@ -49,14 +53,11 @@ function MetricGroup({ title, items }: { title: string; items: { label: string; 
   return (
     <>
       <div className={historyStyles.navGroupLabel}>{title}</div>
-      <div className={historyStyles.summaryCardGrid}>
+      <StatCardGrid>
         {items.map((item) => (
-          <div key={item.label} className={historyStyles.summaryCard}>
-            <div className={historyStyles.summaryCardLabel}>{item.label}</div>
-            <div className={`${historyStyles.summaryCardValue} ${pageStyles.metricValueLg}`}>{item.value}</div>
-          </div>
+          <StatCard key={item.label} label={item.label} value={item.value} />
         ))}
-      </div>
+      </StatCardGrid>
     </>
   );
 }
@@ -222,20 +223,27 @@ function PerformanceReviewPageContent() {
   return (
     <AppShell title="Performance Review" subtitle="Administration › a full performance dashboard for one employee at a time.">
         <div className={historyStyles.toolbar}>
-          <select className={`${calcStyles.formControl} ${pageStyles.employeeSelect}`} value={selected} onChange={(e) => setSelected(e.target.value)}>
+          <Select auto className={pageStyles.employeeSelect} value={selected} onChange={(e) => setSelected(e.target.value)}>
             <option value="">-- Select employee --</option>
             {users.map((u) => (
               <option key={u.id} value={u.username}>{u.name} ({u.username}) — {u.designation || u.role}</option>
             ))}
-          </select>
+          </Select>
           {review && (
             <>
-              <button type="button" className={historyStyles.button} onClick={() => exportReviewPdf(review)}>Export Review (PDF)</button>
-              <button type="button" className={historyStyles.button} onClick={() => window.print()}>Print Review</button>
+              <CommonButton variant="secondary" onClick={() => exportReviewPdf(review)}>Export Review (PDF)</CommonButton>
+              <CommonButton variant="secondary" onClick={() => window.print()}>Print Review</CommonButton>
             </>
           )}
         </div>
-        {status && <div className={historyStyles.status}>{status}</div>}
+        {status === 'Loading review…' ? (
+          <div className={calcStyles.mt14} style={{ display: 'grid', gap: 16 }}>
+            <SkeletonDetail panels={1} pairs={6} withTopRow={false} />
+            <SkeletonStatCards count={5} withIcon={false} />
+          </div>
+        ) : (
+          status && <div className={historyStyles.status}>{status}</div>
+        )}
 
         {review && (
           <>

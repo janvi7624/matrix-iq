@@ -4,12 +4,15 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import styles from './calculator.module.css';
 import historyStyles from './quotationHistory.module.css';
 import { useToast } from './ui/ToastProvider';
+import { Plus } from 'lucide-react';
+import CommonButton from './ui/CommonButton';
 import {
   MARGIN_MODES, PROPOSAL_KINDS, PROPOSAL_KIND_LABEL,
   ProposalDetails, ProposalKind, formatContractYears, isProposalUploadAllowed,
   proposalExpiryDate, totalContractYears
 } from '@/lib/quotationProposal';
 import { ProjectRecord } from '@/lib/types';
+import Select from './ui/Select';
 
 // The Project / Tender Proposal form — the third quotation mode.
 //
@@ -250,10 +253,10 @@ export default function QuotationProposalForm({ project, value, onChange, onFill
           <Row>
             <Field label="Margin" hint="Ours. Never shown on the quotation given to the client.">
               <div className={styles.row}>
-                <select className={styles.formControl} style={{ maxWidth: 130 }} value={value.marginMode}
+                <Select style={{ maxWidth: 130 }} value={value.marginMode}
                   onChange={(e) => set({ marginMode: e.target.value as ProposalDetails['marginMode'] })}>
                   {MARGIN_MODES.map((m) => <option key={m} value={m}>{m === 'percent' ? 'Percent %' : 'Amount ₹'}</option>)}
-                </select>
+                </Select>
                 <input inputMode="decimal" className={styles.formControl}
                   placeholder={value.marginMode === 'percent' ? 'e.g. 12' : 'e.g. 150000'}
                   value={value.marginValue} onChange={(e) => set({ marginValue: e.target.value })} />
@@ -275,21 +278,22 @@ export default function QuotationProposalForm({ project, value, onChange, onFill
               onChange={(e) => { handleUpload(e.target.files); e.target.value = ''; }}
             />
             <div>
-              <button
-                type="button"
-                className={styles.secondaryButton}
-                disabled={uploading}
+              <CommonButton
+                variant="secondary"
+                leadingIcon={<Plus />}
+                loading={uploading}
+                loadingLabel="Uploading…"
                 onClick={() => fileInputRef.current?.click()}
               >
-                {uploading ? 'Uploading…' : value.attachmentUrls.length ? '+ Add Another File' : '+ Choose File to Upload'}
-              </button>
+                {value.attachmentUrls.length ? 'Add Another File' : 'Choose File to Upload'}
+              </CommonButton>
             </div>
             {value.attachmentUrls.length > 0 && (
               <ul className={styles.small}>
                 {value.attachmentUrls.map((url, i) => (
                   <li key={url}>
                     {decodeURIComponent(url.split('/').pop() || url)}{' '}
-                    <button type="button" onClick={() => set({ attachmentUrls: value.attachmentUrls.filter((_, j) => j !== i) })}>remove</button>
+                    <CommonButton variant="link" size="sm" onClick={() => set({ attachmentUrls: value.attachmentUrls.filter((_, j) => j !== i) })}>remove</CommonButton>
                   </li>
                 ))}
               </ul>

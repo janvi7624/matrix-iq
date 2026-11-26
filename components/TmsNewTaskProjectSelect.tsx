@@ -2,6 +2,8 @@
 
 import { useState } from 'react';
 import Select from './ui/Select';
+import SearchInput from './ui/SearchInput';
+import { Skeleton } from './ui/Skeleton';
 import calcStyles from './calculator.module.css';
 import styles from './dailyReport.module.css';
 
@@ -88,7 +90,7 @@ export default function TmsNewTaskProjectSelect({
     );
   }
 
-  // What the <select> itself shows as selected: the TMS project's id, the
+  // What the dropdown itself shows as selected: the TMS project's id, the
   // Sales Project's id (prefixed, to tell the two groups apart), the literal
   // OTHER_VALUE sentinel, or blank — including right after an unlink (see
   // aiTmsTaskLink.ts's own comment on why that clears `project` rather than
@@ -134,17 +136,15 @@ export default function TmsNewTaskProjectSelect({
         <span aria-hidden="true"> *</span>
       </label>
       {stillLoading ? (
-        <div className={calcStyles.small}>Loading your TMS and Sales projects…</div>
+        <Skeleton height={44} radius={12} />
       ) : (
         <>
           {totalAll > 8 && (
-            <input
-              type="search"
-              className={calcStyles.formControl}
+            <SearchInput
               value={search}
               placeholder={`Search ${totalAll} projects…`}
               aria-label="Search your projects"
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(v) => setSearch(v)}
             />
           )}
           <Select value={selectValue} onChange={(e) => handleChange(e.target.value)}>

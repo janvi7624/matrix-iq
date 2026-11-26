@@ -3,10 +3,15 @@
 import { Fragment, FormEvent, useEffect, useState } from 'react';
 import AppShell from './AppShell';
 import AdminFeedbackView from './AdminFeedbackView';
-import { SkeletonRows } from './ui/Skeleton';
+import { SkeletonStatCards, SkeletonTable } from './ui/Skeleton';
+import { Plus, Sparkles, MessageSquare, Lock, Unlock, Trash2 } from 'lucide-react';
+import CommonButton from './ui/CommonButton';
 import calcStyles from './calculator.module.css';
 import historyStyles from './quotationHistory.module.css';
 import { ProductFeedbackFormRecord, ProductFeedbackQuestion, ProductFeedbackQuestionType, ProductFeedbackResponseRecord, ProductManagerNoteRecord, ProductManagerNoteType, ProductManagerRollup, ProductRecord } from '@/lib/types';
+import RowActions from './ui/RowActions';
+import { TableWrap } from './ui/Table';
+import Select from './ui/Select';
 
 interface MyData {
   rollup: ProductManagerRollup | null;
@@ -183,7 +188,12 @@ export default function ProductManagerView() {
   }
 
   const content = !data ? (
-    loadError ? <div className={historyStyles.loginError}>{loadError}</div> : <SkeletonRows rows={4} />
+    loadError ? <div className={historyStyles.loginError}>{loadError}</div> : (
+      <>
+        <SkeletonStatCards count={3} withIcon={false} />
+        <SkeletonTable rows={4} columns={5} />
+      </>
+    )
   ) : (
     <>
       <h2 className={`${calcStyles.h2} ${calcStyles.h2Flush}`}>My Products</h2>
@@ -222,18 +232,18 @@ export default function ProductManagerView() {
         <div className={`${calcStyles.row} ${calcStyles.columns}`}>
           <div className={calcStyles.field}>
             <label className={calcStyles.label}>Type</label>
-            <select className={calcStyles.formControl} value={noteType} onChange={(e) => setNoteType(e.target.value as ProductManagerNoteType)}>
+            <Select value={noteType} onChange={(e) => setNoteType(e.target.value as ProductManagerNoteType)}>
               <option value="feedback">Feedback received</option>
               <option value="action">Action taken</option>
               <option value="plan">Next plan</option>
-            </select>
+            </Select>
           </div>
         </div>
         <div className={calcStyles.field}>
           <label className={calcStyles.label}>Notes</label>
           <textarea className={calcStyles.formControl} value={noteText} onChange={(e) => setNoteText(e.target.value)} rows={3} required />
         </div>
-        <button type="submit" className={calcStyles.btn} disabled={saving}>{saving ? 'Saving...' : '+ Add Entry'}</button>
+        <CommonButton type="submit" variant="primary" size="md" leadingIcon={saving ? undefined : <Plus />} disabled={saving}>{saving ? 'Saving...' : 'Add Entry'}</CommonButton>
       </form>
 
       <div className={historyStyles.tableWrap}>
@@ -256,9 +266,9 @@ export default function ProductManagerView() {
       <h2 className={calcStyles.h2}>Feedback Forms</h2>
       <div className={historyStyles.status}>Ask the internal team for feedback on your product — build a quick form, share the link, and see every answer collected here.</div>
       <div className={calcStyles.sectionPanel}>
-        <button type="button" className={calcStyles.btn} onClick={() => setShowBuilder((v) => !v)}>
-          {showBuilder ? 'Cancel' : '+ Create Feedback Form'}
-        </button>
+        <CommonButton variant="primary" size="md" leadingIcon={showBuilder ? undefined : <Plus />} onClick={() => setShowBuilder((v) => !v)}>
+          {showBuilder ? 'Cancel' : 'Create Feedback Form'}
+        </CommonButton>
 
         {showBuilder && (
           <form className={calcStyles.sectionPanel} onSubmit={handleCreateForm}>
@@ -274,14 +284,14 @@ export default function ProductManagerView() {
             <div className={`${calcStyles.row} ${calcStyles.columns}`}>
               <div className={calcStyles.field}>
                 <label className={calcStyles.label}>Suggest questions for which product?</label>
-                <select className={calcStyles.formControl} value={suggestFor} onChange={(e) => setSuggestFor(e.target.value)}>
+                <Select value={suggestFor} onChange={(e) => setSuggestFor(e.target.value)}>
                   <option value="">Select a product...</option>
                   {(data?.products || []).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-                </select>
+                </Select>
               </div>
-              <button type="button" className={historyStyles.button} disabled={!suggestFor || suggesting} onClick={applySuggestions}>
-                {suggesting ? 'Thinking...' : '✨ Suggest Questions'}
-              </button>
+              <CommonButton variant="secondary" size="md" leadingIcon={suggesting ? undefined : <Sparkles />} disabled={!suggestFor || suggesting} onClick={applySuggestions}>
+                {suggesting ? 'Thinking...' : 'Suggest Questions'}
+              </CommonButton>
             </div>
             {suggestSource && (
               <div className={historyStyles.status}>
@@ -297,11 +307,11 @@ export default function ProductManagerView() {
                 </div>
                 <div className={calcStyles.field}>
                   <label className={calcStyles.label}>Answer type</label>
-                  <select className={calcStyles.formControl} value={q.type} onChange={(e) => updateQuestion(q.id, { type: e.target.value as ProductFeedbackQuestionType })}>
+                  <Select value={q.type} onChange={(e) => updateQuestion(q.id, { type: e.target.value as ProductFeedbackQuestionType })}>
                     <option value="text">Text</option>
                     <option value="rating">Rating (1-5)</option>
                     <option value="choice">Multiple choice</option>
-                  </select>
+                  </Select>
                 </div>
                 {q.type === 'choice' && (
                   <div className={calcStyles.field}>
@@ -313,12 +323,12 @@ export default function ProductManagerView() {
                     />
                   </div>
                 )}
-                <button type="button" className={historyStyles.deleteBtn} onClick={() => removeQuestion(q.id)}>Remove</button>
+                <CommonButton variant="destructive" size="sm" onClick={() => removeQuestion(q.id)}>Remove</CommonButton>
               </div>
             ))}
-            <button type="button" className={historyStyles.button} onClick={() => setQuestions((qs) => [...qs, BLANK_QUESTION()])}>+ Add Question</button>
+            <CommonButton variant="secondary" size="md" leadingIcon={<Plus />} onClick={() => setQuestions((qs) => [...qs, BLANK_QUESTION()])}>Add Question</CommonButton>
             <div>
-              <button type="submit" className={calcStyles.btn} disabled={creatingForm}>{creatingForm ? 'Creating...' : 'Create Form'}</button>
+              <CommonButton type="submit" variant="primary" size="md" disabled={creatingForm}>{creatingForm ? 'Creating...' : 'Create Form'}</CommonButton>
             </div>
           </form>
         )}
@@ -336,11 +346,14 @@ export default function ProductManagerView() {
                   <td>{f.response_count}</td>
                   <td><input className={calcStyles.formControl} readOnly value={formLink(f.id)} onFocus={(e) => e.target.select()} /></td>
                   <td>
-                    <div className={historyStyles.rowActionsInline}>
-                      <button type="button" className={historyStyles.button} onClick={() => viewResponses(f)}>{openResponsesFor === f.id ? 'Hide' : 'View'} responses</button>
-                      <button type="button" className={historyStyles.button} onClick={() => toggleFormStatus(f)}>{f.status === 'open' ? 'Close' : 'Reopen'}</button>
-                      <button type="button" className={historyStyles.deleteBtn} onClick={() => deleteForm(f)}>Delete</button>
-                    </div>
+                    <RowActions
+                      label={`Actions for ${f.title}`}
+                      actions={[
+                        { key: 'responses', label: `${openResponsesFor === f.id ? 'Hide' : 'View'} responses`, icon: <MessageSquare />, onClick: () => viewResponses(f) },
+                        { key: 'status', label: f.status === 'open' ? 'Close form' : 'Reopen form', icon: f.status === 'open' ? <Lock /> : <Unlock />, onClick: () => toggleFormStatus(f) },
+                        { key: 'delete', label: 'Delete', icon: <Trash2 />, destructive: true, onClick: () => deleteForm(f) }
+                      ]}
+                    />
                   </td>
                 </tr>
                 {openResponsesFor === f.id && (
@@ -349,6 +362,7 @@ export default function ProductManagerView() {
                       {responses.length === 0 ? (
                         <div className={historyStyles.status}>No responses yet.</div>
                       ) : (
+                        <TableWrap>
                         <table className={historyStyles.table}>
                           <thead><tr><th>From</th><th>Answers</th><th>Submitted</th></tr></thead>
                           <tbody>
@@ -365,6 +379,7 @@ export default function ProductManagerView() {
                             ))}
                           </tbody>
                         </table>
+                        </TableWrap>
                       )}
                     </td>
                   </tr>

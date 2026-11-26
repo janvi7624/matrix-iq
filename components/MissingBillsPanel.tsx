@@ -3,8 +3,8 @@
 import { useEffect, useState } from 'react';
 import { useToast } from './ui/ToastProvider';
 import { useConfirm } from './ui/ConfirmDialog';
+import CommonButton from './ui/CommonButton';
 import { MissingBillClaim, MissingBillPerson, formatBillDate, formatRupees } from '@/lib/missingBillsShared';
-import calcStyles from './calculator.module.css';
 import styles from './missingBills.module.css';
 
 interface AllScope {
@@ -176,9 +176,9 @@ export default function MissingBillsPanel() {
             ))}
           </ul>
           <div className={styles.actions}>
-            <button type="button" className={calcStyles.btn} onClick={askEveryone} disabled={asking || all.people.every((p) => !p.active)}>
+            <CommonButton variant="primary" size="md" onClick={askEveryone} disabled={asking || all.people.every((p) => !p.active)}>
               {asking ? 'Sending…' : 'Ask employees to upload again'}
-            </button>
+            </CommonButton>
             {askedAt && <span className={styles.sentNote}>Request sent {askedAt}.</span>}
           </div>
         </div>

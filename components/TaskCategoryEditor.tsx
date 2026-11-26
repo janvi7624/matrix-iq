@@ -1,11 +1,15 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { Plus, X } from 'lucide-react';
+import CommonButton from './ui/CommonButton';
 import Modal, { ModalCancelButton, ModalOkButton } from './ui/Modal';
 import { useToast } from './ui/ToastProvider';
+import { SkeletonList } from './ui/Skeleton';
 import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
 import styles from './taskCategoryEditor.module.css';
+import Select from './ui/Select';
 
 // Lets a department manager edit the task dropdowns their team files against
 // — the Category, and the Sub-category under it.
@@ -133,14 +137,14 @@ export default function TaskCategoryEditor({ onClose }: { onClose: () => void })
       {data && data.departments.length > 1 && (
         <div className={calcStyles.field}>
           <label className={calcStyles.label}>Department</label>
-          <select className={calcStyles.formControl} value={departmentId} onChange={(e) => setDepartmentId(e.target.value)}>
+          <Select value={departmentId} onChange={(e) => setDepartmentId(e.target.value)}>
             {data.departments.map((d) => (
               <option key={d.id} value={d.id}>
                 {d.name}
                 {d.can_edit ? '' : ' (view only)'}
               </option>
             ))}
-          </select>
+          </Select>
         </div>
       )}
 
@@ -157,7 +161,11 @@ export default function TaskCategoryEditor({ onClose }: { onClose: () => void })
         <div className={styles.readOnlyNote}>You can view this department&apos;s categories, but only its own manager can change them.</div>
       )}
 
-      {status && <div className={historyStyles.status}>{status}</div>}
+      {!data && status === 'Loading…' ? (
+        <SkeletonList rows={4} avatar={false} />
+      ) : (
+        status && <div className={historyStyles.status}>{status}</div>
+      )}
 
       {groups.map((group, index) => (
         <section key={group.parentKey} className={styles.group}>
@@ -174,22 +182,23 @@ export default function TaskCategoryEditor({ onClose }: { onClose: () => void })
               />
             )}
             {!group.subLevelEnabled && !readOnly && (
-              <button
-                type="button"
-                className={historyStyles.button}
+              <CommonButton
+                variant="secondary"
+                size="sm"
+                leadingIcon={<Plus />}
                 onClick={() => update(index, { ...group, subLevelEnabled: true, childLabel: group.childLabel || 'Sub-category' })}
               >
-                + Add sub-category level
-              </button>
+                Add sub-category level
+              </CommonButton>
             )}
             {group.subLevelEnabled && group.childIsCustom && !readOnly && (
-              <button
-                type="button"
-                className={historyStyles.button}
+              <CommonButton
+                variant="destructive"
+                size="sm"
                 onClick={() => update(index, { ...group, subLevelEnabled: false })}
               >
                 Remove sub-level
-              </button>
+              </CommonButton>
             )}
             {group.subLevelEnabled && !group.childIsCustom && (
               // Built into the format — the validator and every filed report
@@ -233,8 +242,10 @@ export default function TaskCategoryEditor({ onClose }: { onClose: () => void })
                 )}
 
                 {!readOnly && (
-                  <button
-                    type="button"
+                  <CommonButton
+                    variant="destructive"
+                    size="sm"
+                    iconOnly
                     className={styles.removeBtn}
                     aria-label={`Remove ${category}`}
                     onClick={() => {
@@ -243,17 +254,18 @@ export default function TaskCategoryEditor({ onClose }: { onClose: () => void })
                       update(index, { ...group, catalogue: next });
                     }}
                   >
-                    ×
-                  </button>
+                    <X />
+                  </CommonButton>
                 )}
               </div>
             ))}
           </div>
 
           {!readOnly && (
-            <button
-              type="button"
-              className={historyStyles.button}
+            <CommonButton
+              variant="secondary"
+              size="sm"
+              leadingIcon={<Plus />}
               onClick={() => {
                 // Numbered so repeated clicks don't collide on one key,
                 // which would silently merge the new rows into each other.
@@ -263,8 +275,8 @@ export default function TaskCategoryEditor({ onClose }: { onClose: () => void })
                 update(index, { ...group, catalogue: { ...group.catalogue, [name]: [] } });
               }}
             >
-              + Add {group.parentLabel.toLowerCase()}
-            </button>
+              Add {group.parentLabel.toLowerCase()}
+            </CommonButton>
           )}
         </section>
       ))}

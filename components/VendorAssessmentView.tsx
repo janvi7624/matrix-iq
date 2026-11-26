@@ -2,8 +2,14 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
+import { Check, ChevronLeft, ChevronRight, Plus, X } from 'lucide-react';
 import AppShell from './AppShell';
+import CommonButton from './ui/CommonButton';
+import CommonChip from './ui/CommonChip';
+import SearchInput from './ui/SearchInput';
+import StatCard, { StatCardGrid, StatCardTone } from './ui/StatCard';
 import { useToast } from './ui/ToastProvider';
+import { Skeleton, SkeletonCards } from './ui/Skeleton';
 import styles from './vendorAssessment.module.css';
 import {
   EMPTY_CONTACT,
@@ -315,9 +321,9 @@ export default function VendorAssessmentView({ currentUserId }: { currentUserId:
         <section className={styles.guide}>
           <div className={styles.guideHead}>
             <strong>How Vendor Assessment works — 3 simple steps</strong>
-            <button
-              type="button"
-              className={styles.guideHide}
+            <CommonButton
+              variant="outlined"
+              size="sm"
               onClick={() => {
                 setGuideOpen(false);
                 try {
@@ -326,7 +332,7 @@ export default function VendorAssessmentView({ currentUserId }: { currentUserId:
               }}
             >
               Got it, hide this
-            </button>
+            </CommonButton>
           </div>
           <ol className={styles.guideSteps}>
             <li>
@@ -354,25 +360,22 @@ export default function VendorAssessmentView({ currentUserId }: { currentUserId:
           {counts.action > 0 && <p className={styles.guideApprover}>👉 You are an approver: open a card marked “Your approval needed”, read it, then press Approve or Reject at the top.</p>}
         </section>
       ) : (
-        <button type="button" className={styles.guideShow} onClick={() => setGuideOpen(true)}>
+        <CommonButton variant="outlined" size="sm" className={styles.guideShow} onClick={() => setGuideOpen(true)}>
           ❓ How does this work?
-        </button>
+        </CommonButton>
       )}
 
-      <div className={styles.stats}>
+      <StatCardGrid className={styles.stats}>
         {[
-          { k: 'all' as Tab, label: 'Total vendors', value: counts.all, tone: '' },
-          { k: 'pending' as Tab, label: 'In approval', value: counts.pending, tone: styles.statAmber },
-          { k: 'approved' as Tab, label: 'Approved', value: counts.approved, tone: styles.statGreen },
-          { k: 'rejected' as Tab, label: 'Rejected', value: counts.rejected, tone: styles.statRed },
-          ...(counts.action ? [{ k: 'action' as Tab, label: 'Awaiting you', value: counts.action, tone: styles.statBrand }] : [])
+          { k: 'all' as Tab, label: 'Total vendors', value: counts.all, tone: 'default' as StatCardTone },
+          { k: 'pending' as Tab, label: 'In approval', value: counts.pending, tone: 'warning' as StatCardTone },
+          { k: 'approved' as Tab, label: 'Approved', value: counts.approved, tone: 'success' as StatCardTone },
+          { k: 'rejected' as Tab, label: 'Rejected', value: counts.rejected, tone: 'danger' as StatCardTone },
+          ...(counts.action ? [{ k: 'action' as Tab, label: 'Awaiting you', value: counts.action, tone: 'brand' as StatCardTone }] : [])
         ].map((st) => (
-          <button key={st.k} type="button" className={`${styles.stat} ${st.tone} ${activeTab === st.k ? styles.statActive : ''}`} onClick={() => setTab(st.k)}>
-            <strong>{st.value}</strong>
-            <span>{st.label}</span>
-          </button>
+          <StatCard key={st.k} value={loading ? <Skeleton width={64} height={24} /> : st.value} label={st.label} tone={st.tone} selected={activeTab === st.k} onClick={() => setTab(st.k)} actionLabel={`Show ${st.label.toLowerCase()}`} />
         ))}
-      </div>
+      </StatCardGrid>
 
       <div className={styles.toolbar}>
         <div className={styles.tabs} role="tablist">
@@ -393,22 +396,22 @@ export default function VendorAssessmentView({ currentUserId }: { currentUserId:
             ))}
         </div>
         <div className={styles.toolbarRight}>
-          <input className={styles.search} placeholder="Search company, purpose, relation…" value={query} onChange={(e) => setQuery(e.target.value)} />
-          <button type="button" className={styles.primary} onClick={startNew}>
-            + New assessment
-          </button>
+          <SearchInput inline placeholder="Search company, purpose, relation…" value={query} onChange={(v) => setQuery(v)} />
+          <CommonButton variant="primary" leadingIcon={<Plus />} onClick={startNew}>
+            New assessment
+          </CommonButton>
         </div>
       </div>
 
       {error && <div className={styles.errorBox}>{error}</div>}
 
       {loading ? (
-        <div className={styles.empty}>Loading…</div>
+        <SkeletonCards count={6} />
       ) : visible.length === 0 ? (
         <div className={styles.empty}>
           <strong>No vendor assessments here yet.</strong>
           <span>Click the red <strong>“+ New assessment”</strong> button to add your first vendor. The form guides you step by step.</span>
-          <button type="button" className={styles.primary} onClick={startNew}>+ New assessment</button>
+          <CommonButton variant="primary" leadingIcon={<Plus />} onClick={startNew}>New assessment</CommonButton>
         </div>
       ) : (
         <div className={styles.grid}>
@@ -425,9 +428,7 @@ export default function VendorAssessmentView({ currentUserId }: { currentUserId:
               {r.business_purpose && <p className={styles.purpose}>{r.business_purpose}</p>}
               <div className={styles.chips}>
                 {r.categories.map((c) => (
-                  <span key={c} className={styles.chip}>
-                    {c}
-                  </span>
+                  <CommonChip key={c} size="sm" tone="neutral" label={c} />
                 ))}
               </div>
               <Stepper record={r} compact />
@@ -453,9 +454,7 @@ export default function VendorAssessmentView({ currentUserId }: { currentUserId:
                   {relationLabel(open.relation_type)} · {open.categories.join(' / ')}
                 </small>
               </div>
-              <button type="button" className={styles.close} onClick={() => setOpenId(null)} aria-label="Close">
-                ×
-              </button>
+              <CommonButton variant="ghost" iconOnly leadingIcon={<X />} onClick={() => setOpenId(null)} aria-label="Close" />
             </header>
 
             <div className={styles.drawerBody}>
@@ -467,12 +466,12 @@ export default function VendorAssessmentView({ currentUserId }: { currentUserId:
                   <p className={styles.hint}>Read the details below. Happy with it? Press <strong>Approve</strong> — it moves to the next approver. Something wrong? Write what is wrong in the box, then press <strong>Reject</strong> — it goes back to the person who filled it.</p>
                   <textarea placeholder="Remarks — required if you reject (e.g. “GST certificate missing”)" value={remarks} onChange={(e) => setRemarks(e.target.value)} rows={3} />
                   <div className={styles.decisionButtons}>
-                    <button type="button" className={styles.reject} disabled={deciding} onClick={() => decide(open, 'rejected')}>
+                    <CommonButton variant="destructive" disabled={deciding} onClick={() => decide(open, 'rejected')}>
                       Reject
-                    </button>
-                    <button type="button" className={styles.approve} disabled={deciding} onClick={() => decide(open, 'approved')}>
+                    </CommonButton>
+                    <CommonButton variant="success" disabled={deciding} onClick={() => decide(open, 'approved')}>
                       Approve
-                    </button>
+                    </CommonButton>
                   </div>
                 </section>
               )}
@@ -557,14 +556,14 @@ export default function VendorAssessmentView({ currentUserId }: { currentUserId:
             {(open.can_edit || isPrivileged || (open.created_by === currentUserId && open.status === 'pending' && !open.approval_trail.length)) && (
               <footer className={styles.drawerFoot}>
                 {(isPrivileged || (open.created_by === currentUserId && open.status === 'pending' && !open.approval_trail.length)) && (
-                  <button type="button" className={styles.ghostDanger} onClick={() => remove(open)}>
+                  <CommonButton variant="destructive" className={styles.pushLeft} onClick={() => remove(open)}>
                     Delete
-                  </button>
+                  </CommonButton>
                 )}
                 {open.can_edit && (
-                  <button type="button" className={styles.primary} onClick={() => startEdit(open)}>
+                  <CommonButton variant="primary" onClick={() => startEdit(open)}>
                     Edit
-                  </button>
+                  </CommonButton>
                 )}
               </footer>
             )}
@@ -584,9 +583,7 @@ export default function VendorAssessmentView({ currentUserId }: { currentUserId:
                   <span style={{ width: `${(ready / 5) * 100}%` }} />
                 </div>
               </div>
-              <button type="button" className={styles.close} onClick={() => setFormOpen(false)} aria-label="Close">
-                ×
-              </button>
+              <CommonButton variant="ghost" iconOnly leadingIcon={<X />} onClick={() => setFormOpen(false)} aria-label="Close" />
             </header>
 
             <div className={styles.drawerBody}>
@@ -653,15 +650,13 @@ export default function VendorAssessmentView({ currentUserId }: { currentUserId:
                     {VENDOR_CATEGORIES.map((c) => {
                       const on = form.categories.includes(c);
                       return (
-                        <button
+                        <CommonChip
                           key={c}
-                          type="button"
-                          aria-pressed={on}
-                          className={`${styles.segBtn} ${on ? styles.segOn : ''}`}
+                          selected={on}
                           onClick={() => setForm({ ...form, categories: on ? form.categories.filter((x) => x !== c) : [...form.categories, c] })}
                         >
                           {c}
-                        </button>
+                        </CommonChip>
                       );
                     })}
                   </div>
@@ -670,15 +665,13 @@ export default function VendorAssessmentView({ currentUserId }: { currentUserId:
                   <span>Nanta relation *</span>
                   <div className={styles.relationGrid}>
                     {VENDOR_RELATIONS.map((r) => (
-                      <button
+                      <CommonChip
                         key={r.key}
-                        type="button"
-                        aria-pressed={form.relation_type === r.key}
-                        className={`${styles.relationBtn} ${form.relation_type === r.key ? styles.segOn : ''}`}
+                        selected={form.relation_type === r.key}
                         onClick={() => setForm({ ...form, relation_type: r.key })}
                       >
                         {r.label}
-                      </button>
+                      </CommonChip>
                     ))}
                   </div>
                 </div>
@@ -712,13 +705,14 @@ export default function VendorAssessmentView({ currentUserId }: { currentUserId:
                           <a href={f.url} target="_blank" rel="noreferrer">
                             📄 {f.name}
                           </a>
-                          <button
-                            type="button"
+                          <CommonButton
+                            variant="ghost"
+                            size="sm"
+                            iconOnly
+                            leadingIcon={<X />}
                             aria-label="Remove file"
                             onClick={() => setForm((s) => ({ ...s, documents: { ...s.documents, [d.key]: (s.documents[d.key] || []).filter((_, j) => j !== i) } }))}
-                          >
-                            ×
-                          </button>
+                          />
                         </div>
                       ))}
                     </div>
@@ -739,9 +733,11 @@ export default function VendorAssessmentView({ currentUserId }: { currentUserId:
                 {form.initiated_by_ids.length > 0 && (
                   <div className={styles.chips}>
                     {form.initiated_by_ids.map((id) => (
-                      <button key={id} type="button" className={`${styles.chip} ${styles.chipOn}`} onClick={() => setForm({ ...form, initiated_by_ids: form.initiated_by_ids.filter((x) => x !== id) })}>
-                        {team.find((t) => t.id === id)?.name || 'Selected'} ×
-                      </button>
+                      <CommonChip
+                        key={id}
+                        label={team.find((t) => t.id === id)?.name || 'Selected'}
+                        onRemove={() => setForm({ ...form, initiated_by_ids: form.initiated_by_ids.filter((x) => x !== id) })}
+                      />
                     ))}
                   </div>
                 )}
@@ -773,23 +769,23 @@ export default function VendorAssessmentView({ currentUserId }: { currentUserId:
 
             <footer className={styles.drawerFoot}>
               {step > 0 ? (
-                <button type="button" className={styles.ghost} onClick={() => setStep((n) => n - 1)} disabled={saving}>
-                  ← Back
-                </button>
+                <CommonButton variant="ghost" leadingIcon={<ChevronLeft />} onClick={() => setStep((n) => n - 1)} disabled={saving}>
+                  Back
+                </CommonButton>
               ) : (
-                <button type="button" className={styles.ghost} onClick={() => setFormOpen(false)} disabled={saving}>
+                <CommonButton variant="outlined" onClick={() => setFormOpen(false)} disabled={saving}>
                   Cancel
-                </button>
+                </CommonButton>
               )}
               {step < WIZARD.length - 1 && (
-                <button type="button" className={styles.primary} onClick={goNext}>
-                  Next: {WIZARD[step + 1].title} →
-                </button>
+                <CommonButton variant="primary" trailingIcon={<ChevronRight />} onClick={goNext}>
+                  Next: {WIZARD[step + 1].title}
+                </CommonButton>
               )}
               {step === WIZARD.length - 1 && (
-              <button type="submit" className={styles.primary} disabled={saving || !!uploadingKey}>
-                {saving ? 'Saving…' : editingId ? '✓ Save & resubmit' : '✓ Submit for approval'}
-              </button>
+              <CommonButton type="submit" variant="primary" leadingIcon={<Check />} loading={saving} loadingLabel="Saving…" disabled={!!uploadingKey}>
+                {editingId ? 'Save & resubmit' : 'Submit for approval'}
+              </CommonButton>
               )}
             </footer>
           </form>

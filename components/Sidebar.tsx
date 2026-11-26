@@ -2,10 +2,11 @@
 
 import { useEffect, useLayoutEffect, useMemo, useState, useRef, useCallback } from 'react';
 import Image from 'next/image';
-import Link from 'next/link';
+import Link from '@/components/ui/AppLink';
 import { useRouter, usePathname } from 'next/navigation';
 import { ModuleConfigRecord, UserRole } from '@/lib/types';
 import { BRAND } from '@/lib/branding';
+import { BRAND_ASSETS } from '@/lib/brandAssets';
 import { useModuleSections } from '@/lib/useModuleSections';
 import { useCollapsibleSections } from '@/lib/useCollapsibleSections';
 import { primarySectionForDepartment } from '@/lib/departmentCategoryMap';
@@ -13,9 +14,11 @@ import { sectionIconFor, resolveModuleIcon, QUICK_ACTION_ICON, CHROME_ICON } fro
 import { TMS_ROLE_LABEL } from '@/lib/tmsLabels';
 import { PARTNER_ROLE_LABEL, PARTNER_HOME, PARTNER_SECTION } from '@/lib/partnerRoles';
 import { Search, Star, X, Sparkles, ChevronRight, Pin } from 'lucide-react';
+import CommonButton from './ui/CommonButton';
 import styles from './sidebar.module.css';
 import { forgetCelebrationPopups } from '@/lib/celebrationPopupSeen';
 import { clearFetchCache } from '@/lib/fetchCached';
+import { loadQuickActions, loadSidebarData, setQuickActionKeys, useShellData } from '@/lib/shellDataStore';
 
 interface Viewer {
   name: string;
@@ -47,34 +50,32 @@ const ROLE_LABEL: Record<UserRole, string> = {
 // /api/profile/quick-actions) — there is no longer a fixed set that everyone
 // gets. Nothing is chosen until the person picks.
 const DEFAULT_MAX_QUICK_ACTIONS = 6;
+const EMPTY_BADGES: Record<string, number> = {};
+const EMPTY_KEYS: string[] = [];
+const EMPTY_MODULES: ModuleConfigRecord[] = [];
 
 // Every page renders its own AppShell, so the Sidebar unmounts and remounts on
-// each navigation. Without this it started empty (skeleton), re-fetched, and
-// jumped back to the top — the whole menu visibly "reloaded" on every click.
-// This in-memory cache survives client-side navigation, so the next mount
-// paints the last known menu, badges and scroll position instantly and only
-// refreshes the data quietly in the background.
-const sidebarCache: {
-  modules: ModuleConfigRecord[] | null;
-  viewer: Viewer | null;
-  badges: Record<string, number>;
-  quickKeys: string[] | null;
-  quickMax: number;
-  scrollTop: number;
-} = { modules: null, viewer: null, badges: {}, quickKeys: null, quickMax: DEFAULT_MAX_QUICK_ACTIONS, scrollTop: 0 };
+// each navigation. The menu DATA (modules, viewer, badges, quick actions) lives
+// in lib/shellDataStore.ts — fetched once per login and reused, never
+// re-requested on a page change. Only per-tab view state is kept here: the
+// nav scroll position, and whether a Sidebar has already mounted (the first
+// render must match the server HTML).
+const sidebarCache: { mountedBefore: boolean; scrollTop: number } = { mountedBefore: false, scrollTop: 0 };
 
 export default function Sidebar() {
   const router = useRouter();
   const pathname = usePathname();
-  const [modules, setModules] = useState<ModuleConfigRecord[] | null>(() => sidebarCache.modules);
-  const [viewer, setViewer] = useState<Viewer | null>(() => sidebarCache.viewer);
-  const [badges, setBadges] = useState<Record<string, number>>(() => sidebarCache.badges);
+  const shell = useShellData();
+  // null = still loading (skeleton); [] = loaded but failed/empty.
+  const modules: ModuleConfigRecord[] | null = shell.sidebar ? shell.sidebar.modules : shell.sidebarSettled ? EMPTY_MODULES : null;
+  const viewer = (shell.sidebar?.viewer ?? null) as Viewer | null;
+  const badges: Record<string, number> = shell.sidebar?.badges ?? EMPTY_BADGES;
   const [open, setOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(() => {
     try {
       // Only after the first page load (cache filled) — the first render must
       // match the server HTML.
-      return !!sidebarCache.modules && window.localStorage.getItem('sidebar-collapsed') === 'true';
+      return sidebarCache.mountedBefore && window.localStorage.getItem('sidebar-collapsed') === 'true';
     } catch {
       return false;
     }
@@ -94,31 +95,17 @@ export default function Sidebar() {
 
   const searchInputRef = useRef<HTMLInputElement>(null);
 
-  const [quickKeys, setQuickKeys] = useState<string[]>(() => sidebarCache.quickKeys ?? []);
-  const [quickMax, setQuickMax] = useState(() => sidebarCache.quickMax);
+  const quickKeys = shell.quick?.keys ?? EMPTY_KEYS;
+  const quickMax = shell.quick?.max ?? DEFAULT_MAX_QUICK_ACTIONS;
   const [editingQuick, setEditingQuick] = useState(false);
   const [quickDraft, setQuickDraft] = useState<string[]>([]);
   const [quickSaving, setQuickSaving] = useState(false);
   const [quickError, setQuickError] = useState('');
 
+  // Once per login (lib/shellDataStore) — not on every page change.
   useEffect(() => {
-    let cancelled = false;
-    fetch('/api/profile/quick-actions')
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data) => {
-        if (cancelled || !data) return;
-        const keys = Array.isArray(data.keys) ? data.keys : [];
-        sidebarCache.quickKeys = keys;
-        setQuickKeys(keys);
-        if (typeof data.max === 'number') {
-          sidebarCache.quickMax = data.max;
-          setQuickMax(data.max);
-        }
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
+    sidebarCache.mountedBefore = true;
+    void loadQuickActions();
   }, []);
 
   function startEditQuick() {
@@ -153,7 +140,7 @@ export default function Sidebar() {
         setQuickError(data?.error || 'Could not save — try again.');
         return;
       }
-      setQuickKeys(Array.isArray(data?.keys) ? data.keys : quickDraft);
+      setQuickActionKeys(Array.isArray(data?.keys) ? data.keys : quickDraft);
       setEditingQuick(false);
     } catch {
       setQuickError('Could not save — check your connection.');
@@ -162,26 +149,11 @@ export default function Sidebar() {
     }
   }
 
+  // Fetched once per login and shared by every page (lib/shellDataStore).
+  // Deliberately NOT keyed on pathname: changing page must not re-request it.
   useEffect(() => {
-    let cancelled = false;
-    fetch('/api/sidebar')
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data) => {
-        if (cancelled || !data) return;
-        sidebarCache.modules = data.modules ?? [];
-        sidebarCache.viewer = data.viewer ?? null;
-        sidebarCache.badges = data.badges ?? {};
-        setModules(sidebarCache.modules);
-        setViewer(sidebarCache.viewer);
-        setBadges(sidebarCache.badges);
-      })
-      .catch(() => {
-        if (!cancelled) setModules((prev) => prev ?? []);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [pathname]);
+    void loadSidebarData();
+  }, []);
 
   useEffect(() => {
     function applyDefaultIfNoExplicitChoice() {
@@ -386,7 +358,7 @@ export default function Sidebar() {
         {/* Brand Header */}
         <div className={styles.brand}>
           <div className={styles.brandLogoWrapper}>
-            <Image src={BRAND.iconMark} alt={`${BRAND.companyName} logo`} width={34} height={34} className={styles.brandLogo} unoptimized />
+            <Image src={BRAND_ASSETS.iconMark} alt={`${BRAND.companyName} logo`} width={34} height={34} className={styles.brandLogo} loading="eager" unoptimized />
           </div>
           <div className={styles.brandText}>
             <div className={styles.brandNameRow}>
@@ -599,12 +571,12 @@ export default function Sidebar() {
                 </div>
                 {quickError && <div className={styles.quickPickerError}>{quickError}</div>}
                 <div className={styles.quickPickerActions}>
-                  <button type="button" className={styles.quickPickerCancel} onClick={() => setEditingQuick(false)} disabled={quickSaving}>
+                  <CommonButton size="sm" onClick={() => setEditingQuick(false)} disabled={quickSaving}>
                     Cancel
-                  </button>
-                  <button type="button" className={styles.quickPickerSave} onClick={saveQuick} disabled={quickSaving}>
-                    {quickSaving ? 'Saving…' : 'Save'}
-                  </button>
+                  </CommonButton>
+                  <CommonButton variant="primary" size="sm" onClick={saveQuick} loading={quickSaving} loadingLabel="Saving…">
+                    Save
+                  </CommonButton>
                 </div>
               </div>
             ) : quickActions.length > 0 ? (

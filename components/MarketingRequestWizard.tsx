@@ -2,7 +2,7 @@
 
 import { useRef, useState, type ReactNode } from 'react';
 import {
-  Megaphone, CheckCircle2,
+  Megaphone, CheckCircle2, Plus,
   FileText, Share2, Image as ImageIcon, Video, Mail, Globe, Camera, Calendar, MoreHorizontal,
   type LucideIcon
 } from 'lucide-react';
@@ -15,10 +15,12 @@ import {
 import { MARKETING_PRIORITY_META, MARKETING_REQUEST_TYPE_LABEL, getProductCategoryStyle } from '@/lib/marketingRequestHelpers';
 import { todayDateInputValue } from '@/lib/dateHelpers';
 import { useToast } from './ui/ToastProvider';
+import CommonButton from './ui/CommonButton';
 import ProjectSelect from './ui/ProjectSelect';
 import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
 import styles from './marketingRequestWizard.module.css';
+import Select from '@/components/ui/Select';
 
 export interface MarketingRequestForm {
   title: string;
@@ -182,8 +184,8 @@ export default function MarketingRequestWizard({ creating, onSubmit, onViewAllRe
             )}
           </div>
           <div className={historyStyles.successActions}>
-            <button type="button" className={historyStyles.bigBtn} onClick={handleRequestAnother}>Ask for something else</button>
-            <button type="button" className={historyStyles.bigBtnGhost} onClick={onViewAllRequests}>View all my requests</button>
+            <CommonButton variant="primary" size="lg" onClick={handleRequestAnother}>Ask for something else</CommonButton>
+            <CommonButton variant="outlined" size="lg" onClick={onViewAllRequests}>View all my requests</CommonButton>
           </div>
         </div>
       </div>
@@ -221,9 +223,9 @@ export default function MarketingRequestWizard({ creating, onSubmit, onViewAllRe
 
         <div className={`${calcStyles.field} ${styles.fieldMinor}`}>
           <label className={calcStyles.label} htmlFor="mr-category">Product *</label>
-          <select
+          <Select
             id="mr-category"
-            className={`${calcStyles.formControl} ${form.productCategory ? styles.categorySelectActive : ''}`}
+            className={form.productCategory ? styles.categorySelectActive : undefined}
             value={form.productCategory}
             onChange={(e) => setForm((f) => ({ ...f, productCategory: e.target.value as MarketingProductCategory }))}
             style={
@@ -236,7 +238,7 @@ export default function MarketingRequestWizard({ creating, onSubmit, onViewAllRe
             {MARKETING_PRODUCT_CATEGORIES.map((cat) => (
               <option key={cat} value={cat}>{cat}</option>
             ))}
-          </select>
+          </Select>
         </div>
       </div>
 
@@ -339,9 +341,9 @@ export default function MarketingRequestWizard({ creating, onSubmit, onViewAllRe
             onChange={(e) => handleFilesSelected(e.target.files)}
           />
           <div>
-            <button type="button" className={calcStyles.secondaryButton} disabled={uploading} onClick={() => fileInputRef.current?.click()}>
-              {uploading ? 'Uploading…' : '+ Add files'}
-            </button>
+            <CommonButton leadingIcon={<Plus />} loading={uploading} loadingLabel="Uploading…" onClick={() => fileInputRef.current?.click()}>
+              Add files
+            </CommonButton>
           </div>
 
           {form.attachments.length > 0 && (
@@ -380,9 +382,9 @@ export default function MarketingRequestWizard({ creating, onSubmit, onViewAllRe
 
       <div className={`${historyStyles.wizardNav} ${styles.mt24}`}>
         <span />
-        <button type="button" className={historyStyles.bigBtn} disabled={creating} onClick={handleSubmit}>
-          {creating ? 'Sending…' : 'Send to Marketing'}
-        </button>
+        <CommonButton variant="primary" size="lg" loading={creating} loadingLabel="Sending…" onClick={handleSubmit}>
+          Send to Marketing
+        </CommonButton>
       </div>
     </div>
   );

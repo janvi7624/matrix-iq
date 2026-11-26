@@ -7,6 +7,7 @@ import styles from './calculator.module.css';
 import fieldStyles from './customFieldInput.module.css';
 import { useToast } from './ui/ToastProvider';
 import { fetchCached, OPTIONS_TTL_MS } from '@/lib/fetchCached';
+import Select from './ui/Select';
 
 interface UserLite {
   username: string;
@@ -89,10 +90,10 @@ export default function CustomFieldInput({ field, value, onChange }: CustomField
       return <input className={styles.formControl} type="time" value={(value as string) || ''} onChange={(e) => onChange(e.target.value)} />;
     case 'dropdown':
       return (
-        <select className={styles.formControl} value={(value as string) || ''} onChange={(e) => onChange(e.target.value)}>
+        <Select value={(value as string) || ''} onChange={(e) => onChange(e.target.value)}>
           <option value="">Select...</option>
           {field.options.map((o) => <option key={o} value={o}>{o}</option>)}
-        </select>
+        </Select>
       );
     case 'multiselect': {
       const selected = Array.isArray(value) ? (value as string[]) : [];
@@ -142,24 +143,24 @@ export default function CustomFieldInput({ field, value, onChange }: CustomField
       );
     case 'user':
       return (
-        <select className={styles.formControl} value={(value as string) || ''} onChange={(e) => onChange(e.target.value)}>
+        <Select value={(value as string) || ''} onChange={(e) => onChange(e.target.value)}>
           <option value="">Select user...</option>
           {users.map((u) => <option key={u.username} value={u.username}>{u.name} ({u.username})</option>)}
-        </select>
+        </Select>
       );
     case 'project':
       return (
-        <select className={styles.formControl} value={(value as string) || ''} onChange={(e) => onChange(e.target.value)}>
+        <Select value={(value as string) || ''} onChange={(e) => onChange(e.target.value)}>
           <option value="">Select project...</option>
           {projects.map((p) => <option key={p.id} value={p.id}>{p.company || p.client_name}</option>)}
-        </select>
+        </Select>
       );
     case 'product':
       return (
-        <select className={styles.formControl} value={(value as string) || ''} onChange={(e) => onChange(e.target.value)}>
+        <Select value={(value as string) || ''} onChange={(e) => onChange(e.target.value)}>
           <option value="">Select product...</option>
           {products.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-        </select>
+        </Select>
       );
     default:
       return <input className={styles.formControl} value={(value as string) || ''} onChange={(e) => onChange(e.target.value)} />;

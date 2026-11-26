@@ -2,10 +2,13 @@
 
 import { ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
 import AppShell from './AppShell';
-import { SkeletonRows } from './ui/Skeleton';
+import CommonButton from './ui/CommonButton';
+import StatCard, { StatCardGrid } from './ui/StatCard';
+import { SkeletonStatCards, SkeletonTable } from './ui/Skeleton';
 import calcStyles from './calculator.module.css';
 import historyStyles from './quotationHistory.module.css';
 import styles from './feedback.module.css';
+import Dropdown, { inSelection } from '@/components/ui/Dropdown';
 
 interface ModuleEntry {
   key: string;
@@ -51,7 +54,7 @@ function Shell({ embedded, children }: { embedded: boolean; children: ReactNode 
 export default function AdminFeedbackView({ endpoint = '/api/admin/feedback', embedded = false }: { endpoint?: string; embedded?: boolean } = {}) {
   const [data, setData] = useState<Payload | null>(null);
   const [error, setError] = useState('');
-  const [deptFilter, setDeptFilter] = useState('');
+  const [deptFilter, setDeptFilter] = useState<string[]>([]);
   const [openRow, setOpenRow] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -83,7 +86,7 @@ export default function AdminFeedbackView({ endpoint = '/api/admin/feedback', em
   );
 
   const shown = useMemo(
-    () => (data?.responses ?? []).filter((r) => !deptFilter || r.department === deptFilter),
+    () => (data?.responses ?? []).filter((r) => inSelection(r.department, deptFilter)),
     [data, deptFilter]
   );
 
@@ -121,7 +124,12 @@ export default function AdminFeedbackView({ endpoint = '/api/admin/feedback', em
   if (!data) {
     return (
       <Shell embedded={embedded}>
-        <SkeletonRows rows={6} columns={3} />
+        <div className={calcStyles.sectionPanel}>
+          <SkeletonStatCards count={4} withIcon={false} />
+        </div>
+        <div className={calcStyles.sectionPanel}>
+          <SkeletonTable columns={5} rows={6} />
+        </div>
       </Shell>
     );
   }
@@ -134,23 +142,25 @@ export default function AdminFeedbackView({ endpoint = '/api/admin/feedback', em
             ? `Collecting until ${data.lastDay} · ${data.daysRemaining} day${data.daysRemaining === 1 ? '' : 's'} left`
             : `Closed on ${data.lastDay}`}
         </div>
-        <div className={historyStyles.summaryCardGrid}>
+        <StatCardGrid>
           <Stat label="Responses" value={String(data.total)} />
           <Stat label="Of eligible staff" value={`${data.total} / ${data.eligible}`} />
           <Stat label="Response rate" value={data.eligible ? `${Math.round((data.total / data.eligible) * 100)}%` : '—'} />
           <Stat label="Average overall" value={overallAvg === null ? '—' : `${overallAvg} / 5`} />
-        </div>
+        </StatCardGrid>
       </div>
 
       {departments.length > 1 && (
         <div className={calcStyles.sectionPanel}>
           <label className={calcStyles.label} htmlFor="deptFilter">Department</label>
-          <select id="deptFilter" className={calcStyles.formControl} value={deptFilter} onChange={(e) => setDeptFilter(e.target.value)}>
-            <option value="">All departments</option>
-            {departments.map((d) => (
-              <option key={d} value={d}>{d}</option>
-            ))}
-          </select>
+          <Dropdown
+            id="deptFilter"
+            multiselect
+            value={deptFilter}
+            onChange={setDeptFilter}
+            options={departments.map((d) => ({ value: d, label: d }))}
+            placeholder="All departments"
+          />
         </div>
       )}
 
@@ -209,9 +219,9 @@ export default function AdminFeedbackView({ endpoint = '/api/admin/feedback', em
                       <td>{r.overallRating === null ? '—' : `${r.overallRating} / 5`}</td>
                       <td>{new Date(r.submittedAt).toLocaleDateString('en-IN')}</td>
                       <td>
-                        <button type="button" className={historyStyles.linkBtn} onClick={() => setOpenRow(openRow === r.id ? null : r.id)}>
+                        <CommonButton variant="link" size="sm" onClick={() => setOpenRow(openRow === r.id ? null : r.id)}>
                           {openRow === r.id ? 'Hide' : 'Read'}
-                        </button>
+                        </CommonButton>
                       </td>
                     </tr>
                     {openRow === r.id && (
@@ -253,12 +263,7 @@ export default function AdminFeedbackView({ endpoint = '/api/admin/feedback', em
 }
 
 function Stat({ label, value }: { label: string; value: string }) {
-  return (
-    <div className={historyStyles.summaryCard}>
-      <div className={historyStyles.summaryCardLabel}>{label}</div>
-      <div className={historyStyles.summaryCardValue}>{value}</div>
-    </div>
-  );
+  return <StatCard label={label} value={value} />;
 }
 
 function Detail({ label, text }: { label: string; text: string }) {

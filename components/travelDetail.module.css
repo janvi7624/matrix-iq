@@ -13,10 +13,8 @@
 .actionPanelDanger { border-left: 3px solid var(--mx-danger); }
 .actionPanelNeutral { border-left: 3px solid var(--mx-blue-600); }
 .actionPanelHeader { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
-.panelCancelBtn { padding: 2px 10px; font-size: 0.85rem; }
 .docList { margin: 4px 0 0; padding-left: 20px; font-size: 0.85rem; }
 .actionButtonsRow { display: flex; gap: 8px; margin-top: 12px; }
-.dangerActionBtn { background: var(--mx-danger); }
 
 .changesRequestedPanel { border-left: 3px solid var(--mx-danger); margin-bottom: 16px; }
 
@@ -27,8 +25,6 @@
 
 .companionPillRow { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
 .pillBase { padding: 2px 8px; border-radius: 12px; background: var(--mx-border); font-size: 0.85rem; }
-.pillEditable { composes: pillBase; display: inline-flex; align-items: center; gap: 4px; }
-.pillRemoveBtn { background: none; border: none; cursor: pointer; padding: 0; font-size: 1rem; line-height: 1; opacity: 0.6; }
 .inlinePillGroup { display: inline-flex; flex-wrap: wrap; gap: 6px; vertical-align: middle; }
 
 .hotelBlockSpaced { margin-bottom: 12px; }
@@ -45,3 +41,14 @@
 .auditRemark { margin-top: 2px; font-style: italic; opacity: 0.8; }
 
 .preWrap { white-space: pre-wrap; }
+
+/* Responsive: these rows hold controls or a title + actions. They wrap
+   onto a second line when the screen is too narrow for them, instead of
+   overflowing or crushing their neighbours. No effect when they fit. */
+.actionPanelHeader,
+.actionButtonsRow {
+    flex-wrap: wrap;
+    row-gap: 8px;
+}
+
+.layoutGrid { composes: mx-grid from global; }

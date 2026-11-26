@@ -1,7 +1,11 @@
 'use client';
 
 import { Fragment, useEffect, useState } from 'react';
+import { Plus, X } from 'lucide-react';
 import { useToast } from './ui/ToastProvider';
+import CommonButton from './ui/CommonButton';
+import CommonChip from './ui/CommonChip';
+import { SkeletonTable } from './ui/Skeleton';
 import { OFFICE_LOCATIONS, PAID_BY_OPTIONS } from '@/lib/officeOperationExpenseOptions';
 import {
   OfficeExpenseOptionsLike,
@@ -16,6 +20,7 @@ import {
 import calcStyles from './calculator.module.css';
 import historyStyles from './quotationHistory.module.css';
 import styles from './officeOperationExpenses.module.css';
+import Select from './ui/Select';
 
 // "Add Multiple" for Office Operation Expenses — the counterpart to
 // ReimbursementBulkAddForm, which this deliberately mirrors down to the
@@ -145,7 +150,7 @@ export default function OfficeOperationExpenseBulkForm({ onClose, onSaved }: Pro
   }
 
   if (optionsError) return <div className={historyStyles.loginError}>{optionsError}</div>;
-  if (!options) return <div className={calcStyles.sectionPanel}><p className={calcStyles.small}>Loading categories…</p></div>;
+  if (!options) return <div className={calcStyles.sectionPanel}><SkeletonTable columns={9} rows={3} /></div>;
 
   return (
     <div className={calcStyles.sectionPanel}>
@@ -154,7 +159,9 @@ export default function OfficeOperationExpenseBulkForm({ onClose, onSaved }: Pro
         change them per row where they differ. A row left completely blank is ignored.
       </p>
 
-      <div className={styles.bulkTableWrap}>
+      {/* Plain wrapper: keeps this form at its natural height inside a fill-the-screen list page (app/globals.css → .mx-fill-page) — the table is capped to one screen and scrolls inside on its own. */}
+      <div>
+      <div className={`${styles.bulkTableWrap} mx-rtable-wrap`}>
         <table className={styles.bulkTable}>
           <thead>
             <tr>
@@ -194,37 +201,34 @@ export default function OfficeOperationExpenseBulkForm({ onClose, onSaved }: Pro
                       />
                     </td>
                     <td>
-                      <select
-                        className={calcStyles.formControl}
+                      <Select
                         value={row.officeLocation}
                         aria-label={`Row ${index + 1} office`}
                         onChange={(e) => updateRow(row.key, { officeLocation: e.target.value })}
                       >
                         <option value="">Select…</option>
                         {OFFICE_LOCATIONS.map((o) => <option key={o} value={o}>{o}</option>)}
-                      </select>
+                      </Select>
                     </td>
                     <td>
-                      <select
-                        className={calcStyles.formControl}
+                      <Select
                         value={row.usecase}
                         aria-label={`Row ${index + 1} category`}
                         onChange={(e) => setUsecase(row.key, e.target.value)}
                       >
                         <option value="">Select…</option>
                         {options.usecases.map((u) => <option key={u} value={u}>{u}</option>)}
-                      </select>
+                      </Select>
                     </td>
                     <td>
-                      <select
-                        className={calcStyles.formControl}
+                      <Select
                         value={row.itemName}
                         aria-label={`Row ${index + 1} expense head`}
                         onChange={(e) => setItemName(row.key, e.target.value)}
                       >
                         <option value="">Select…</option>
                         {options.items.map((i) => <option key={i} value={i}>{i}</option>)}
-                      </select>
+                      </Select>
                     </td>
                     <td>
                       <input
@@ -249,26 +253,25 @@ export default function OfficeOperationExpenseBulkForm({ onClose, onSaved }: Pro
                       />
                     </td>
                     <td>
-                      <select
-                        className={calcStyles.formControl}
+                      <Select
                         value={row.remarks}
                         aria-label={`Row ${index + 1} paid by`}
                         onChange={(e) => updateRow(row.key, { remarks: e.target.value, remarksOther: '' })}
                       >
                         <option value="">Select…</option>
                         {PAID_BY_OPTIONS.map((p) => <option key={p} value={p}>{p}</option>)}
-                      </select>
+                      </Select>
                     </td>
                     <td className={styles.bulkColRemove}>
-                      <button
-                        type="button"
-                        className={styles.bulkRemoveBtn}
+                      <CommonButton
+                        variant="ghost"
+                        size="sm"
+                        iconOnly
+                        leadingIcon={<X />}
                         disabled={rows.length === 1}
                         aria-label={`Remove row ${index + 1}`}
                         onClick={() => removeRow(row.key)}
-                      >
-                        ×
-                      </button>
+                      />
                     </td>
                   </tr>
 
@@ -278,15 +281,14 @@ export default function OfficeOperationExpenseBulkForm({ onClose, onSaved }: Pro
                       <td colSpan={8}>
                         <div className={styles.bulkDetailLine}>
                           {flags.usecaseSubs && (
-                            <select
-                              className={calcStyles.formControl}
+                            <Select
                               value={row.usecaseDetail}
                               aria-label={`Row ${index + 1} ${row.usecase} detail`}
                               onChange={(e) => updateRow(row.key, { usecaseDetail: e.target.value })}
                             >
                               <option value="">Which {row.usecase.toLowerCase()}?</option>
                               {flags.usecaseSubs.map((s) => <option key={s} value={s}>{s}</option>)}
-                            </select>
+                            </Select>
                           )}
                           {flags.usecaseIsFreeText && (
                             <input
@@ -313,14 +315,14 @@ export default function OfficeOperationExpenseBulkForm({ onClose, onSaved }: Pro
                           {!flags.itemIsFreeText && !!flags.itemSubs?.length && (
                             <div className={styles.bulkSubChips}>
                               {flags.itemSubs.map((sub) => (
-                                <label key={sub} className={styles.bulkSubChip}>
-                                  <input
-                                    type="checkbox"
-                                    checked={row.itemSubNames.includes(sub)}
-                                    onChange={() => toggleSub(row.key, sub)}
-                                  />
+                                <CommonChip
+                                  key={sub}
+                                  size="sm"
+                                  selected={row.itemSubNames.includes(sub)}
+                                  onClick={() => toggleSub(row.key, sub)}
+                                >
                                   {sub}
-                                </label>
+                                </CommonChip>
                               ))}
                             </div>
                           )}
@@ -371,10 +373,11 @@ export default function OfficeOperationExpenseBulkForm({ onClose, onSaved }: Pro
           </tbody>
         </table>
       </div>
+      </div>
 
       <div className={styles.bulkFooterRow}>
-        <button type="button" className={historyStyles.button} onClick={() => addRows(1)}>+ Add Row</button>
-        <button type="button" className={historyStyles.button} onClick={() => addRows(5)}>+ Add 5 Rows</button>
+        <CommonButton leadingIcon={<Plus />} onClick={() => addRows(1)}>Add Row</CommonButton>
+        <CommonButton leadingIcon={<Plus />} onClick={() => addRows(5)}>Add 5 Rows</CommonButton>
         <span className={styles.bulkTotalText}>
           {filled.length > 0 && (
             <>Running total: <strong>₹{total.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong></>
@@ -383,15 +386,16 @@ export default function OfficeOperationExpenseBulkForm({ onClose, onSaved }: Pro
       </div>
 
       <div className={styles.bulkSubmitRow}>
-        <button
-          type="button"
-          className={calcStyles.btn}
-          disabled={saving || filled.length === 0}
+        <CommonButton
+          variant="primary"
+          disabled={filled.length === 0}
+          loading={saving}
+          loadingLabel="Saving…"
           onClick={handleSaveAll}
         >
-          {saving ? 'Saving…' : `Save All${filled.length > 0 ? ` (${filled.length})` : ''}`}
-        </button>
-        <button type="button" className={historyStyles.button} disabled={saving} onClick={onClose}>Cancel</button>
+          {`Save All${filled.length > 0 ? ` (${filled.length})` : ''}`}
+        </CommonButton>
+        <CommonButton disabled={saving} onClick={onClose}>Cancel</CommonButton>
       </div>
     </div>
   );

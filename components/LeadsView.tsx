@@ -7,26 +7,31 @@ import { LEAD_ORIGIN_OPTIONS, LEAD_ORIGIN_UNSET_LABEL, leadOriginLabel } from '@
 import { LEAD_REFERENCE_OPTIONS, LeadReference } from '@/lib/leadReferenceOptions';
 import { LEAD_DOMAIN_TILES, LEAD_SUB_INTERESTS, LEAD_FOLLOW_UP_ACTIONS, LEAD_BUDGET_OPTIONS, LEAD_PRIORITY_META } from '@/lib/leadInterestOptions';
 import { FILTER_UNASSIGNED, FILTER_MINE, FILTER_UNSET } from '@/lib/leadFilters';
+import { setListParam } from '@/lib/listParam';
 import { todayDateInputValue } from '@/lib/dateHelpers';
 import { AlertTriangle, Ban, CalendarClock, CheckCircle2, Flame, Contact, Phone, PhoneCall, Share2, UserPlus, UserCheck, Pencil, Eye } from 'lucide-react';
 import AppShell from './AppShell';
 import LeadCaptureWizard from './LeadCaptureWizard';
 import LeadBulkImportWizard from './LeadBulkImportWizard';
 import PhoneInput from './ui/PhoneInput';
+import CommonButton from './ui/CommonButton';
+import CommonChip from './ui/CommonChip';
 import leadStyles from './leadsView.module.css';
 import historyStyles from './quotationHistory.module.css';
 import { useToast } from './ui/ToastProvider';
 import { useConfirm } from './ui/ConfirmDialog';
-import { SkeletonRows } from './ui/Skeleton';
+import { SkeletonStatCards, SkeletonTable } from './ui/Skeleton';
 import EmptyState from './ui/EmptyState';
 import ErrorState from './ui/ErrorState';
 import StatTile from './ui/StatTile';
-import SegmentedToggle, { SegmentedButton, SegmentedOption } from './ui/SegmentedToggle';
+import SegmentedToggle, { SegmentedOption } from './ui/SegmentedToggle';
 import FilterBar from './ui/FilterBar';
+import SearchInput from './ui/SearchInput';
+import Dropdown from './ui/Dropdown';
 import Select from './ui/Select';
 import ToolbarButton, { ToolbarLink, DeleteButton } from './ui/ToolbarButton';
-import Table, { TableColumn, TableWrap } from './ui/Table';
-import Pagination from './ui/Pagination';
+import Table, { TableColumn } from './ui/Table';
+import TablePager from './ui/TablePager';
 import Modal, { ModalCancelButton, ModalOkButton } from './ui/Modal';
 import { Field, FieldRow } from './ui/Field';
 import ProjectLeadField from './ui/ProjectLeadField';
@@ -41,6 +46,8 @@ import PriorityBadge from './ui/PriorityBadge';
 import StatusBadge, { StatusTone } from './ui/StatusBadge';
 import { useAutoRefresh } from '@/lib/useAutoRefresh';
 import { fetchCached } from '@/lib/fetchCached';
+import RowActions from './ui/RowActions';
+import { RefreshButton } from './ui/ListControls';
 
 interface LeadsViewProps {
   currentUser: { username: string; role: UserRole; isPrivileged: boolean };
@@ -55,6 +62,8 @@ interface Assignee {
 }
 
 const PAGE_SIZE = 20;
+// Rows-per-page choices — the API clamps pageSize to 200 (lib/leadStore.ts).
+const PAGE_SIZE_CHOICES = [10, 20, 50, 100] as const;
 
 type Mode = 'capture' | 'list' | 'bulk';
 const MODE_OPTIONS: SegmentedOption<Mode>[] = [
@@ -97,7 +106,13 @@ const CALL_OUTCOME_META: Record<LoggedCallOutcome, { label: string; hint: string
 
 const CALL_OUTCOMES = LEAD_CALL_OUTCOMES.filter((o): o is LoggedCallOutcome => o !== '');
 
-type CallFilter = '' | 'to-call' | 'suitable' | 'not_suitable' | 'completed' | 'callback-due';
+type CallFilter = 'to-call' | 'suitable' | 'not_suitable' | 'completed' | 'callback-due';
+
+// A stat tile over a multi-select filter: active while its value is selected;
+// tapping it then removes that value, otherwise narrows the filter to it.
+function toggleTileValue<T extends string>(selected: T[], value: T): T[] {
+  return selected.includes(value) ? selected.filter((v) => v !== value) : [value];
+}
 
 // The rep's queue: handed to somebody, nobody has called yet, and it isn't
 // already a project. Identical to what lib/leadCall.ts's computeLeadCallStats
@@ -213,22 +228,24 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
     const t = setTimeout(() => setDebouncedQ(q), 300);
     return () => clearTimeout(t);
   }, [q]);
-  const [priorityFilter, setPriorityFilter] = useState<LeadPriority | ''>('');
-  const [interestFilter, setInterestFilter] = useState<DomainKey | ''>('');
-  const [sourceFilter, setSourceFilter] = useState<LeadSource | ''>('');
+  // Multi-select: an empty list means "no filter", several values are OR-ed.
+  const [priorityFilter, setPriorityFilter] = useState<LeadPriority[]>([]);
+  const [interestFilter, setInterestFilter] = useState<DomainKey[]>([]);
+  const [sourceFilter, setSourceFilter] = useState<LeadSource[]>([]);
   // Meta Lead Ads attribution. Both only ever narrow Meta leads, so they are
-  // offered and applied only while the capture-method filter is on Meta —
-  // see changeSourceFilter below.
-  const [metaFormFilter, setMetaFormFilter] = useState('');
-  const [metaCampaignFilter, setMetaCampaignFilter] = useState('');
+  // offered and applied only while the capture-method filter is on Meta (and
+  // only Meta) — see changeSourceFilter below.
+  const [metaFormFilter, setMetaFormFilter] = useState<string[]>([]);
+  const [metaCampaignFilter, setMetaCampaignFilter] = useState<string[]>([]);
   // Where leads came from — the category row above the table. FILTER_UNSET
   // selects the leads captured before the field existed, which is a real
   // queue to clean up rather than a blank to ignore.
   const [originFilter, setOriginFilter] = useState<string>('');
   const [unattendedOnly, setUnattendedOnly] = useState(startUnattended);
-  const [callFilter, setCallFilter] = useState<CallFilter>(startToCall ? 'to-call' : '');
+  const [callFilter, setCallFilter] = useState<CallFilter[]>(startToCall ? ['to-call'] : []);
   const [sortBy, setSortBy] = useState<'newest' | 'oldest' | 'name'>('newest');
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState<number>(PAGE_SIZE);
   const [total, setTotal] = useState(0);
   const [stats, setStats] = useState<{
     total: number; today: number; hot: number; unattended: number; metaTotal: number; metaToday: number; unassigned: number; assignedToMe: number;
@@ -268,12 +285,15 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
   // /api/leads/assignees 403s for anyone who can't, so one fetch decides both
   // whether to render the assignment controls and what to put in them.
   const [assignees, setAssignees] = useState<Assignee[] | null>(null);
-  const [assigneeFilter, setAssigneeFilter] = useState<string>(startAssignedToMe || startMine ? FILTER_MINE : '');
+  const [assigneeFilter, setAssigneeFilter] = useState<string[]>(startAssignedToMe || startMine ? [FILTER_MINE] : []);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkAssigneeId, setBulkAssigneeId] = useState('');
   const [assigningId, setAssigningId] = useState<string | null>(null);
   const [bulkBusy, setBulkBusy] = useState(false);
   const canAssign = !!assignees;
+  // The Meta-only slice: Form/Campaign filters and columns apply only while
+  // Meta Lead Ads is the one capture method selected.
+  const metaOnly = sourceFilter.length === 1 && sourceFilter[0] === 'meta_lead_ads';
 
   // Builds the query string from every filter dimension plus the current
   // page — the backend does the actual WHERE/LIMIT now (lib/leadStore.ts's
@@ -282,20 +302,20 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
   function buildLeadsQuery(forPage: number): string {
     const params = new URLSearchParams();
     params.set('page', String(forPage));
-    params.set('pageSize', String(PAGE_SIZE));
+    params.set('pageSize', String(pageSize));
     params.set('sort', sortBy);
     if (debouncedQ.trim()) params.set('search', debouncedQ.trim());
-    if (priorityFilter) params.set('priority', priorityFilter);
-    if (interestFilter) params.set('interest', interestFilter);
-    if (sourceFilter) params.set('source', sourceFilter);
-    if (sourceFilter === 'meta_lead_ads') {
-      if (metaFormFilter) params.set('metaForm', metaFormFilter);
-      if (metaCampaignFilter) params.set('metaCampaign', metaCampaignFilter);
+    setListParam(params, 'priority', priorityFilter);
+    setListParam(params, 'interest', interestFilter);
+    setListParam(params, 'source', sourceFilter);
+    if (metaOnly) {
+      setListParam(params, 'metaForm', metaFormFilter);
+      setListParam(params, 'metaCampaign', metaCampaignFilter);
     }
     if (originFilter) params.set('origin', originFilter);
-    if (callFilter) params.set('callOutcome', callFilter);
+    setListParam(params, 'callOutcome', callFilter);
     if (unattendedOnly) params.set('unattended', '1');
-    if (assigneeFilter) params.set('assignee', assigneeFilter);
+    setListParam(params, 'assignee', assigneeFilter);
     return params.toString();
   }
 
@@ -381,7 +401,7 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
   useEffect(() => {
     loadLeads();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, debouncedQ, priorityFilter, interestFilter, sourceFilter, metaFormFilter, metaCampaignFilter, originFilter, callFilter, unattendedOnly, sortBy, assigneeFilter, canAssign]);
+  }, [page, pageSize, debouncedQ, priorityFilter, interestFilter, sourceFilter, metaFormFilter, metaCampaignFilter, originFilter, callFilter, unattendedOnly, sortBy, assigneeFilter, canAssign]);
 
   // Sends both the per-row change and the bulk action through the one
   // endpoint, so authorisation and audit logging can't diverge between them.
@@ -488,11 +508,11 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
   // Meta never starts with a stale Form/Campaign already narrowing the list.
   // Done in a handler rather than an effect, and both entry points (this
   // bar's select and the "Meta Leads" tile) route through it.
-  function changeSourceFilter(next: LeadSource | '') {
+  function changeSourceFilter(next: LeadSource[]) {
     setSourceFilter(next);
-    if (next !== 'meta_lead_ads') {
-      setMetaFormFilter('');
-      setMetaCampaignFilter('');
+    if (!(next.length === 1 && next[0] === 'meta_lead_ads')) {
+      setMetaFormFilter([]);
+      setMetaCampaignFilter([]);
     }
   }
 
@@ -501,7 +521,7 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
   // 1,262+ lead table no longer round-trips through the browser just to
   // decide what ten of them to show. `leads` IS the current page.
   const pageRows = leads;
-  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const currentPage = Math.min(page, totalPages);
 
   // The post-expo funnel and the origin chip row — both now come straight
@@ -602,16 +622,16 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
   function showAllLeads() {
     setMode('list');
     setUnattendedOnly(false);
-    setCallFilter('');
+    setCallFilter([]);
     // Every filter, not just the two this used to clear: arriving from a
     // notification also sets the assignee filter ("assigned to me"), and a
     // search or priority left over from earlier is just as capable of hiding
     // most of the list behind a control the user has scrolled past.
-    setAssigneeFilter('');
+    setAssigneeFilter([]);
     setQ('');
-    setPriorityFilter('');
-    setInterestFilter('');
-    setSourceFilter('');
+    setPriorityFilter([]);
+    setInterestFilter([]);
+    changeSourceFilter([]);
     clearFilterParam();
     loadLeads();
   }
@@ -665,9 +685,11 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
 
   // Funnel tiles behave like the Meta tile: tapping the one already applied
   // clears it, so the list is never stuck behind a filter the tile turned on.
+  // A tile is "applied" when its value is among the selected ones; tapping one
+  // that isn't narrows the filter to just that value, as it always did.
   function toggleCallFilter(value: CallFilter) {
     setMode('list');
-    setCallFilter((v) => (v === value ? '' : value));
+    setCallFilter((v) => toggleTileValue(v, value));
   }
 
   function openCallLead(lead: LeadRecord) {
@@ -895,7 +917,7 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
     // lib/metaLeadIngest.ts), so those two columns are dead weight once the
     // table is filtered down to Meta leads only. Form/Campaign are the
     // attribution that's actually populated for that slice.
-    ...(sourceFilter === 'meta_lead_ads'
+    ...(metaOnly
       ? [
           { key: 'metaForm', header: 'Form', render: (l: LeadRecord) => l.meta_form_name || '-' },
           { key: 'metaCampaign', header: 'Campaign', render: (l: LeadRecord) => l.meta_campaign_name || '-' }
@@ -939,7 +961,9 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
       cellClassName: leadStyles.assigneeCell,
       render: (l) =>
         canAssign ? (
-          <select
+          <Select
+            dropdownSize="sm"
+            auto
             className={`${leadStyles.rowSelect} ${!l.assigned_to_id ? leadStyles.rowSelectUnassigned : ''}`}
             value={l.assigned_to_id || ''}
             disabled={assigningId === l.id}
@@ -955,7 +979,7 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
             {l.assigned_to_id && !(assignees || []).some((a) => a.id === l.assigned_to_id) && (
               <option value={l.assigned_to_id}>{l.assigned_to_name || l.assigned_to} (inactive)</option>
             )}
-          </select>
+          </Select>
         ) : l.assigned_to ? (
           <>
             <span className={leadStyles.assigneeName}>
@@ -968,15 +992,15 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
           // Nobody holds this lead, so it is in no call queue at all. Anyone
           // who can see it can take it — the server re-checks that it really
           // is unassigned and really is theirs to work.
-          <button
-            type="button"
-            className={leadStyles.claimBtn}
+          <CommonButton
+            variant="outlined"
+            size="sm"
             disabled={assigningId === l.id}
             onClick={() => handleClaim(l.id)}
             aria-label={`Assign lead ${l.name || l.company || l.id} to me`}
           >
             {assigningId === l.id ? 'Taking…' : 'Unassigned — take it'}
-          </button>
+          </CommonButton>
         )
     },
     { key: 'call', header: 'Call', render: (l) => <CallCell lead={l} todayKey={todayKey} /> },
@@ -989,48 +1013,33 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
       // full-sentence title tooltip instead of spelling everything out in
       // the button itself, which is what made three actions too wide for
       // the row in the first place.
-      cellClassName: historyStyles.rowActionsInline,
       render: (l) => (
-        <>
-          {/* The call is the way through now — nothing reaches the pipeline
-              until somebody has rung the contact and said it's worth it, so
-              it leads for a lead that's been handed over and not yet called. */}
-          {canLogCall(l, currentUser.username, canAssign) && (
-            <button
-              type="button"
-              className={`${historyStyles.rowAction} ${leadNeedsCall(l) ? historyStyles.rowActionPrimary : ''}`}
-              onClick={() => openCallLead(l)}
-              title={`Log a call for ${l.name || l.company || 'this lead'}`}
-            >
-              <Phone size={12} /> Call
-            </button>
-          )}
-          {/* Everything else a row used to show inline (View Project / To
-              Project / Delete) now lives inside this panel instead, so the
-              row keeps exactly three actions regardless of a lead's state. */}
-          <button
-            type="button"
-            className={historyStyles.rowAction}
-            onClick={() => setViewLead(l)}
-            title={`View full details for ${l.name || l.company || 'this lead'}`}
-          >
-            <Eye size={12} /> Details
-          </button>
-          <button
-            type="button"
-            className={historyStyles.rowAction}
-            onClick={() => openEditLead(l)}
-            title={`Edit details for ${l.name || l.company || 'this lead'}`}
-          >
-            <Pencil size={12} /> Edit
-          </button>
-        </>
+        // The call leads for a lead that has been handed over and not yet called —
+        // nothing reaches the pipeline until somebody has rung the contact. Up to
+        // two actions show as buttons; three collapse into the ⋮ menu.
+        <RowActions
+          label={`Actions for ${l.name || l.company || 'this lead'}`}
+          actions={[
+            {
+              key: 'call',
+              label: 'Call',
+              icon: <Phone size={12} />,
+              variant: leadNeedsCall(l) ? 'primary' : 'secondary',
+              hidden: !canLogCall(l, currentUser.username, canAssign),
+              title: `Log a call for ${l.name || l.company || 'this lead'}`,
+              onClick: () => openCallLead(l)
+            },
+            { key: 'details', label: 'Details', icon: <Eye size={12} />, title: `View full details for ${l.name || l.company || 'this lead'}`, onClick: () => setViewLead(l) },
+            { key: 'edit', label: 'Edit', icon: <Pencil size={12} />, title: `Edit details for ${l.name || l.company || 'this lead'}`, onClick: () => openEditLead(l) }
+          ]}
+        />
       )
     }
   );
 
   return (
-    <AppShell title="Lead Capture / Inquiry" subtitle="Scan a business card, bulk-import from CSV or photos, qualify the lead, and follow up — all in one flow.">
+    <AppShell fillPage={mode === 'list'} title="Lead Capture / Inquiry" subtitle="Scan a business card, bulk-import from CSV or photos, qualify the lead, and follow up — all in one flow.">
+        {!stats && leads.length === 0 && loading && <SkeletonStatCards count={8} minWidth={150} />}
         {(stats || leads.length > 0) && (
           <div className={leadStyles.statsRow}>
             {stats && (
@@ -1048,8 +1057,8 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
               tone="warning"
               icon={<PhoneCall size={18} />}
               onClick={() => toggleCallFilter('to-call')}
-              active={callFilter === 'to-call'}
-              ariaPressed={callFilter === 'to-call'}
+              active={callFilter.includes('to-call')}
+              ariaPressed={callFilter.includes('to-call')}
             />
             <StatTile
               value={callStats.suitable}
@@ -1057,16 +1066,16 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
               tone="success"
               icon={<CheckCircle2 size={18} />}
               onClick={() => toggleCallFilter('suitable')}
-              active={callFilter === 'suitable'}
-              ariaPressed={callFilter === 'suitable'}
+              active={callFilter.includes('suitable')}
+              ariaPressed={callFilter.includes('suitable')}
             />
             <StatTile
               value={callStats.notSuitable}
               label="Not Suitable"
               icon={<Ban size={18} />}
               onClick={() => toggleCallFilter('not_suitable')}
-              active={callFilter === 'not_suitable'}
-              ariaPressed={callFilter === 'not_suitable'}
+              active={callFilter.includes('not_suitable')}
+              ariaPressed={callFilter.includes('not_suitable')}
             />
             <StatTile
               value={callStats.completed}
@@ -1074,8 +1083,8 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
               tone="success"
               icon={<CheckCircle2 size={18} />}
               onClick={() => toggleCallFilter('completed')}
-              active={callFilter === 'completed'}
-              ariaPressed={callFilter === 'completed'}
+              active={callFilter.includes('completed')}
+              ariaPressed={callFilter.includes('completed')}
             />
             <StatTile
               value={callStats.callbackDue}
@@ -1083,8 +1092,8 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
               tone="danger"
               icon={<CalendarClock size={18} />}
               onClick={() => toggleCallFilter('callback-due')}
-              active={callFilter === 'callback-due'}
-              ariaPressed={callFilter === 'callback-due'}
+              active={callFilter.includes('callback-due')}
+              ariaPressed={callFilter.includes('callback-due')}
             />
             {stats && (
               <>
@@ -1094,9 +1103,9 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
                   tone="danger"
                   icon={<Flame size={20} />}
                   iconPosition="after"
-                  onClick={() => { setMode('list'); setPriorityFilter((v) => (v === 'hot' ? '' : 'hot')); }}
-                  active={priorityFilter === 'hot'}
-                  ariaPressed={priorityFilter === 'hot'}
+                  onClick={() => { setMode('list'); setPriorityFilter((v) => toggleTileValue(v, 'hot')); }}
+                  active={priorityFilter.includes('hot')}
+                  ariaPressed={priorityFilter.includes('hot')}
                 />
                 {/* A sales manager's actual queue: what has come in and still
                     needs routing to a rep. One tap filters the list to it. */}
@@ -1105,8 +1114,8 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
                   label="Meta Leads"
                   tone="accent"
                   icon={<Share2 size={18} />}
-                  onClick={() => { setMode('list'); changeSourceFilter(sourceFilter === 'meta_lead_ads' ? '' : 'meta_lead_ads'); }}
-                  active={sourceFilter === 'meta_lead_ads'}
+                  onClick={() => { setMode('list'); changeSourceFilter(toggleTileValue(sourceFilter, 'meta_lead_ads')); }}
+                  active={sourceFilter.includes('meta_lead_ads')}
                 />
                 {/* Toggles, like every other tile here — it only ever switched
                     the filter on, so a second tap on the tile you'd just used
@@ -1126,9 +1135,9 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
                     label="To Assign"
                     tone="warning"
                     icon={<UserPlus size={20} />}
-                    onClick={() => { setMode('list'); setAssigneeFilter(FILTER_UNASSIGNED); }}
-                    active={assigneeFilter === FILTER_UNASSIGNED}
-                    ariaPressed={assigneeFilter === FILTER_UNASSIGNED}
+                    onClick={() => { setMode('list'); setAssigneeFilter([FILTER_UNASSIGNED]); }}
+                    active={assigneeFilter.includes(FILTER_UNASSIGNED)}
+                    ariaPressed={assigneeFilter.includes(FILTER_UNASSIGNED)}
                   />
                 )}
                 {/* Reps get the mirror image — what has been routed to them. */}
@@ -1138,9 +1147,9 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
                     label="Assigned To Me"
                     tone="info"
                     icon={<UserCheck size={20} />}
-                    onClick={() => { setMode('list'); setAssigneeFilter(FILTER_MINE); }}
-                    active={assigneeFilter === FILTER_MINE}
-                    ariaPressed={assigneeFilter === FILTER_MINE}
+                    onClick={() => { setMode('list'); setAssigneeFilter([FILTER_MINE]); }}
+                    active={assigneeFilter.includes(FILTER_MINE)}
+                    ariaPressed={assigneeFilter.includes(FILTER_MINE)}
                   />
                 )}
               </>
@@ -1171,116 +1180,154 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
                 keeps every category visible with its count and still leaves
                 room when the next event is added. */}
             <div className={leadStyles.originRow} role="group" aria-label="Filter by source">
-              <button
-                type="button"
-                className={`${leadStyles.originChip} ${!originFilter ? leadStyles.originChipActive : ''}`}
-                aria-pressed={!originFilter}
+              <CommonChip
+                size="sm"
+                selected={!originFilter}
+                showCheck={false}
+                count={stats?.total ?? 0}
                 onClick={() => setOriginFilter('')}
               >
-                All <span className={leadStyles.originCount}>{stats?.total ?? 0}</span>
-              </button>
+                All
+              </CommonChip>
               {LEAD_ORIGIN_OPTIONS.map((o) => {
                 const n = originCounts.get(o.value) || 0;
                 return (
-                  <button
+                  <CommonChip
                     key={o.value}
-                    type="button"
-                    className={`${leadStyles.originChip} ${originFilter === o.value ? leadStyles.originChipActive : ''} ${n === 0 ? leadStyles.originChipEmpty : ''}`}
-                    aria-pressed={originFilter === o.value}
+                    size="sm"
+                    className={n === 0 ? leadStyles.originChipEmpty : undefined}
+                    selected={originFilter === o.value}
+                    showCheck={false}
+                    count={n}
                     onClick={() => setOriginFilter((v) => (v === o.value ? '' : o.value))}
                   >
-                    {o.label} <span className={leadStyles.originCount}>{n}</span>
-                  </button>
+                    {o.label}
+                  </CommonChip>
                 );
               })}
               {(originCounts.get(FILTER_UNSET) || 0) > 0 && (
-                <button
-                  type="button"
-                  className={`${leadStyles.originChip} ${originFilter === FILTER_UNSET ? leadStyles.originChipActive : ''}`}
-                  aria-pressed={originFilter === FILTER_UNSET}
+                <CommonChip
+                  size="sm"
+                  selected={originFilter === FILTER_UNSET}
+                  showCheck={false}
+                  count={originCounts.get(FILTER_UNSET)}
                   onClick={() => setOriginFilter((v) => (v === FILTER_UNSET ? '' : FILTER_UNSET))}
                   title="Captured before a source was recorded — worth cleaning up"
                 >
-                  {LEAD_ORIGIN_UNSET_LABEL} <span className={leadStyles.originCount}>{originCounts.get(FILTER_UNSET)}</span>
-                </button>
+                  {LEAD_ORIGIN_UNSET_LABEL}
+                </CommonChip>
               )}
             </div>
 
             <FilterBar>
-              <input type="text" placeholder="Search name, company, city, email, mobile..." value={q} onChange={(e) => setQ(e.target.value)} />
-              <Select auto value={priorityFilter} onChange={(e) => setPriorityFilter(e.target.value as LeadPriority | '')}>
-                <option value="">All priorities</option>
-                <option value="hot">Hot</option>
-                <option value="warm">Warm</option>
-                <option value="cool">Cold</option>
-              </Select>
-              <Select auto value={interestFilter} onChange={(e) => setInterestFilter(e.target.value as DomainKey | '')}>
-                <option value="">All interests</option>
-                {LEAD_DOMAIN_TILES.map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}
-              </Select>
-              <Select auto value={sourceFilter} onChange={(e) => changeSourceFilter(e.target.value as LeadSource | '')}>
-                <option value="">All capture methods</option>
-                <option value="meta_lead_ads">Meta Lead Ads</option>
-                <option value="manual">Manual</option>
-                <option value="business_card">Business Card</option>
-                <option value="csv_import">CSV Import</option>
-              </Select>
+              <SearchInput value={q} onChange={(v) => setQ(v)} placeholder="Search name, company, city, email, mobile..." />
+              <Dropdown
+                multiselect
+                value={priorityFilter}
+                onChange={(v) => setPriorityFilter(v as LeadPriority[])}
+                placeholder="All priorities"
+                label="Priority"
+                options={[
+                  { value: 'hot', label: 'Hot' },
+                  { value: 'warm', label: 'Warm' },
+                  { value: 'cool', label: 'Cold' },
+                ]}
+              />
+              <Dropdown
+                multiselect
+                value={interestFilter}
+                onChange={(v) => setInterestFilter(v as DomainKey[])}
+                placeholder="All interests"
+                label="Interest"
+                options={LEAD_DOMAIN_TILES.map((t) => ({ value: t.key, label: t.label }))}
+              />
+              <Dropdown
+                multiselect
+                value={sourceFilter}
+                onChange={(v) => changeSourceFilter(v as LeadSource[])}
+                placeholder="All capture methods"
+                label="Captured via"
+                options={[
+                  { value: 'meta_lead_ads', label: 'Meta Lead Ads' },
+                  { value: 'manual', label: 'Manual' },
+                  { value: 'business_card', label: 'Business Card' },
+                  { value: 'csv_import', label: 'CSV Import' },
+                ]}
+              />
               {/* Form and Campaign are the attribution that is actually
                   populated on a Meta lead, and they are the two columns the
                   table swaps in for this slice — so they are filterable from
                   here, and only here, where they mean something. */}
-              {sourceFilter === 'meta_lead_ads' && (
+              {metaOnly && (
                 <>
-                  <Select
-                    auto
+                  <Dropdown
+                    multiselect
                     className={leadStyles.metaFilterSelect}
                     value={metaFormFilter}
-                    onChange={(e) => setMetaFormFilter(e.target.value)}
-                    aria-label="Filter by Meta form"
-                  >
-                    <option value="">All forms</option>
-                    {metaFormOptions.map((f) => <option key={f} value={f}>{f}</option>)}
-                  </Select>
-                  <Select
-                    auto
+                    onChange={(v) => setMetaFormFilter(v)}
+                    placeholder="All forms"
+                    label="Form"
+                    ariaLabel="Filter by Meta form"
+                    options={metaFormOptions.map((f) => ({ value: f, label: f }))}
+                  />
+                  <Dropdown
+                    multiselect
                     className={leadStyles.metaFilterSelect}
                     value={metaCampaignFilter}
-                    onChange={(e) => setMetaCampaignFilter(e.target.value)}
-                    aria-label="Filter by Meta campaign"
-                  >
-                    <option value="">All campaigns</option>
-                    {metaCampaignOptions.map((c) => <option key={c} value={c}>{c}</option>)}
-                  </Select>
+                    onChange={(v) => setMetaCampaignFilter(v)}
+                    placeholder="All campaigns"
+                    label="Campaign"
+                    ariaLabel="Filter by Meta campaign"
+                    options={metaCampaignOptions.map((c) => ({ value: c, label: c }))}
+                  />
                 </>
               )}
-              <Select auto value={assigneeFilter} onChange={(e) => setAssigneeFilter(e.target.value)} aria-label="Filter by assignee">
-                <option value="">All assignees</option>
-                <option value={FILTER_UNASSIGNED}>Unassigned</option>
-                <option value={FILTER_MINE}>Assigned to me</option>
-                {(assignees || []).map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
-              </Select>
-              <Select auto value={callFilter} onChange={(e) => setCallFilter(e.target.value as CallFilter)} aria-label="Filter by call outcome">
-                <option value="">All call outcomes</option>
-                <option value="to-call">To call</option>
-                <option value="suitable">Suitable</option>
-                <option value="not_suitable">Not suitable</option>
-                <option value="callback-due">Call back due</option>
-              </Select>
-              <Select auto value={sortBy} onChange={(e) => setSortBy(e.target.value as 'newest' | 'oldest' | 'name')}>
-                <option value="newest">Newest first</option>
-                <option value="oldest">Oldest first</option>
-                <option value="name">Name (A-Z)</option>
-              </Select>
-              <SegmentedButton
-                active={unattendedOnly}
-                className={unattendedOnly ? leadStyles.unattendedActive : undefined}
-                onClick={() => setUnattendedOnly((v) => !v)}
-              >
+              <Dropdown
+                multiselect
+                value={assigneeFilter}
+                onChange={(v) => setAssigneeFilter(v)}
+                placeholder="All assignees"
+                label="Assignee"
+                ariaLabel="Filter by assignee"
+                options={[
+                  { value: FILTER_UNASSIGNED, label: 'Unassigned' },
+                  { value: FILTER_MINE, label: 'Assigned to me' },
+                  ...(assignees || []).map((a) => ({ value: a.id, label: a.name })),
+                ]}
+              />
+              <Dropdown
+                multiselect
+                value={callFilter}
+                onChange={(v) => setCallFilter(v as CallFilter[])}
+                placeholder="All call outcomes"
+                label="Call"
+                ariaLabel="Filter by call outcome"
+                options={[
+                  { value: 'to-call', label: 'To call' },
+                  { value: 'suitable', label: 'Suitable' },
+                  { value: 'not_suitable', label: 'Not suitable' },
+                  { value: 'callback-due', label: 'Call back due' },
+                ]}
+              />
+              <Dropdown
+                value={sortBy}
+                onChange={(v) => setSortBy(v as 'newest' | 'oldest' | 'name')}
+                clearable={false}
+                label="Sort"
+                ariaLabel="Sort leads"
+                options={[
+                  { value: 'newest', label: 'Newest first' },
+                  { value: 'oldest', label: 'Oldest first' },
+                  { value: 'name', label: 'Name (A-Z)' },
+                ]}
+              />
+              {/* A filter, so it looks like one: a toggle chip, not a button. */}
+              <CommonChip selected={unattendedOnly} onSelectedChange={setUnattendedOnly}>
                 Unattended only
-              </SegmentedButton>
-              <ToolbarButton onClick={() => loadLeads()}>Refresh</ToolbarButton>
+              </CommonChip>
               <ToolbarLink href="/api/leads/export.csv">Export CSV</ToolbarLink>
               <ToolbarButton onClick={() => window.print()}>Print</ToolbarButton>
+              <RefreshButton onRefresh={() => loadLeads()} loading={loading} label="Refresh leads" pushRight />
             </FilterBar>
             {!loading && !loadFailed && <div className={leadStyles.status}>{status}</div>}
 
@@ -1289,7 +1336,8 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
                 <span className={leadStyles.bulkCount}>
                   {selectedVisibleIds.length} lead{selectedVisibleIds.length === 1 ? '' : 's'} selected
                 </span>
-                <select
+                <Select
+                  auto
                   className={leadStyles.bulkSelect}
                   value={bulkAssigneeId}
                   onChange={(e) => setBulkAssigneeId(e.target.value)}
@@ -1299,25 +1347,24 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
                   {(assignees || []).map((a) => (
                     <option key={a.id} value={a.id}>{a.name}{a.designation ? ` · ${a.designation}` : ''}</option>
                   ))}
-                </select>
+                </Select>
                 <ToolbarButton primary onClick={handleBulkAssign} disabled={bulkBusy}>
                   {bulkBusy ? 'Assigning…' : bulkAssigneeId ? 'Assign' : 'Unassign'}
                 </ToolbarButton>
-                <button type="button" className={leadStyles.linkBtn} onClick={() => setSelectedIds(new Set())}>
+                <CommonButton variant="link" size="sm" onClick={() => setSelectedIds(new Set())}>
                   Clear selection
-                </button>
+                </CommonButton>
               </div>
             )}
 
             {loading ? (
-              <TableWrap><SkeletonRows rows={8} columns={columns.length} /></TableWrap>
+              <SkeletonTable rows={8} columns={columns.length} />
             ) : loadFailed ? (
               <ErrorState message="Could not load leads — check your connection and try again." onRetry={() => loadLeads()} />
             ) : (
-              // No capped-height/internal-scroll wrapper here (unlike Projects'
-              // .tableViewport) — with Email/Designation/Source/Captured-By
-              // gone and a per-page row count that fits a normal screen, the
-              // page itself is meant to be the only thing that ever scrolls.
+              // The list tab is a fill-the-screen page (AppShell fillPage): the
+              // table takes the remaining height and its rows scroll inside it,
+              // with the pager directly underneath.
               <Table
                 columns={columns}
                 rows={pageRows}
@@ -1328,13 +1375,25 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
                     icon={Contact}
                     title={stats?.total === 0 ? 'No leads captured yet' : 'No leads match your filters'}
                     message={stats?.total === 0 ? 'Scan a business card to capture your first lead.' : 'Try clearing a filter or search term.'}
-                    action={stats?.total === 0 ? <button type="button" className={leadStyles.primaryBtn} onClick={() => setMode('capture')}>Capture a Lead</button> : undefined}
+                    action={stats?.total === 0 ? <CommonButton variant="primary" size="md" onClick={() => setMode('capture')}>Capture a Lead</CommonButton> : undefined}
                   />
                 }
               />
             )}
 
-            <Pagination page={currentPage} totalPages={totalPages} onChange={setPage} />
+            <TablePager
+              page={currentPage}
+              pageSize={pageSize}
+              total={total}
+              noun="leads"
+              sizes={PAGE_SIZE_CHOICES}
+              allowAll={false}
+              onPageChange={setPage}
+              onPageSizeChange={(size) => {
+                setPageSize(size);
+                setPage(1);
+              }}
+            />
           </>
         )}
 
@@ -1640,15 +1699,14 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
             <Field label="Area of interest">
               <div className={historyStyles.pillWrap}>
                 {LEAD_DOMAIN_TILES.map((t) => (
-                  <button
+                  <CommonChip
                     key={t.key}
-                    type="button"
-                    aria-pressed={editForm.interests.includes(t.key)}
-                    className={`${historyStyles.pillBtn} ${editForm.interests.includes(t.key) ? historyStyles.pillBtnActive : ''}`}
+                    selected={editForm.interests.includes(t.key)}
+                    leadingIcon={<t.icon size={13} />}
                     onClick={() => toggleEditInterest(t.key)}
                   >
-                    <t.icon size={13} className={leadStyles.editIcon} />{t.label}
-                  </button>
+                    {t.label}
+                  </CommonChip>
                 ))}
               </div>
             </Field>
@@ -1660,15 +1718,13 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
                 <Field key={domain} label={`Which ${tile.label.toLowerCase()}?`}>
                   <div className={historyStyles.pillWrap}>
                     {options.map((opt) => (
-                      <button
+                      <CommonChip
                         key={opt}
-                        type="button"
-                        aria-pressed={editForm.subInterests.includes(opt)}
-                        className={`${historyStyles.pillBtn} ${editForm.subInterests.includes(opt) ? historyStyles.pillBtnActive : ''}`}
+                        selected={editForm.subInterests.includes(opt)}
                         onClick={() => toggleEditSubInterest(opt)}
                       >
                         {opt}
-                      </button>
+                      </CommonChip>
                     ))}
                   </div>
                 </Field>
@@ -1677,15 +1733,14 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
             <Field label="Follow-up action">
               <div className={historyStyles.pillWrap}>
                 {LEAD_FOLLOW_UP_ACTIONS.map((a) => (
-                  <button
+                  <CommonChip
                     key={a.tag}
-                    type="button"
-                    aria-pressed={editForm.followUpActions.includes(a.tag)}
-                    className={`${historyStyles.pillBtn} ${editForm.followUpActions.includes(a.tag) ? historyStyles.pillBtnActive : ''}`}
+                    selected={editForm.followUpActions.includes(a.tag)}
+                    leadingIcon={<a.icon size={13} />}
                     onClick={() => toggleEditFollowUp(a.tag)}
                   >
-                    <a.icon size={13} className={leadStyles.editIcon} />{a.tag}
-                  </button>
+                    {a.tag}
+                  </CommonChip>
                 ))}
               </div>
             </Field>
@@ -1694,15 +1749,13 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
                   the capture wizard's presets are one tap away. */}
               <div className={historyStyles.pillWrap}>
                 {LEAD_BUDGET_OPTIONS.map((b) => (
-                  <button
+                  <CommonChip
                     key={b}
-                    type="button"
-                    aria-pressed={editForm.budget === b}
-                    className={`${historyStyles.pillBtn} ${editForm.budget === b ? historyStyles.pillBtnActive : ''}`}
+                    selected={editForm.budget === b}
                     onClick={() => setEditForm((f) => ({ ...f, budget: f.budget === b ? '' : b }))}
                   >
                     {b}
-                  </button>
+                  </CommonChip>
                 ))}
               </div>
               <Input value={editForm.budget} placeholder="Or type a budget" onChange={(e) => setEditForm((f) => ({ ...f, budget: e.target.value }))} />

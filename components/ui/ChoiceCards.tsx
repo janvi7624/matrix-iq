@@ -3,7 +3,7 @@
 import type { LucideIcon } from 'lucide-react';
 import styles from './choiceCards.module.css';
 
-// Big, obvious "tap one" cards — replaces a <select> or small pill toggle
+// Big, obvious "tap one" cards — replaces a native select or small pill toggle
 // where people didn't know what to click. Same value/onChange contract as a
 // select, so swapping one in changes nothing about the surrounding logic.
 

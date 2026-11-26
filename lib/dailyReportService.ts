@@ -22,6 +22,7 @@ import { findLiveEditRequest } from './dailyReportEditRequestStore';
 import { buildWarningSummary, loadWarningStatusByDate, loadWarningKeys } from './dailyReportWarningStore';
 import { EligibleEmployee, employeeOwesDate, listEligibleEmployees } from './dailyReportEligibility';
 import { resolveDailyReportScope } from './dailyReportAccess';
+import { narrowDepartmentScope } from './dailyReportDepartmentFilter';
 import { addDays, isWorkingDay, istDate, missingIsVisibleYet, monthEnd, monthKey, monthStart, navigableWorkingDays, scheduleFor, workingDaysBetween } from './dailyReportTime';
 import { computeSalesAutoMatrix, mergeAutoMatrix } from './salesDailyAutoFetch';
 import { computeGemProposalEntries, mergeAutoGemEntries } from './gemProposalAutoFetch';
@@ -266,10 +267,32 @@ export async function buildMyDailyReportStatus(employeeId: string): Promise<MyDa
 
 export interface TeamFilters {
   date?: string;
-  departmentId?: string;
+  /** One department id or several (multi-select); each must be in the viewer's scope. */
+  departmentId?: string | string[];
   search?: string;
-  /** 'all' | 'submitted' | 'late' | 'missing' | 'leave' */
-  status?: string;
+  /**
+   * 'all' | 'submitted' | 'late' | 'missing' | 'leave' — or a list of them,
+   * which matches a row meeting ANY of them. Empty / 'all' = no filter.
+   */
+  status?: string | string[];
+}
+
+/** One Team status filter value against one row; unknown values match everything, as before. */
+function matchesTeamStatus(row: TeamDailyReportRow, status: string): boolean {
+  switch (status) {
+    case 'submitted':
+      // Tested positively, not as "not missing" — PENDING is also not
+      // missing, and it certainly is not submitted.
+      return SUBMITTED_STATUSES.includes(row.submission_status as (typeof SUBMITTED_STATUSES)[number]);
+    case 'late':
+      return row.submission_status === 'SUBMITTED_LATE' && row.leave_status !== 'APPROVED' && row.leave_status !== 'PENDING';
+    case 'missing':
+      return row.submission_status === 'MISSING' && !row.leave_status;
+    case 'leave':
+      return !!row.leave_status;
+    default:
+      return true;
+  }
 }
 
 /**
@@ -293,12 +316,13 @@ export async function buildTeamDailyReports(viewer: ViewerContext, filters: Team
 
   // Narrowing to one department is only ever allowed WITHIN the viewer's own
   // scope — a department id in the query string can't widen it.
-  const departmentIds = filters.departmentId && scope.departmentIds.includes(filters.departmentId) ? [filters.departmentId] : scope.departmentIds;
+  // Several ids may be asked for; each is checked against the scope.
+  const { departmentIds, narrowed } = narrowDepartmentScope(scope.departmentIds, filters.departmentId);
 
   // Direct reports are added only when the viewer has NOT narrowed to one
   // department: with a department picked, the list must mean that department
   // and nothing else, and a reportee in it is already included by it.
-  const extraUserIds = filters.departmentId ? [] : scope.manageUserIds;
+  const extraUserIds = narrowed ? [] : scope.manageUserIds;
   const employees = departmentIds.length || extraUserIds.length ? await listEligibleEmployees(departmentIds, extraUserIds) : [];
   const owed = employees.filter((e) => employeeOwesDate(e, reportDate));
   const employeeIds = owed.map((e) => e.id);
@@ -343,22 +367,11 @@ export async function buildTeamDailyReports(viewer: ViewerContext, filters: Team
   });
 
   const search = (filters.search ?? '').trim().toLowerCase();
+  const wantedStatuses = (Array.isArray(filters.status) ? filters.status : filters.status ? [filters.status] : []).filter((s) => s && s !== 'all');
   const filtered = rows.filter((row) => {
     if (search && !`${row.employee_name} ${row.employee_username} ${row.department_name}`.toLowerCase().includes(search)) return false;
-    switch (filters.status) {
-      case 'submitted':
-        // Tested positively, not as "not missing" — PENDING is also not
-        // missing, and it certainly is not submitted.
-        return SUBMITTED_STATUSES.includes(row.submission_status as (typeof SUBMITTED_STATUSES)[number]);
-      case 'late':
-        return row.submission_status === 'SUBMITTED_LATE' && row.leave_status !== 'APPROVED' && row.leave_status !== 'PENDING';
-      case 'missing':
-        return row.submission_status === 'MISSING' && !row.leave_status;
-      case 'leave':
-        return !!row.leave_status;
-      default:
-        return true;
-    }
+    // Several statuses are OR'd: "missing or late" is one question.
+    return wantedStatuses.length === 0 || wantedStatuses.some((s) => matchesTeamStatus(row, s));
   });
 
   // KPIs are computed over the UNFILTERED set: "4 missing" has to mean four
@@ -589,7 +602,8 @@ export interface TeamRangeFilters {
   from: string;
   to: string;
   label?: string;
-  departmentId?: string;
+  /** One department id or several (multi-select); each must be in the viewer's scope. */
+  departmentId?: string | string[];
   search?: string;
 }
 
@@ -601,12 +615,12 @@ export interface TeamRangeFilters {
  */
 export async function buildTeamDailyReportsRange(viewer: ViewerContext, filters: TeamRangeFilters): Promise<TeamDailyReportRangeResponse> {
   const scope = await resolveDailyReportScope(viewer);
-  const departmentIds = filters.departmentId && scope.departmentIds.includes(filters.departmentId) ? [filters.departmentId] : scope.departmentIds;
+  const { departmentIds, narrowed } = narrowDepartmentScope(scope.departmentIds, filters.departmentId);
   return computeDailyReportRangeSummary(departmentIds, filters.from, filters.to, {
     label: filters.label,
     search: filters.search,
-    // Same rule as the day view: only when no single department was picked.
-    extraUserIds: filters.departmentId ? [] : scope.manageUserIds
+    // Same rule as the day view: only when no department was picked.
+    extraUserIds: narrowed ? [] : scope.manageUserIds
   });
 }
 

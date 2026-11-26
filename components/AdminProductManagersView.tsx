@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import AppShell from './AppShell';
-import { SkeletonRows } from './ui/Skeleton';
+import { SkeletonTable } from './ui/Skeleton';
 import historyStyles from './quotationHistory.module.css';
 import { ProductManagerRollup } from '@/lib/types';
 
@@ -25,7 +25,7 @@ export default function AdminProductManagersView() {
   }, []);
 
   const content = !rows ? (
-    loadError ? <div className={historyStyles.loginError}>{loadError}</div> : <SkeletonRows rows={4} />
+    loadError ? <div className={historyStyles.loginError}>{loadError}</div> : <SkeletonTable rows={4} columns={5} />
   ) : (
     <div className={historyStyles.tableWrap}>
       <table className={historyStyles.table}>
@@ -49,7 +49,7 @@ export default function AdminProductManagersView() {
   );
 
   return (
-    <AppShell title="Product Managers" subtitle="Administration › every Product Manager's Pending/Won/Lost rollup">
+    <AppShell fillPage title="Product Managers" subtitle="Administration › every Product Manager's Pending/Won/Lost rollup">
       {content}
     </AppShell>
   );

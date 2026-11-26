@@ -1,23 +1,25 @@
 'use client';
 
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import Link from 'next/link';
-import { Users, ChevronDown, ChevronUp } from 'lucide-react';
+import { Users, ChevronDown, ChevronUp, Plus, Download, ArrowDown, ArrowUp } from 'lucide-react';
 import { ClientProject, LeadCallOutcome, ProjectPriority, ProjectStatus, UserRole } from '@/lib/types';
 // Type-only import — erased at compile time, so the store's server-side
 // Sequelize imports never reach this client bundle.
 import type { ClientMasterRow } from '@/lib/clientMasterStore';
 import type { ClientMasterStats, ClientMasterOptions } from '@/lib/clientMasterQuery';
 import { STAGE_LABEL } from '@/lib/projectStages';
+import { setListParam } from '@/lib/listParam';
 import AppShell from './AppShell';
+import CommonButton from './ui/CommonButton';
 import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
 import styles from './clientMaster.module.css';
-import { SkeletonRows } from './ui/Skeleton';
+import { Skeleton, SkeletonTable, SkeletonText } from './ui/Skeleton';
 import EmptyState from './ui/EmptyState';
 import ErrorState from './ui/ErrorState';
 import FilterBar from './ui/FilterBar';
-import Select from './ui/Select';
+import SearchInput from './ui/SearchInput';
+import Dropdown from './ui/Dropdown';
 import Input from './ui/Input';
 import PhoneInput from './ui/PhoneInput';
 import { Field, FieldRow } from './ui/Field';
@@ -29,7 +31,7 @@ import StatusBadge, { StatusTone } from './ui/StatusBadge';
 import PriorityBadge, { PriorityTone } from './ui/PriorityBadge';
 import Popover from './ui/Popover';
 import Drawer from './ui/Drawer';
-import Pagination from './ui/Pagination';
+import TablePager from './ui/TablePager';
 
 interface ClientMasterViewProps {
   currentUser: { username: string; role: UserRole };
@@ -38,6 +40,8 @@ interface ClientMasterViewProps {
 const EMPTY_ADD_FORM = { clientName: '', company: '', phone: '', email: '', address: '' };
 
 const PAGE_SIZE = 20;
+// Rows-per-page choices — the API clamps pageSize to 200 (lib/clientMasterQuery.ts).
+const PAGE_SIZE_CHOICES = [10, 20, 50, 100] as const;
 
 const STATUS_LABEL: Record<ProjectStatus, string> = { active: 'Active', on_hold: 'On Hold', won: 'Won', lost: 'Lost' };
 const STATUS_TONE: Record<ProjectStatus, StatusTone> = { active: 'confirmed', on_hold: 'pending', won: 'won', lost: 'lost' };
@@ -55,9 +59,9 @@ const CALL_OUTCOME_TONE: Record<Exclude<LeadCallOutcome, ''>, StatusTone> = {
 };
 
 type ActiveFilter = '' | 'has' | 'none';
-type HandlerFilter = '' | 'has' | 'none';
-type TypeFilter = '' | 'customer' | 'prospect';
-type OutcomeFilter = '' | 'not_called' | 'suitable' | 'not_suitable' | 'completed' | 'callback';
+type HandlerFilter = 'has' | 'none';
+type TypeFilter = 'customer' | 'prospect';
+type OutcomeFilter = 'not_called' | 'suitable' | 'not_suitable' | 'completed' | 'callback';
 type SortKey = 'name' | 'company' | 'owner' | 'projects' | 'updated' | 'created';
 
 const SORT_LABEL: Record<SortKey, string> = {
@@ -128,19 +132,21 @@ export default function ClientMasterView({ currentUser }: ClientMasterViewProps)
 
   const [searchInput, setSearchInput] = useState('');
   const [search, setSearch] = useState('');
-  const [companyFilter, setCompanyFilter] = useState('');
-  const [ownerFilter, setOwnerFilter] = useState('');
-  const [handlerNameFilter, setHandlerNameFilter] = useState('');
+  // Multi-select: an empty list means "no filter", several values are OR-ed.
+  const [companyFilter, setCompanyFilter] = useState<string[]>([]);
+  const [ownerFilter, setOwnerFilter] = useState<string[]>([]);
+  const [handlerNameFilter, setHandlerNameFilter] = useState<string[]>([]);
   const [activeFilter, setActiveFilter] = useState<ActiveFilter>('');
-  const [typeFilter, setTypeFilter] = useState<TypeFilter>('');
-  const [outcomeFilter, setOutcomeFilter] = useState<OutcomeFilter>('');
-  const [productHandlerFilter, setProductHandlerFilter] = useState<HandlerFilter>('');
+  const [typeFilter, setTypeFilter] = useState<TypeFilter[]>([]);
+  const [outcomeFilter, setOutcomeFilter] = useState<OutcomeFilter[]>([]);
+  const [productHandlerFilter, setProductHandlerFilter] = useState<HandlerFilter[]>([]);
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
 
   const [sortKey, setSortKey] = useState<SortKey>('updated');
   const [sortDesc, setSortDesc] = useState(true);
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState<number>(PAGE_SIZE);
   // `clients` now holds ONLY the current page. The totals, the KPI tiles and
   // the filter dropdowns are answered by the server from the whole directory,
   // because every one of them has to describe all 1343 rows, not the 20 on
@@ -199,19 +205,19 @@ export default function ClientMasterView({ currentUser }: ClientMasterViewProps)
     try {
       const params = new URLSearchParams();
       if (search) params.set('search', search);
-      if (companyFilter) params.set('company', companyFilter);
-      if (ownerFilter) params.set('owner', ownerFilter);
-      if (handlerNameFilter) params.set('handlerName', handlerNameFilter);
-      if (typeFilter) params.set('type', typeFilter);
-      if (outcomeFilter) params.set('outcome', outcomeFilter);
+      setListParam(params, 'company', companyFilter);
+      setListParam(params, 'owner', ownerFilter);
+      setListParam(params, 'handlerName', handlerNameFilter);
+      setListParam(params, 'type', typeFilter);
+      setListParam(params, 'outcome', outcomeFilter);
       if (activeFilter) params.set('active', activeFilter);
-      if (productHandlerFilter) params.set('handler', productHandlerFilter);
+      setListParam(params, 'handler', productHandlerFilter);
       if (dateFrom) params.set('dateFrom', dateFrom);
       if (dateTo) params.set('dateTo', dateTo);
       params.set('sortKey', sortKey);
       params.set('sortDesc', sortDesc ? '1' : '0');
       params.set('page', String(page));
-      params.set('pageSize', String(PAGE_SIZE));
+      params.set('pageSize', String(pageSize));
       // Ask for the dropdown lists only until we have them.
       if (haveOptions.current) params.set('options', '0');
       const response = await fetch(`/api/clients?${params.toString()}`);
@@ -230,7 +236,7 @@ export default function ClientMasterView({ currentUser }: ClientMasterViewProps)
     } finally {
       setLoading(false);
     }
-  }, [search, companyFilter, ownerFilter, handlerNameFilter, typeFilter, outcomeFilter, activeFilter, productHandlerFilter, dateFrom, dateTo, sortKey, sortDesc, page]);
+  }, [search, companyFilter, ownerFilter, handlerNameFilter, typeFilter, outcomeFilter, activeFilter, productHandlerFilter, dateFrom, dateTo, sortKey, sortDesc, page, pageSize]);
 
   // Client Master is a read-only directory derived from Project records and
   // from leads with no project (see lib/clientMasterStore.ts) — there's no
@@ -322,26 +328,29 @@ export default function ClientMasterView({ currentUser }: ClientMasterViewProps)
     }),
     [stats]
   );
+  // First load only — a refetch keeps the previous figures on screen.
+  const kpiPending = loading && !stats;
+  const kpiSkeleton = <Skeleton width={64} height={24} />;
 
   // The filter/search/sort that used to live here now runs on the server
   // (lib/clientMasterQuery.ts). It was moved rather than duplicated: two
   // copies of this logic would drift, and a filter that quietly disagrees
   // about which rows match is a data-visibility bug, not a cosmetic one.
 
-  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
   // Already the right page, already filtered and sorted, straight from the
   // server — no slicing left to do here.
   const pageRows = clients;
   const drawerClient = drawerKey ? clients.find((c) => c.key === drawerKey) : null;
 
   function clearAllFilters() {
-    setCompanyFilter('');
-    setOwnerFilter('');
-    setHandlerNameFilter('');
+    setCompanyFilter([]);
+    setOwnerFilter([]);
+    setHandlerNameFilter([]);
     setActiveFilter('');
-    setTypeFilter('');
-    setOutcomeFilter('');
-    setProductHandlerFilter('');
+    setTypeFilter([]);
+    setOutcomeFilter([]);
+    setProductHandlerFilter([]);
     setDateFrom('');
     setDateTo('');
     setSearchInput('');
@@ -358,7 +367,7 @@ export default function ClientMasterView({ currentUser }: ClientMasterViewProps)
   }
 
   const allColumns: TableColumn<ClientMasterRow>[] = [
-    { key: 'srNo', header: 'Sr. No.', render: (c) => (page - 1) * PAGE_SIZE + pageRows.indexOf(c) + 1 },
+    { key: 'srNo', header: 'Sr. No.', render: (c) => (page - 1) * pageSize + pageRows.indexOf(c) + 1 },
     {
       key: 'type',
       header: 'Type',
@@ -440,13 +449,15 @@ export default function ClientMasterView({ currentUser }: ClientMasterViewProps)
         if (primary?.altContactPhone) params.set('ncAltPhone', primary.altContactPhone);
         if (primary?.email) params.set('ncEmail', primary.email);
         return (
-          <Link
-            className={historyStyles.button}
+          <CommonButton
+            variant="secondary"
+            size="sm"
+            leadingIcon={<Plus />}
             href={`/projects?${params.toString()}`}
             onClick={(e) => e.stopPropagation()}
           >
-            + New Project
-          </Link>
+            New Project
+          </CommonButton>
         );
       }
     },
@@ -493,49 +504,54 @@ export default function ClientMasterView({ currentUser }: ClientMasterViewProps)
   const columns = allColumns.filter((c) => visibleColumns.has(c.key as ColumnKey));
 
   return (
-    <AppShell title="Client Master" subtitle="Every client and prospect — contact details, ownership, and who's handling which product.">
+    <AppShell fillPage title="Client Master" subtitle="Every client and prospect — contact details, ownership, and who's handling which product.">
       <div className={styles.statRow}>
-        <StatTile value={kpis.total} label="Total Clients" onClick={() => clearAllFilters()} tone="brand" />
+        <StatTile value={kpiPending ? kpiSkeleton : kpis.total} label="Total Clients" onClick={() => clearAllFilters()} tone="brand" />
         <StatTile
-          value={kpis.withActive}
+          value={kpiPending ? kpiSkeleton : kpis.withActive}
           label="Clients With Active Projects"
           tone="success"
           active={activeFilter === 'has'}
           onClick={() => {
-            setTypeFilter('');
+            setTypeFilter([]);
             setActiveFilter((v) => (v === 'has' ? '' : 'has'));
           }}
         />
         <StatTile
-          value={kpis.withoutActive}
+          value={kpiPending ? kpiSkeleton : kpis.withoutActive}
           label="No Active Projects"
           tone="warning"
           active={activeFilter === 'none'}
           onClick={() => {
-            setTypeFilter('');
+            setTypeFilter([]);
             setActiveFilter((v) => (v === 'none' ? '' : 'none'));
           }}
         />
         <StatTile
-          value={kpis.prospects}
+          value={kpiPending ? kpiSkeleton : kpis.prospects}
           label="Prospects (No Project Yet)"
           tone="accent"
-          active={typeFilter === 'prospect'}
+          active={typeFilter.length === 1 && typeFilter[0] === 'prospect'}
           onClick={() => {
             setActiveFilter('');
-            setTypeFilter((v) => (v === 'prospect' ? '' : 'prospect'));
+            setTypeFilter((v) => (v.length === 1 && v[0] === 'prospect' ? [] : ['prospect']));
           }}
         />
-        <StatTile value={kpis.addedThisMonth} label="Added This Month" tone="info" />
+        <StatTile value={kpiPending ? kpiSkeleton : kpis.addedThisMonth} label="Added This Month" tone="info" />
       </div>
 
       <div className={styles.ownershipToggleRow}>
-        <button type="button" className={calcStyles.btn} onClick={() => setShowAddForm(true)}>+ Add Client</button>
-        <button type="button" className={historyStyles.button} onClick={() => setShowOwnership((v) => !v)}>
-          {showOwnership ? 'Hide' : 'Show'} Client Ownership {showOwnership ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-        </button>
-        <a className={historyStyles.button} href="/api/clients/export.csv" download>Export CSV</a>
-        <button type="button" className={historyStyles.button} onClick={() => setShowColumnMenu((v) => !v)}>Columns</button>
+        <CommonButton variant="primary" leadingIcon={<Plus />} onClick={() => setShowAddForm(true)}>Add Client</CommonButton>
+        <CommonButton
+          variant="secondary"
+          trailingIcon={showOwnership ? <ChevronUp /> : <ChevronDown />}
+          aria-expanded={showOwnership}
+          onClick={() => setShowOwnership((v) => !v)}
+        >
+          {showOwnership ? 'Hide' : 'Show'} Client Ownership
+        </CommonButton>
+        <CommonButton variant="secondary" leadingIcon={<Download />} href="/api/clients/export.csv" native download>Export CSV</CommonButton>
+        <CommonButton variant="secondary" aria-expanded={showColumnMenu} onClick={() => setShowColumnMenu((v) => !v)}>Columns</CommonButton>
         {showColumnMenu && (
           <div className={styles.columnMenu}>
             {COLUMN_KEYS.map((key) => (
@@ -550,7 +566,9 @@ export default function ClientMasterView({ currentUser }: ClientMasterViewProps)
 
       {showOwnership && (
         <div className={styles.ownershipPanel}>
-          {ownerCounts.length === 0 ? (
+          {ownerCounts.length === 0 && !options && loading ? (
+            <SkeletonText lines={1} />
+          ) : ownerCounts.length === 0 ? (
             <span className={calcStyles.small}>No client owners found.</span>
           ) : (
             ownerCounts.map((o) => (
@@ -559,7 +577,7 @@ export default function ClientMasterView({ currentUser }: ClientMasterViewProps)
                 type="button"
                 className={styles.ownershipRow}
                 onClick={() => {
-                  setOwnerFilter((v) => (v === o.username ? '' : o.username));
+                  setOwnerFilter((v) => (v.length === 1 && v[0] === o.username ? [] : [o.username]));
                   setShowOwnership(false);
                 }}
               >
@@ -572,52 +590,83 @@ export default function ClientMasterView({ currentUser }: ClientMasterViewProps)
       )}
 
       <FilterBar>
-        <input type="text" placeholder="Search clients…" value={searchInput} onChange={(e) => setSearchInput(e.target.value)} />
-        <Select auto value={companyFilter} onChange={(e) => setCompanyFilter(e.target.value)}>
-          <option value="">All companies</option>
-          {distinctCompanies.map((c) => <option key={c} value={c}>{c}</option>)}
-        </Select>
-        <Select auto value={ownerFilter} onChange={(e) => setOwnerFilter(e.target.value)}>
-          <option value="">All owners</option>
-          {distinctOwners.map(([username, name]) => <option key={username} value={username}>{name}</option>)}
-        </Select>
-        <Select auto value={handlerNameFilter} onChange={(e) => setHandlerNameFilter(e.target.value)}>
-          <option value="">All product handlers</option>
-          {distinctHandlers.map((h) => <option key={h} value={h}>{h}</option>)}
-        </Select>
-        <Select auto value={productHandlerFilter} onChange={(e) => setProductHandlerFilter(e.target.value as HandlerFilter)}>
-          <option value="">Handler: any</option>
-          <option value="has">Has Product Handler</option>
-          <option value="none">No Product Handler</option>
-        </Select>
-        <Select
-          auto
+        <SearchInput value={searchInput} onChange={(v) => setSearchInput(v)} placeholder="Search clients…" />
+        <Dropdown
+          multiselect
+          value={companyFilter}
+          onChange={(v) => setCompanyFilter(v)}
+          placeholder="All companies"
+          label="Company"
+          options={distinctCompanies.map((c) => ({ value: c, label: c }))}
+        />
+        <Dropdown
+          multiselect
+          value={ownerFilter}
+          onChange={(v) => setOwnerFilter(v)}
+          placeholder="All owners"
+          label="Owner"
+          options={distinctOwners.map(([username, name]) => ({ value: username, label: name }))}
+        />
+        <Dropdown
+          multiselect
+          value={handlerNameFilter}
+          onChange={(v) => setHandlerNameFilter(v)}
+          placeholder="All product handlers"
+          label="Handler"
+          options={distinctHandlers.map((h) => ({ value: h, label: h }))}
+        />
+        <Dropdown
+          multiselect
+          value={productHandlerFilter}
+          onChange={(v) => setProductHandlerFilter(v as HandlerFilter[])}
+          placeholder="Handler: any"
+          label="Handler"
+          options={[
+            { value: 'has', label: 'Has Product Handler' },
+            { value: 'none', label: 'No Product Handler' },
+          ]}
+        />
+        <Dropdown
+          multiselect
           value={typeFilter}
-          onChange={(e) => {
-            setTypeFilter(e.target.value as TypeFilter);
+          onChange={(v) => {
+            setTypeFilter(v as TypeFilter[]);
             setActiveFilter('');
           }}
-        >
-          <option value="">Type: any</option>
-          <option value="customer">Customers (have projects)</option>
-          <option value="prospect">Prospects (lead only)</option>
-        </Select>
-        <Select auto value={outcomeFilter} onChange={(e) => setOutcomeFilter(e.target.value as OutcomeFilter)}>
-          <option value="">Call outcome: any</option>
-          <option value="not_called">Not called yet</option>
-          <option value="suitable">Suitable</option>
-          <option value="not_suitable">Not suitable</option>
-          <option value="completed">Not interested</option>
-          <option value="callback">Call back</option>
-        </Select>
+          placeholder="Type: any"
+          label="Type"
+          options={[
+            { value: 'customer', label: 'Customers (have projects)' },
+            { value: 'prospect', label: 'Prospects (lead only)' },
+          ]}
+        />
+        <Dropdown
+          multiselect
+          value={outcomeFilter}
+          onChange={(v) => setOutcomeFilter(v as OutcomeFilter[])}
+          placeholder="Call outcome: any"
+          label="Call outcome"
+          options={[
+            { value: 'not_called', label: 'Not called yet' },
+            { value: 'suitable', label: 'Suitable' },
+            { value: 'not_suitable', label: 'Not suitable' },
+            { value: 'completed', label: 'Not interested' },
+            { value: 'callback', label: 'Call back' },
+          ]}
+        />
         <Input auto type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} title="Created from" />
         <Input auto type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} title="Created to" />
-        <Select auto value={sortKey} onChange={(e) => setSortKey(e.target.value as SortKey)}>
-          {(Object.keys(SORT_LABEL) as SortKey[]).map((k) => <option key={k} value={k}>{SORT_LABEL[k]}</option>)}
-        </Select>
-        <button type="button" className={historyStyles.button} onClick={() => setSortDesc((v) => !v)}>
-          {sortDesc ? '↓ Desc' : '↑ Asc'}
-        </button>
+        <Dropdown
+          value={sortKey}
+          onChange={(v) => setSortKey(v as SortKey)}
+          clearable={false}
+          label="Sort"
+          ariaLabel="Sort clients"
+          options={(Object.keys(SORT_LABEL) as SortKey[]).map((k) => ({ value: k, label: SORT_LABEL[k] }))}
+        />
+        <CommonButton variant="secondary" leadingIcon={sortDesc ? <ArrowDown /> : <ArrowUp />} onClick={() => setSortDesc((v) => !v)}>
+          {sortDesc ? 'Desc' : 'Asc'}
+        </CommonButton>
       </FilterBar>
 
       {!loading && !loadFailed && (
@@ -627,7 +676,7 @@ export default function ClientMasterView({ currentUser }: ClientMasterViewProps)
       )}
 
       {loading ? (
-        <div className={historyStyles.tableWrap}><SkeletonRows rows={8} columns={columns.length} /></div>
+        <SkeletonTable rows={8} columns={columns.length} />
       ) : loadFailed ? (
         <ErrorState message="Could not load the client directory — check your connection and try again." onRetry={load} />
       ) : (
@@ -643,7 +692,7 @@ export default function ClientMasterView({ currentUser }: ClientMasterViewProps)
                   icon={Users}
                   title={(stats?.totalClients ?? 0) === 0 ? 'No clients yet' : 'No clients match your search'}
                   message={(stats?.totalClients ?? 0) === 0 ? 'Clients appear here automatically as leads are captured and projects are created — or add one manually below.' : 'Try a different search or filter.'}
-                  action={(stats?.totalClients ?? 0) === 0 ? <button type="button" className={calcStyles.btn} onClick={() => setShowAddForm(true)}>+ Add Client</button> : undefined}
+                  action={(stats?.totalClients ?? 0) === 0 ? <CommonButton variant="primary" leadingIcon={<Plus />} onClick={() => setShowAddForm(true)}>Add Client</CommonButton> : undefined}
                 />
               }
             />
@@ -655,7 +704,7 @@ export default function ClientMasterView({ currentUser }: ClientMasterViewProps)
                 icon={Users}
                 title={(stats?.totalClients ?? 0) === 0 ? 'No clients yet' : 'No clients match your search'}
                 message={(stats?.totalClients ?? 0) === 0 ? 'Clients appear here automatically as leads are captured and projects are created — or add one manually below.' : 'Try a different search or filter.'}
-                action={(stats?.totalClients ?? 0) === 0 ? <button type="button" className={calcStyles.btn} onClick={() => setShowAddForm(true)}>+ Add Client</button> : undefined}
+                action={(stats?.totalClients ?? 0) === 0 ? <CommonButton variant="primary" leadingIcon={<Plus />} onClick={() => setShowAddForm(true)}>Add Client</CommonButton> : undefined}
               />
             ) : (
               pageRows.map((c) => {
@@ -684,7 +733,19 @@ export default function ClientMasterView({ currentUser }: ClientMasterViewProps)
             )}
           </div>
 
-          <Pagination page={page} totalPages={totalPages} onChange={setPage} />
+          <TablePager
+            page={Math.min(page, totalPages)}
+            pageSize={pageSize}
+            total={total}
+            noun="clients"
+            sizes={PAGE_SIZE_CHOICES}
+            allowAll={false}
+            onPageChange={setPage}
+            onPageSizeChange={(size) => {
+              setPageSize(size);
+              setPage(1);
+            }}
+          />
         </>
       )}
 
@@ -841,11 +902,11 @@ function ClientDetailDrawerBody({ client }: { client: ClientMasterRow }) {
       <div className={styles.drawerActions}>
         {mostRecentProject ? (
           <>
-            <Link className={historyStyles.button} href={`/projects/${mostRecentProject.id}`}>Open Client</Link>
-            <Link className={historyStyles.button} href={`/projects/${mostRecentProject.id}`}>Edit</Link>
+            <CommonButton variant="secondary" href={`/projects/${mostRecentProject.id}`}>Open Client</CommonButton>
+            <CommonButton variant="secondary" href={`/projects/${mostRecentProject.id}`}>Edit</CommonButton>
           </>
         ) : (
-          <Link className={historyStyles.button} href="/leads">Open Lead</Link>
+          <CommonButton variant="secondary" href="/leads">Open Lead</CommonButton>
         )}
       </div>
     </div>

@@ -1,7 +1,7 @@
 'use client';
 
-import calcStyles from '../calculator.module.css';
 import { useProjectLeads } from './useProjectLeads';
+import Select from './Select';
 
 interface ProjectLeadFieldProps {
   value: string;
@@ -18,9 +18,9 @@ interface ProjectLeadFieldProps {
 export default function ProjectLeadField({ value, onChange, required, disabled }: ProjectLeadFieldProps) {
   const leads = useProjectLeads();
   return (
-    <select className={calcStyles.formControl} required={required} disabled={disabled || !leads} value={value} onChange={(e) => onChange(e.target.value)}>
+    <Select required={required} disabled={disabled || !leads} value={value} onChange={(e) => onChange(e.target.value)}>
       <option value="">{!leads ? 'Loading…' : '— Select project lead —'}</option>
       {(leads || []).map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
-    </select>
+    </Select>
   );
 }

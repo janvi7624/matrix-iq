@@ -1,7 +1,6 @@
 'use client';
 
 import { FormEvent, useCallback, useEffect, useState } from 'react';
-import Link from 'next/link';
 import {
   SUPPORT_STATUS_LABEL,
   SupportActor,
@@ -10,9 +9,13 @@ import {
   transitionRequiresReason
 } from '@/lib/supportTicketWorkflow';
 import AppShell from './AppShell';
+import CommonButton from './ui/CommonButton';
+import PageBackButton from './ui/PageBackButton';
+import { SkeletonDetail } from './ui/Skeleton';
 import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
 import styles from './partnerPortal.module.css';
+import Select from '@/components/ui/Select';
 
 interface Comment {
   id: string;
@@ -154,8 +157,10 @@ export default function SupportTicketDetailView({ ticketId }: { ticketId: string
   if (!data) {
     return (
       <AppShell title="Support ticket" subtitle="Operations › technical support">
-        <div className={historyStyles.status}>{status}</div>
-        <Link className={historyStyles.button} href="/support">← All tickets</Link>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+          <PageBackButton fallbackRoute="/support" />
+        </div>
+        {status === 'Loading...' ? <SkeletonDetail panels={2} pairs={6} withTopRow={false} /> : <div className={historyStyles.status}>{status}</div>}
       </AppShell>
     );
   }
@@ -166,8 +171,8 @@ export default function SupportTicketDetailView({ ticketId }: { ticketId: string
 
   return (
     <AppShell title={`${ticket.ticket_number} — ${ticket.title}`} subtitle="Operations › technical support">
-      <div style={{ marginBottom: 12 }}>
-        <Link className={historyStyles.button} href="/support">← All tickets</Link>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+        <PageBackButton fallbackRoute="/support" />
       </div>
       {error && <div className={historyStyles.loginError}>{error}</div>}
 
@@ -195,34 +200,34 @@ export default function SupportTicketDetailView({ ticketId }: { ticketId: string
               <>
                 <div className={calcStyles.field}>
                   <label className={calcStyles.label}>Assign to</label>
-                  <select className={calcStyles.formControl} value={ticket.assignee_id} onChange={(e) => patch({ assigneeId: e.target.value })}>
+                  <Select value={ticket.assignee_id} onChange={(e) => patch({ assigneeId: e.target.value })}>
                     <option value="">Unassigned</option>
                     {engineers.map((u) => (
                       <option key={u.id} value={u.id}>{u.name}</option>
                     ))}
-                  </select>
+                  </Select>
                 </div>
                 <div className={calcStyles.field}>
                   <label className={calcStyles.label}>Priority</label>
-                  <select className={calcStyles.formControl} value={ticket.priority} onChange={(e) => patch({ priority: e.target.value })}>
+                  <Select value={ticket.priority} onChange={(e) => patch({ priority: e.target.value })}>
                     {['low', 'medium', 'high', 'critical'].map((p) => (
                       <option key={p} value={p}>{p}</option>
                     ))}
-                  </select>
+                  </Select>
                   <span className={calcStyles.small}>Changing priority restamps the SLA targets from the ticket&apos;s creation time.</span>
                 </div>
               </>
             )}
             <div className={calcStyles.field}>
               <label className={calcStyles.label}>Move to</label>
-              <select className={calcStyles.formControl} value={pendingStatus} onChange={(e) => setPendingStatus(e.target.value as SupportTicketStatus)}>
+              <Select value={pendingStatus} onChange={(e) => setPendingStatus(e.target.value as SupportTicketStatus)}>
                 <option value="">Choose…</option>
                 {/* Only transitions this actor may actually make — the server
                     re-checks the same table, so this is convenience, not the gate. */}
                 {options.map((s) => (
                   <option key={s} value={s}>{SUPPORT_STATUS_LABEL[s]}</option>
                 ))}
-              </select>
+              </Select>
             </div>
           </div>
 
@@ -251,8 +256,8 @@ export default function SupportTicketDetailView({ ticketId }: { ticketId: string
                 </div>
               )}
               <div style={{ display: 'flex', gap: 8 }}>
-                <button type="button" className={calcStyles.btn} disabled={busy} onClick={applyStatus}>Apply</button>
-                <button type="button" className={historyStyles.button} onClick={() => setPendingStatus('')}>Cancel</button>
+                <CommonButton variant="primary" disabled={busy} onClick={applyStatus}>Apply</CommonButton>
+                <CommonButton onClick={() => setPendingStatus('')}>Cancel</CommonButton>
               </div>
             </>
           )}
@@ -306,7 +311,7 @@ export default function SupportTicketDetailView({ ticketId }: { ticketId: string
               <input type="checkbox" checked={commentInternal} onChange={(e) => setCommentInternal(e.target.checked)} />{' '}
               Internal note — not visible to the partner
             </label>
-            <button type="submit" className={calcStyles.btn} disabled={busy}>Post</button>
+            <CommonButton type="submit" variant="primary" disabled={busy}>Post</CommonButton>
           </form>
         )}
       </div>

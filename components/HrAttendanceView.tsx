@@ -4,10 +4,9 @@ import { useEffect, useState } from 'react';
 import { CalendarCheck } from 'lucide-react';
 import { AttendanceRecordEntry, AttendanceStatus } from '@/lib/types';
 import AppShell from './AppShell';
-import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
 import { useToast } from './ui/ToastProvider';
-import { SkeletonRows } from './ui/Skeleton';
+import { SkeletonTable } from './ui/Skeleton';
 import EmptyState from './ui/EmptyState';
 import ErrorState from './ui/ErrorState';
 import { Field } from './ui/Field';
@@ -94,7 +93,7 @@ export default function HrAttendanceView({ isHrManager }: HrAttendanceViewProps)
   if (loading) {
     return (
       <AppShell title="Attendance" subtitle="Daily presence register.">
-        <div className={historyStyles.tableWrap}><SkeletonRows rows={8} columns={2} /></div>
+        <SkeletonTable columns={columns.length} rows={8} />
       </AppShell>
     );
   }
@@ -107,7 +106,7 @@ export default function HrAttendanceView({ isHrManager }: HrAttendanceViewProps)
   }
 
   return (
-    <AppShell title="Attendance" subtitle="Daily presence register.">
+    <AppShell fillPage title="Attendance" subtitle="Daily presence register.">
       <div className={`${calcStyles.field} ${calcStyles.mt10}`} style={{ maxWidth: 220 }}>
         <Field label="Date">
           <Input type="date" max={todayIso()} value={date} onChange={(e) => setDate(e.target.value)} />

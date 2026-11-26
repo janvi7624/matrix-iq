@@ -3,7 +3,8 @@
 import { useEffect, useState } from 'react';
 import { CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { formatMoney, formatMoneyCompact } from '@/lib/format';
-import { SkeletonRows } from './ui/Skeleton';
+import { Skeleton } from './ui/Skeleton';
+import CommonChip from './ui/CommonChip';
 import styles from './departmentHealthDetail.module.css';
 
 // Target vs Achieved across the twelve months of a fiscal year — the
@@ -97,7 +98,12 @@ export default function TargetAchievementChart({ username }: { username: string 
     return <div className={styles.chartPanel}><div className={styles.chartEmpty}>{error}</div></div>;
   }
   if (!data) {
-    return <div className={styles.chartPanel}><SkeletonRows rows={3} columns={2} /></div>;
+    return (
+      <div className={styles.chartPanel}>
+        <Skeleton width="40%" height={16} style={{ marginBottom: 12 }} />
+        <Skeleton height={240} radius={8} />
+      </div>
+    );
   }
 
   return (
@@ -113,11 +119,11 @@ export default function TargetAchievementChart({ username }: { username: string 
         </div>
         <div className={styles.yearChips} role="group" aria-label="Fiscal year">
           {data.fiscalYearOptions.map((year) => (
-            <button
+            <CommonChip
               key={year}
-              type="button"
-              className={`${styles.yearChip} ${year === data.fiscalYear ? styles.yearChipActive : ''}`}
-              aria-pressed={year === data.fiscalYear}
+              size="sm"
+              selected={year === data.fiscalYear}
+              showCheck={false}
               onClick={() => {
                 if (year === data.fiscalYear) return;
                 setData(null);
@@ -126,7 +132,7 @@ export default function TargetAchievementChart({ username }: { username: string 
               }}
             >
               {year}
-            </button>
+            </CommonChip>
           ))}
         </div>
       </div>

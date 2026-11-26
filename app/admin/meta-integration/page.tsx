@@ -2,12 +2,16 @@
 
 import { useEffect, useState } from 'react';
 import { MetaAssignmentMode, MetaCampaignRoute, MetaIntegrationConfigRecord } from '@/lib/types';
+import { Plus, RefreshCw } from 'lucide-react';
 import AppShell from '@/components/AppShell';
+import CommonButton from '@/components/ui/CommonButton';
+import { SkeletonForm, SkeletonText } from '@/components/ui/Skeleton';
 import styles from '@/components/quotationHistory.module.css';
 import calcStyles from '@/components/calculator.module.css';
 import { useToast } from '@/components/ui/ToastProvider';
 import pageStyles from './metaIntegrationPage.module.css';
 import { fetchCached } from '@/lib/fetchCached';
+import Select from '@/components/ui/Select';
 
 interface CredentialStatus {
   appId: boolean;
@@ -167,7 +171,14 @@ export default function MetaIntegrationPage() {
 
   return (
     <AppShell title="Meta Lead Integration" subtitle="Administration › connect Facebook &amp; Instagram Lead Ads to Lead Capture / Inquiry.">
-      <div className={styles.status}>{status}</div>
+      {!config && status === 'Loading...' ? (
+        <>
+          <div className={calcStyles.sectionPanel}><SkeletonText lines={4} /></div>
+          <div className={calcStyles.sectionPanel}><SkeletonForm fields={4} /></div>
+        </>
+      ) : (
+        <div className={styles.status}>{status === 'Loading...' ? '' : status}</div>
+      )}
       {config && credentials && (
         <>
           <h2 className={`${calcStyles.h2} ${calcStyles.h2Flush}`}>Connection Status</h2>
@@ -192,9 +203,9 @@ export default function MetaIntegrationPage() {
                 </div>
               ))}
             </div>
-            <button type="button" className={calcStyles.btn} disabled={testing} onClick={handleTestConnection}>
-              {testing ? 'Testing…' : 'Test Connection'}
-            </button>
+            <CommonButton variant="primary" loading={testing} loadingLabel="Testing…" onClick={handleTestConnection}>
+              Test Connection
+            </CommonButton>
             {testResult && (
               <div className={pageStyles.testResultsList}>
                 {testResult.checks.map((c) => (
@@ -233,31 +244,31 @@ export default function MetaIntegrationPage() {
           <div className={calcStyles.sectionPanel}>
             <div className={`${calcStyles.field} ${pageStyles.assignModeField}`}>
               <label className={calcStyles.label}>Assignment mode</label>
-              <select className={calcStyles.formControl} value={assignmentMode} onChange={(e) => setAssignmentMode(e.target.value as MetaAssignmentMode)}>
+              <Select value={assignmentMode} onChange={(e) => setAssignmentMode(e.target.value as MetaAssignmentMode)}>
                 <option value="fixed">Fixed — all Meta leads go to one person</option>
                 <option value="round_robin">Round-robin — rotate between selected Sales users</option>
                 <option value="campaign">Campaign-based — route by Meta Campaign ID</option>
-              </select>
+              </Select>
             </div>
 
             <div className={`${calcStyles.row} ${calcStyles.columns} ${calcStyles.mb12}`}>
               <div className={calcStyles.field}>
                 <label className={calcStyles.label}>Default department</label>
-                <select className={calcStyles.formControl} value={defaultDepartmentId} onChange={(e) => setDefaultDepartmentId(e.target.value)}>
+                <Select value={defaultDepartmentId} onChange={(e) => setDefaultDepartmentId(e.target.value)}>
                   <option value="">— None —</option>
                   {departments.map((d) => (
                     <option key={d.id} value={d.id}>{d.name}</option>
                   ))}
-                </select>
+                </Select>
               </div>
               <div className={calcStyles.field}>
                 <label className={calcStyles.label}>Default owner {assignmentMode === 'fixed' ? '(used for every Meta lead)' : '(fallback when no other rule matches)'}</label>
-                <select className={calcStyles.formControl} value={defaultOwnerId} onChange={(e) => setDefaultOwnerId(e.target.value)}>
+                <Select value={defaultOwnerId} onChange={(e) => setDefaultOwnerId(e.target.value)}>
                   <option value="">— Unassigned —</option>
                   {users.map((u) => (
                     <option key={u.id} value={u.id}>{u.name || u.username} ({u.username})</option>
                   ))}
-                </select>
+                </Select>
               </div>
             </div>
 
@@ -289,8 +300,7 @@ export default function MetaIntegrationPage() {
                       value={row.campaignId}
                       onChange={(e) => setCampaignRows((prev) => prev.map((r, idx) => (idx === i ? { ...r, campaignId: e.target.value } : r)))}
                     />
-                    <select
-                      className={calcStyles.formControl}
+                    <Select
                       value={row.ownerId}
                       onChange={(e) => setCampaignRows((prev) => prev.map((r, idx) => (idx === i ? { ...r, ownerId: e.target.value } : r)))}
                     >
@@ -298,19 +308,19 @@ export default function MetaIntegrationPage() {
                       {users.map((u) => (
                         <option key={u.id} value={u.id}>{u.name || u.username}</option>
                       ))}
-                    </select>
-                    <button type="button" className={styles.button} onClick={() => setCampaignRows((prev) => prev.filter((_, idx) => idx !== i))}>Remove</button>
+                    </Select>
+                    <CommonButton variant="destructive" size="sm" onClick={() => setCampaignRows((prev) => prev.filter((_, idx) => idx !== i))}>Remove</CommonButton>
                   </div>
                 ))}
-                <button type="button" className={styles.button} onClick={() => setCampaignRows((prev) => [...prev, { campaignId: '', ownerId: '' }])}>
-                  + Add campaign mapping
-                </button>
+                <CommonButton variant="secondary" size="sm" leadingIcon={<Plus />} onClick={() => setCampaignRows((prev) => [...prev, { campaignId: '', ownerId: '' }])}>
+                  Add campaign mapping
+                </CommonButton>
               </div>
             )}
 
-            <button type="button" className={calcStyles.btn} disabled={saving} onClick={handleSaveAssignment}>
-              {saving ? 'Saving…' : 'Save Assignment Rules'}
-            </button>
+            <CommonButton variant="primary" loading={saving} loadingLabel="Saving…" onClick={handleSaveAssignment}>
+              Save Assignment Rules
+            </CommonButton>
           </div>
 
           <h2 className={calcStyles.h2}>Sync Meta Leads</h2>
@@ -321,9 +331,9 @@ export default function MetaIntegrationPage() {
             <div className={pageStyles.lastSyncText}>
               <strong>Last Sync:</strong> {formatDateTime(config.lastSuccessfulSyncAt)}
             </div>
-            <button type="button" className={calcStyles.btn} disabled={syncing} onClick={handleSyncNow}>
-              {syncing ? 'Syncing…' : 'Sync Now'}
-            </button>
+            <CommonButton variant="primary" leadingIcon={<RefreshCw />} loading={syncing} loadingLabel="Syncing…" onClick={handleSyncNow}>
+              Sync Now
+            </CommonButton>
             {syncResult && (
               <div className={pageStyles.syncResultText}>
                 {syncResult.total === 0 ? 'Nothing pending — everything is already up to date.' : `${syncResult.processed} imported/merged, ${syncResult.skipped} already up to date, ${syncResult.failed} failed (of ${syncResult.total} events).`}

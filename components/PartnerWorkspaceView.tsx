@@ -1,7 +1,8 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import Link from 'next/link';
+import CommonButton from './ui/CommonButton';
+import { SkeletonTable } from './ui/Skeleton';
 import { AlertTriangle, CheckCircle2, Clock, Plus } from 'lucide-react';
 import { PartnerRecord } from '@/lib/types';
 import { PARTNER_DOCUMENT_KINDS } from '@/lib/partnerOnboarding';
@@ -105,10 +106,13 @@ export default function PartnerWorkspaceView() {
 
   return (
     <AppShell
+      fillPage
       title="Partner"
       subtitle={seesAll ? 'Every partner account, and what each one is waiting on.' : 'Your partners, and what each one is waiting on.'}
     >
-      {status ? (
+      {status === 'Loading…' ? (
+        <SkeletonTable columns={6} rows={6} />
+      ) : status ? (
         <div className={calcStyles.sectionPanel}><p className={calcStyles.small}>{status}</p></div>
       ) : (
         <>
@@ -122,9 +126,9 @@ export default function PartnerWorkspaceView() {
               )}
             </div>
             {canCreate && (
-              <Link href="/partners/new" className={`${historyStyles.button} ${historyStyles.primary}`}>
-                <Plus size={15} /> New partner
-              </Link>
+              <CommonButton href="/partners/new" variant="primary" leadingIcon={<Plus />}>
+                New partner
+              </CommonButton>
             )}
           </div>
 
@@ -132,7 +136,7 @@ export default function PartnerWorkspaceView() {
             <div className={calcStyles.sectionPanel}>
               <p className={calcStyles.small}>
                 {canCreate
-                  ? 'No partners yet. Create one, then issue their portal login — they upload their Agreement, NDA and Payment Agreement, and you approve them here.'
+                  ? 'No partners yet. Create one, then issue their portal login — they upload their Agreement, NDA, GST and PAN, and you approve them here.'
                   : 'No partners are assigned to you yet. You will see a partner here once you are named as its relationship manager.'}
               </p>
             </div>
@@ -168,7 +172,7 @@ export default function PartnerWorkspaceView() {
                           </td>
                           <td>{partner.relationship_manager_name || partner.created_by_name || '—'}</td>
                           <td>
-                            <Link className={historyStyles.button} href={`/partners/${partner.id}`}>Open</Link>
+                            <CommonButton size="sm" href={`/partners/${partner.id}`}>Open</CommonButton>
                           </td>
                         </tr>
                       );

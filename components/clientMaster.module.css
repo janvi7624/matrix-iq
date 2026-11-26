@@ -114,7 +114,20 @@
 .drawerActions { display: flex; gap: 8px; }
 
 @media (max-width: 768px) {
-  .desktopOnly { display: none; }
+  /* !important: on the fill-the-screen page (641-768px) app/globals.css
+     turns a box holding the table wrapper into a flex column, which would
+     otherwise show the table next to the cards. */
+  .desktopOnly { display: none !important; }
   .cardList { display: flex; }
   .statRow { grid-template-columns: repeat(2, 1fr); }
+}
+
+/* Responsive: these rows hold controls or a title + actions. They wrap
+   onto a second line when the screen is too narrow for them, instead of
+   overflowing or crushing their neighbours. No effect when they fit. */
+.ownershipRow,
+.cardMetaRow,
+.drawerActions {
+    flex-wrap: wrap;
+    row-gap: 8px;
 }

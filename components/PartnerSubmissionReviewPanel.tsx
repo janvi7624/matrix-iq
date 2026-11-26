@@ -9,8 +9,10 @@ import {
   ReviewThreadEntry
 } from '@/lib/partnerReviewThread';
 import ReviewThread from './PartnerReviewThread';
+import CommonButton from './ui/CommonButton';
 import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
+import Select from './ui/Select';
 
 interface Props {
   project: ProjectRecord;
@@ -113,9 +115,9 @@ export default function PartnerSubmissionReviewPanel({ project, salesPeople, onR
 
       {!decision ? (
         <div style={{ display: 'flex', gap: 10, marginTop: 10, flexWrap: 'wrap' }}>
-          <button type="button" className={calcStyles.btn} onClick={() => setDecision('approved')}>Accept &amp; assign</button>
-          <button type="button" className={historyStyles.button} onClick={() => setDecision('info_requested')}>Request information</button>
-          <button type="button" className={historyStyles.button} onClick={() => setDecision('rejected')}>Decline</button>
+          <CommonButton variant="primary" size="md" onClick={() => setDecision('approved')}>Accept &amp; assign</CommonButton>
+          <CommonButton variant="secondary" size="md" onClick={() => setDecision('info_requested')}>Request information</CommonButton>
+          <CommonButton variant="destructive" size="md" onClick={() => setDecision('rejected')}>Decline</CommonButton>
         </div>
       ) : (
         <div style={{ marginTop: 12 }}>
@@ -123,12 +125,12 @@ export default function PartnerSubmissionReviewPanel({ project, salesPeople, onR
             <div className={`${calcStyles.row} ${calcStyles.columns}`}>
               <div className={calcStyles.field}>
                 <label className={calcStyles.label}>Assign to salesperson</label>
-                <select className={calcStyles.formControl} value={salesPersonId} onChange={(e) => setSalesPersonId(e.target.value)}>
+                <Select value={salesPersonId} onChange={(e) => setSalesPersonId(e.target.value)}>
                   <option value="">Choose…</option>
                   {salesPeople.map((u) => (
                     <option key={u.id} value={u.id}>{u.name || u.username}</option>
                   ))}
-                </select>
+                </Select>
               </div>
               <div className={calcStyles.field}>
                 <label className={calcStyles.label}>Approx. project value (₹)</label>
@@ -146,10 +148,10 @@ export default function PartnerSubmissionReviewPanel({ project, salesPeople, onR
             <textarea className={calcStyles.formControl} rows={3} value={remarks} onChange={(e) => setRemarks(e.target.value)} />
           </div>
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-            <button type="button" className={calcStyles.btn} disabled={busy} onClick={() => send(decision)}>
+            <CommonButton variant="primary" size="md" disabled={busy} onClick={() => send(decision)}>
               {busy ? 'Saving…' : decision === 'approved' ? 'Accept submission' : decision === 'rejected' ? 'Decline submission' : 'Send request'}
-            </button>
-            <button type="button" className={historyStyles.button} disabled={busy} onClick={() => { setDecision(null); setError(''); }}>Cancel</button>
+            </CommonButton>
+            <CommonButton variant="secondary" size="md" disabled={busy} onClick={() => { setDecision(null); setError(''); }}>Cancel</CommonButton>
           </div>
         </div>
       )}

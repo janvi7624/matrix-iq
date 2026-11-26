@@ -1,56 +1,17 @@
-/* Layout/interactive rules moved verbatim from components/leadAssignment.module.css
-   (.statBtn/.statActive/.statValue/.statWarning/.statInfo) — panel chrome
-   itself still comes from calculator.module.css's .sectionPanel, applied by
-   the caller alongside these classes, same composition the original markup
-   used. */
+/* StatTile renders through components/ui/StatCard (statCard.module.css owns
+   the card chrome, hover, arrow and selected states). Only the
+   StatTile-specific layout lives here. */
 
+/* StatTile was always used inside flex rows where each tile shares the row. */
 .statTile {
-    flex: 1;
-    min-width: 120px;
-    text-align: center;
+    flex: 1 1 auto;
+    /* At least wide enough for the whole value — a long amount must not
+       break or spill out of the tile. */
+    min-width: max(120px, min-content);
 }
 
-.statBtn {
-    composes: statTile;
-    cursor: pointer;
-    font: inherit;
-    color: inherit;
-    border: none;
-    border-radius: var(--mx-radius-md);
-    background: none;
-    transition: background var(--mx-duration-base) var(--mx-ease), box-shadow var(--mx-duration-base) var(--mx-ease);
-}
-.statBtn:hover { background: var(--mx-surface); box-shadow: var(--mx-shadow-sm); }
-/* Pressed + tinted, not a colored border with !important — same "selected =
-   carved in" language as everywhere else, and the tint alone already said
-   "this one's active" without needing a border to also say it. */
-.statActive { box-shadow: var(--mx-shadow-pressed-sm); background: var(--mx-brand-subtle); }
-
-.statValue {
-    font-size: var(--mx-text-stat);
-    font-weight: var(--mx-weight-bold);
-    display: flex;
+.inlineValue {
+    display: inline-flex;
     align-items: center;
-    justify-content: center;
     gap: 6px;
-    font-variant-numeric: tabular-nums;
-    /* A long value (a money total) used to render straight out of the tile:
-       as a centred flex container with no min-width:0, the text could not
-       shrink below its own intrinsic width and simply overflowed the box.
-       These three make it wrap inside the tile instead — the backstop even if
-       a caller passes something longer than expected. */
-    min-width: 0;
-    max-width: 100%;
-    overflow-wrap: anywhere;
 }
-.statSuccess { color: var(--mx-success); }
-.statDanger { color: var(--mx-danger); }
-.statWarning { color: var(--mx-warning); }
-.statInfo { color: var(--mx-info); }
-/* A second, distinct blue — the original Meta tile used --mx-blue-600
-   (#2563eb), not --mx-info (#1d4ed8), which Assigned-to-me already used.
-   Preserved as its own tone rather than unified, since collapsing them
-   would be a visual change beyond the one approved delta (Meta's active
-   border color) for this migration. */
-.statAccent { color: var(--mx-blue-600); }
-.statBrand { color: var(--mx-brand); }

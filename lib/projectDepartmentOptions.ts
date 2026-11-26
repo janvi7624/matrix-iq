@@ -121,6 +121,19 @@ export function departmentValueOf(
   return (project.departments?.length ?? 0) > 1 ? 0 : price;
 }
 
+// The same, for a multi-select department filter: the project's value across
+// ALL the chosen departments — the sum of each one's share, so a 50L AI+AV
+// deal filtered to AI and AV counts 27L + 23L, never 50L twice. An empty list
+// is "no filter" (the whole price), exactly like departmentValueOf(p, '').
+export function departmentsValueOf(
+  project: { approx_price: number | ''; departments?: readonly ProjectDepartment[]; department_amounts?: DepartmentAmounts },
+  filters: readonly ProjectDepartment[]
+): number {
+  const unique = Array.from(new Set(filters));
+  if (!unique.length) return departmentValueOf(project, '');
+  return unique.reduce((sum, d) => sum + departmentValueOf(project, d), 0);
+}
+
 /**
  * The "Projects by Department" summary the dashboard shows.
  *

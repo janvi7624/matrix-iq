@@ -7,10 +7,15 @@ import { DOMAIN_DISPLAY_NAME } from '@/lib/domainLabels';
 import DemoProductPicker from './DemoProductPicker';
 import type { DemoProductLine, DomainKey } from '@/lib/types';
 import WorkflowStepper, { StepperStep } from './ui/WorkflowStepper';
+import { Plus } from 'lucide-react';
 import PartnerShell from './PartnerShell';
+import CommonButton from './ui/CommonButton';
+import StatCard, { StatCardGrid } from './ui/StatCard';
+import { SkeletonCards } from './ui/Skeleton';
 import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
 import styles from './partnerPortal.module.css';
+import Select from '@/components/ui/Select';
 
 interface PartnerDemo {
   id: string;
@@ -161,21 +166,21 @@ export default function PartnerDemosView({ partner }: { partner: PartnerRecord }
           <div className={`${calcStyles.row} ${calcStyles.columns}`}>
             <div className={calcStyles.field}>
               <label className={calcStyles.label} htmlFor="dproject">Project</label>
-              <select id="dproject" className={calcStyles.formControl} value={form.projectId} onChange={(e) => setForm({ ...form, projectId: e.target.value })}>
+              <Select id="dproject" value={form.projectId} onChange={(e) => setForm({ ...form, projectId: e.target.value })}>
                 <option value="">— Select project —</option>
                 {projects.map((p) => (
                   <option key={p.id} value={p.id}>{p.reference} — {p.company || p.client_name}</option>
                 ))}
-              </select>
+              </Select>
             </div>
             <div className={calcStyles.field}>
               <label className={calcStyles.label} htmlFor="dquote">Quotation</label>
-              <select id="dquote" className={calcStyles.formControl} value={form.quotationId} onChange={(e) => setForm({ ...form, quotationId: e.target.value })}>
+              <Select id="dquote" value={form.quotationId} onChange={(e) => setForm({ ...form, quotationId: e.target.value })}>
                 <option value="">-- None / not linked yet --</option>
                 {quotations.map((q) => (
                   <option key={q.id} value={q.id}>{q.quotation_number}</option>
                 ))}
-              </select>
+              </Select>
             </div>
           </div>
 
@@ -197,10 +202,10 @@ export default function PartnerDemosView({ partner }: { partner: PartnerRecord }
 
           <div className={calcStyles.field}>
             <label className={calcStyles.label} htmlFor="dmode">How is the demo given?</label>
-            <select id="dmode" className={calcStyles.formControl} value={form.mode} onChange={(e) => setForm({ ...form, mode: e.target.value })}>
+            <Select id="dmode" value={form.mode} onChange={(e) => setForm({ ...form, mode: e.target.value })}>
               <option value="onsite">At the client&apos;s site — equipment is sent</option>
               <option value="virtual">Online — screen share, nothing shipped</option>
-            </select>
+            </Select>
             {/* The same consequence the internal form spells out, so a
                 partner understands why an onsite demo takes longer. */}
             <span className={calcStyles.small}>
@@ -233,11 +238,11 @@ export default function PartnerDemosView({ partner }: { partner: PartnerRecord }
             </div>
             <div className={calcStyles.field}>
               <label className={calcStyles.label} htmlFor="dpriority">Priority</label>
-              <select id="dpriority" className={calcStyles.formControl} value={form.priority} onChange={(e) => setForm({ ...form, priority: e.target.value })}>
+              <Select id="dpriority" value={form.priority} onChange={(e) => setForm({ ...form, priority: e.target.value })}>
                 <option value="low">Low</option>
                 <option value="medium">Medium</option>
                 <option value="high">High</option>
-              </select>
+              </Select>
             </div>
           </div>
 
@@ -260,8 +265,8 @@ export default function PartnerDemosView({ partner }: { partner: PartnerRecord }
           </p>
 
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            <button type="submit" className={calcStyles.btn} disabled={busy}>{busy ? 'Submitting...' : 'Submit request'}</button>
-            <button type="button" className={historyStyles.button} onClick={() => { setShowForm(false); setError(''); }}>Cancel</button>
+            <CommonButton type="submit" variant="primary" loading={busy} loadingLabel="Submitting...">Submit request</CommonButton>
+            <CommonButton variant="secondary" onClick={() => { setShowForm(false); setError(''); }}>Cancel</CommonButton>
           </div>
         </form>
       ) : (
@@ -271,12 +276,16 @@ export default function PartnerDemosView({ partner }: { partner: PartnerRecord }
             Tell us what your customer wants to see and when suits them. We will confirm availability and assign the right
             technical person.
           </p>
-          <button type="button" className={calcStyles.btn} style={{ marginTop: 12 }} onClick={() => setShowForm(true)}>+ New demo request</button>
+          <CommonButton variant="primary" leadingIcon={<Plus />} style={{ marginTop: 12 }} onClick={() => setShowForm(true)}>New demo request</CommonButton>
         </section>
       )}
 
       <h3 className={styles.sectionHeading}>Your requests</h3>
-      {status && <div className={historyStyles.status}>{status}</div>}
+      {status === 'Loading...' ? (
+        <SkeletonCards count={3} minWidth={320} />
+      ) : (
+        status && <div className={historyStyles.status}>{status}</div>
+      )}
       {demos.map((d) => {
         const steps = buildSteps(d);
         return (
@@ -303,29 +312,26 @@ export default function PartnerDemosView({ partner }: { partner: PartnerRecord }
               <p className={calcStyles.small} style={{ marginTop: 10 }}>This request was cancelled.</p>
             )}
 
-            <div className={styles.statCardRow}>
-              <div className={styles.statCard}>
-                <span className={styles.statCardLabel}>Requested for</span>
-                <span className={styles.statCardValue}>
-                  {d.requested_date ? new Date(d.requested_date).toLocaleDateString('en-IN') : '—'}
-                </span>
-              </div>
-              <div className={styles.statCard}>
-                <span className={styles.statCardLabel}>Confirmed date</span>
-                <span className={styles.statCardValue}>
-                  {d.scheduled_at ? new Date(d.scheduled_at).toLocaleString('en-IN') : 'Not yet confirmed'}
-                </span>
-              </div>
-              <div className={styles.statCard}>
-                <span className={styles.statCardLabel}>Technical person</span>
-                <span className={styles.statCardValue}>
-                  {d.assigned_technical_person || 'Not yet assigned'}
-                  {/* Stated plainly so nobody asks the partner to pick: the
-                      sales person assigns, exactly as internally. */}
-                  <span className={styles.statCardSub}>Assigned by your sales contact</span>
-                </span>
-              </div>
-            </div>
+            <StatCardGrid style={{ marginBottom: 12 }}>
+              <StatCard
+                size="compact"
+                label="Requested for"
+                value={d.requested_date ? new Date(d.requested_date).toLocaleDateString('en-IN') : '—'}
+              />
+              <StatCard
+                size="compact"
+                label="Confirmed date"
+                value={d.scheduled_at ? new Date(d.scheduled_at).toLocaleString('en-IN') : 'Not yet confirmed'}
+              />
+              {/* Stated plainly so nobody asks the partner to pick: the
+                  sales person assigns, exactly as internally. */}
+              <StatCard
+                size="compact"
+                label="Technical person"
+                value={d.assigned_technical_person || 'Not yet assigned'}
+                sub="Assigned by your sales contact"
+              />
+            </StatCardGrid>
 
             {d.requirements && (
               <p className={calcStyles.small}><strong>What you asked for:</strong> {d.requirements}</p>
@@ -335,9 +341,9 @@ export default function PartnerDemosView({ partner }: { partner: PartnerRecord }
             )}
 
             {d.can_cancel && (
-              <button type="button" className={historyStyles.button} onClick={() => withdraw(d.id)}>
+              <CommonButton variant="destructive" size="sm" onClick={() => withdraw(d.id)}>
                 Withdraw request
-              </button>
+              </CommonButton>
             )}
           </div>
         );

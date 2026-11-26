@@ -120,13 +120,14 @@ export async function listAuditLog(entityType?: AuditLogEntry['entity_type'], en
 }
 
 export interface AuditLogFilters {
-  entityType?: AuditLogEntry['entity_type'];
+  /** One value or a list (any of them); an empty list means no filter. */
+  entityType?: AuditLogEntry['entity_type'] | AuditLogEntry['entity_type'][];
   entityId?: string;
   // Free text across the columns a person actually searches by: who did it,
   // what the action was, the remark, the record id, the IP.
   search?: string;
-  by?: string;
-  role?: string;
+  by?: string | string[];
+  role?: string | string[];
   // Inclusive 'YYYY-MM-DD' bounds on `at`.
   dateFrom?: string;
   dateTo?: string;
@@ -152,10 +153,16 @@ const MAX_PAGE_SIZE = 200;
 // with a total and facets, versus one record's full history.
 export async function searchAuditLog(filters: AuditLogFilters = {}): Promise<AuditLogPage> {
   const where: Record<string | symbol, unknown> = {};
-  if (filters.entityType) where.entity_type = filters.entityType;
+  // A single value or a list: equality for one, IN for several, nothing for none.
+  const oneOrMany = (column: string, v: string | string[] | undefined) => {
+    const list = (Array.isArray(v) ? v : v ? [v] : []).filter(Boolean);
+    if (list.length === 1) where[column] = list[0];
+    else if (list.length > 1) where[column] = { [Op.in]: list };
+  };
+  oneOrMany('entity_type', filters.entityType);
   if (filters.entityId) where.entity_id = filters.entityId;
-  if (filters.by) where.by = filters.by;
-  if (filters.role) where.role = filters.role;
+  oneOrMany('by', filters.by);
+  oneOrMany('role', filters.role);
 
   // A bare 'YYYY-MM-DD' "to" means the END of that day. Without the shift to
   // the next midnight, picking the same day for from and to matches nothing

@@ -3,10 +3,14 @@
 import { FormEvent, useCallback, useEffect, useState } from 'react';
 import { PartnerRecord } from '@/lib/types';
 import { SUPPORT_STATUS_LABEL, SupportTicketStatus } from '@/lib/supportTicketWorkflow';
+import { Plus } from 'lucide-react';
 import PartnerShell from './PartnerShell';
+import CommonButton from './ui/CommonButton';
+import { SkeletonList } from './ui/Skeleton';
 import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
 import styles from './partnerPortal.module.css';
+import Select from '@/components/ui/Select';
 
 interface Ticket {
   id: string;
@@ -62,6 +66,7 @@ export default function PartnerSupportView({ partner }: { partner: PartnerRecord
   const [form, setForm] = useState(EMPTY);
   const [openId, setOpenId] = useState<string | null>(null);
   const [comments, setComments] = useState<Comment[]>([]);
+  const [commentsLoading, setCommentsLoading] = useState(false);
   const [reply, setReply] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -100,10 +105,15 @@ export default function PartnerSupportView({ partner }: { partner: PartnerRecord
     }
     setOpenId(id);
     setComments([]);
-    const response = await fetch(`/api/partner/support/tickets/${id}`);
-    if (response.ok) {
-      const data = await response.json();
-      setComments(data.comments ?? []);
+    setCommentsLoading(true);
+    try {
+      const response = await fetch(`/api/partner/support/tickets/${id}`);
+      if (response.ok) {
+        const data = await response.json();
+        setComments(data.comments ?? []);
+      }
+    } finally {
+      setCommentsLoading(false);
     }
   }
 
@@ -181,9 +191,8 @@ export default function PartnerSupportView({ partner }: { partner: PartnerRecord
           {departments.length > 0 && (
             <div className={calcStyles.field}>
               <label className={calcStyles.label} htmlFor="sdept">Which department do you need help from? *</label>
-              <select
+              <Select
                 id="sdept"
-                className={calcStyles.formControl}
                 value={form.departmentId}
                 onChange={(e) => setForm({ ...form, departmentId: e.target.value })}
                 required
@@ -192,7 +201,7 @@ export default function PartnerSupportView({ partner }: { partner: PartnerRecord
                 {departments.map((d) => (
                   <option key={d.id} value={d.id}>{d.name}</option>
                 ))}
-              </select>
+              </Select>
               <p className={calcStyles.small}>
                 Goes straight to that department&rsquo;s manager, who will assign an engineer.
               </p>
@@ -201,29 +210,29 @@ export default function PartnerSupportView({ partner }: { partner: PartnerRecord
           <div className={`${calcStyles.row} ${calcStyles.columns}`}>
             <div className={calcStyles.field}>
               <label className={calcStyles.label} htmlFor="sty">Issue type</label>
-              <select id="sty" className={calcStyles.formControl} value={form.issueType} onChange={(e) => setForm({ ...form, issueType: e.target.value })}>
+              <Select id="sty" value={form.issueType} onChange={(e) => setForm({ ...form, issueType: e.target.value })}>
                 {ISSUE_TYPES.map((t) => (
                   <option key={t} value={t}>{t.replace('_', ' ')}</option>
                 ))}
-              </select>
+              </Select>
             </div>
             <div className={calcStyles.field}>
               <label className={calcStyles.label} htmlFor="sp">Business impact</label>
-              <select id="sp" className={calcStyles.formControl} value={form.priority} onChange={(e) => setForm({ ...form, priority: e.target.value })}>
+              <Select id="sp" value={form.priority} onChange={(e) => setForm({ ...form, priority: e.target.value })}>
                 <option value="low">Low — minor inconvenience</option>
                 <option value="medium">Medium — partially impaired</option>
                 <option value="high">High — major function unusable</option>
                 <option value="critical">Critical — system down</option>
-              </select>
+              </Select>
             </div>
             <div className={calcStyles.field}>
               <label className={calcStyles.label} htmlFor="sprj">Related project</label>
-              <select id="sprj" className={calcStyles.formControl} value={form.projectId} onChange={(e) => setForm({ ...form, projectId: e.target.value })}>
+              <Select id="sprj" value={form.projectId} onChange={(e) => setForm({ ...form, projectId: e.target.value })}>
                 <option value="">Not linked</option>
                 {projects.map((p) => (
                   <option key={p.id} value={p.id}>{p.reference} — {p.company}</option>
                 ))}
-              </select>
+              </Select>
             </div>
           </div>
           <div className={`${calcStyles.row} ${calcStyles.columns}`}>
@@ -259,8 +268,8 @@ export default function PartnerSupportView({ partner }: { partner: PartnerRecord
             <textarea id="sd" rows={5} className={calcStyles.formControl} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} required />
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
-            <button type="submit" className={calcStyles.btn} disabled={busy}>{busy ? 'Submitting...' : 'Raise ticket'}</button>
-            <button type="button" className={historyStyles.button} onClick={() => setShowForm(false)}>Cancel</button>
+            <CommonButton type="submit" variant="primary" loading={busy} loadingLabel="Submitting...">Raise ticket</CommonButton>
+            <CommonButton variant="secondary" onClick={() => setShowForm(false)}>Cancel</CommonButton>
           </div>
         </form>
       ) : (
@@ -269,12 +278,16 @@ export default function PartnerSupportView({ partner }: { partner: PartnerRecord
           <p className={styles.introSub}>
             Raise a ticket and our technical team will pick it up. You can follow progress and reply here.
           </p>
-          <button type="button" className={calcStyles.btn} style={{ marginTop: 12 }} onClick={() => setShowForm(true)}>+ New ticket</button>
+          <CommonButton variant="primary" leadingIcon={<Plus />} style={{ marginTop: 12 }} onClick={() => setShowForm(true)}>New ticket</CommonButton>
         </section>
       )}
 
       <h3 className={styles.sectionHeading}>Your tickets</h3>
-      {status && <div className={historyStyles.status}>{status}</div>}
+      {status === 'Loading...' ? (
+        <SkeletonList rows={3} avatar={false} />
+      ) : (
+        status && <div className={historyStyles.status}>{status}</div>
+      )}
 
       {tickets.map((t) => (
         <div key={t.id} className={calcStyles.sectionPanel}>
@@ -294,19 +307,20 @@ export default function PartnerSupportView({ partner }: { partner: PartnerRecord
               {t.root_cause && <p className={calcStyles.small}><strong>Root cause:</strong> {t.root_cause}</p>}
               <p className={calcStyles.small}>Is this fixed?</p>
               <div style={{ display: 'flex', gap: 8 }}>
-                <button type="button" className={calcStyles.btn} onClick={() => respond(t.id, 'closed')}>Yes, close it</button>
-                <button type="button" className={historyStyles.button} onClick={() => respond(t.id, 'reopened')}>No, still a problem</button>
+                <CommonButton variant="primary" size="sm" onClick={() => respond(t.id, 'closed')}>Yes, close it</CommonButton>
+                <CommonButton variant="secondary" size="sm" onClick={() => respond(t.id, 'reopened')}>No, still a problem</CommonButton>
               </div>
             </div>
           )}
 
-          <button type="button" className={historyStyles.button} style={{ marginTop: 10 }} onClick={() => openTicket(t.id)}>
+          <CommonButton variant="secondary" size="sm" style={{ marginTop: 10 }} onClick={() => openTicket(t.id)}>
             {openId === t.id ? 'Hide conversation' : 'View conversation'}
-          </button>
+          </CommonButton>
 
           {openId === t.id && (
             <div style={{ marginTop: 10 }}>
-              {comments.length === 0 && <p className={calcStyles.small}>No messages yet.</p>}
+              {commentsLoading && comments.length === 0 && <SkeletonList rows={2} avatar={false} boxed={false} />}
+              {!commentsLoading && comments.length === 0 && <p className={calcStyles.small}>No messages yet.</p>}
               {comments.map((c) => (
                 <div key={c.id} style={{ padding: '8px 0', borderBottom: '1px solid var(--mx-border)' }}>
                   <div className={calcStyles.small}><strong>{c.author_name}</strong> · {new Date(c.created_at).toLocaleString()}</div>
@@ -314,7 +328,7 @@ export default function PartnerSupportView({ partner }: { partner: PartnerRecord
                 </div>
               ))}
               <textarea className={calcStyles.formControl} rows={3} placeholder="Add a message..." value={reply} onChange={(e) => setReply(e.target.value)} style={{ marginTop: 10 }} />
-              <button type="button" className={calcStyles.btn} onClick={() => sendReply(t.id)} disabled={!reply.trim()}>Send</button>
+              <CommonButton variant="primary" size="sm" onClick={() => sendReply(t.id)} disabled={!reply.trim()}>Send</CommonButton>
             </div>
           )}
         </div>

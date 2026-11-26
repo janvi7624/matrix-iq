@@ -1,8 +1,8 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import Link from 'next/link';
-import { Building2, MapPin, Package, Users, FileText, ClipboardList, CheckCircle2, Search, Clock, Monitor } from 'lucide-react';
+import { Building2, MapPin, Package, Users, FileText, ClipboardList, CheckCircle2, Search, Clock, Monitor, ChevronLeft, ChevronRight, Plus } from 'lucide-react';
+import CommonButton from '@/components/ui/CommonButton';
 import { DomainKey, ProjectRecord, QuotationRecord, DemoScheduleRecord, SiteVisitRecord, VisitStage } from '@/lib/types';
 import { TECHNICAL_TEAM, SALES_TEAM } from '@/lib/teamMembers';
 import PhoneInput from '@/components/ui/PhoneInput';
@@ -16,6 +16,7 @@ import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
 import styles from './siteVisitWizard.module.css';
 import { todayDateInputValue } from '@/lib/dateHelpers';
+import Select from '@/components/ui/Select';
 
 export interface SiteVisitWizardForm {
   projectId: string;
@@ -247,22 +248,22 @@ export default function SiteVisitWizard({ visits, prefillProjectId, creating, on
             {successRecord.company_name} — {successRecord.project_id ? `linked to project ${successRecord.project_id}` : 'no project linked'}
           </div>
           <div className={historyStyles.successActions}>
-            <Link className={historyStyles.bigBtn} href={`/quotation${successRecord.project_id ? `?projectId=${successRecord.project_id}` : ''}`}>
-              <FileText size={16} className={styles.iconInline6} />Create Quotation
-            </Link>
-            <Link className={historyStyles.bigBtn} href={`/demo-schedule${successRecord.project_id ? `?projectId=${successRecord.project_id}` : ''}`}>
-              <Monitor size={16} className={styles.iconInline6} />Schedule Demo
-            </Link>
+            <CommonButton variant="primary" size="lg" leadingIcon={<FileText />} href={`/quotation${successRecord.project_id ? `?projectId=${successRecord.project_id}` : ''}`}>
+              Create Quotation
+            </CommonButton>
+            <CommonButton variant="primary" size="lg" leadingIcon={<Monitor />} href={`/demo-schedule${successRecord.project_id ? `?projectId=${successRecord.project_id}` : ''}`}>
+              Schedule Demo
+            </CommonButton>
             {successRecord.project_id && (
-              <Link className={historyStyles.bigBtnGhost} href={`/projects/${successRecord.project_id}`}>
-                <Clock size={16} className={styles.iconInline6} />View Timeline
-              </Link>
+              <CommonButton variant="outlined" size="lg" leadingIcon={<Clock />} href={`/projects/${successRecord.project_id}`}>
+                View Timeline
+              </CommonButton>
             )}
           </div>
           <div className={styles.mt24}>
-            <button type="button" className={historyStyles.bigBtnGhost} onClick={handleRegisterAnother}>
-              + Register Another Visit
-            </button>
+            <CommonButton variant="outlined" size="lg" leadingIcon={<Plus />} onClick={handleRegisterAnother}>
+              Register Another Visit
+            </CommonButton>
           </div>
         </div>
       </div>
@@ -381,12 +382,12 @@ export default function SiteVisitWizard({ visits, prefillProjectId, creating, on
             <div className={historyStyles.wizardCardHint}>Pick a category, then tick the specific products the client is interested in.</div>
             <div className={calcStyles.field}>
               <label className={calcStyles.label}>Category</label>
-              <select className={calcStyles.formControl} value={form.category} onChange={(e) => setForm((f) => ({ ...f, category: e.target.value as DomainKey | '', productsInterested: [] }))}>
+              <Select value={form.category} onChange={(e) => setForm((f) => ({ ...f, category: e.target.value as DomainKey | '', productsInterested: [] }))}>
                 <option value="">-- Select category --</option>
                 {(Object.keys(DOMAIN_DISPLAY_NAME) as DomainKey[]).map((k) => (
                   <option key={k} value={k}>{DOMAIN_DISPLAY_NAME[k]}</option>
                 ))}
-              </select>
+              </Select>
             </div>
             {form.category && (
               getDomainProducts(form.category).length > 0 ? (
@@ -486,17 +487,17 @@ export default function SiteVisitWizard({ visits, prefillProjectId, creating, on
         )}
 
         <div className={historyStyles.wizardNav}>
-          <button type="button" className={historyStyles.bigBtnGhost} onClick={goBack} disabled={step === 0}>
-            ← Back
-          </button>
+          <CommonButton variant="outlined" size="lg" leadingIcon={<ChevronLeft />} onClick={goBack} disabled={step === 0}>
+            Back
+          </CommonButton>
           {step < STEPS.length - 1 ? (
-            <button type="button" className={historyStyles.bigBtn} onClick={goNext}>
-              Next →
-            </button>
+            <CommonButton variant="primary" size="lg" trailingIcon={<ChevronRight />} onClick={goNext}>
+              Next
+            </CommonButton>
           ) : (
-            <button type="button" className={historyStyles.bigBtn} disabled={creating} onClick={handleSubmit}>
+            <CommonButton variant="primary" size="lg" disabled={creating} onClick={handleSubmit}>
               {creating ? 'Saving…' : 'Submit Site Visit'}
-            </button>
+            </CommonButton>
           )}
         </div>
       </div>

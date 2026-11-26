@@ -1,14 +1,21 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { ReactNode, useEffect, useMemo, useState } from 'react';
 import { CATALOGS, CatalogDef, CreateFieldDef, findCatalog, PriceFieldDef } from '@/lib/catalogRegistry';
 import { AI_SLAB_LABELS } from '@/lib/data/aiAnalytics';
 import { CatalogOverrideRow } from '@/lib/catalogOverrides';
+import { Plus } from 'lucide-react';
 import AppShell from '@/components/AppShell';
+import CommonButton from '@/components/ui/CommonButton';
+import SearchInput from '@/components/ui/SearchInput';
+import Dropdown from '@/components/ui/Dropdown';
 import historyStyles from '@/components/quotationHistory.module.css';
 import calcStyles from '@/components/calculator.module.css';
 import { useToast } from '@/components/ui/ToastProvider';
+import { SkeletonTable } from '@/components/ui/Skeleton';
 import pageStyles from '@/app/admin/product-catalog/productCatalogPage.module.css';
+import Select from '@/components/ui/Select';
+import TablePager, { usePagination } from './ui/TablePager';
 
 // Rendered tabs, in registry order, minus conference-accessory — that one
 // nests under "AV — Conferencing" as a sub-table instead of its own tab
@@ -127,9 +134,9 @@ function CatalogRow({ productKey, base, hasBase, override, catalog, onSave, onRe
       </td>
       <td>
         <div className={pageStyles.actionsRow6}>
-          <button type="button" className={historyStyles.button} disabled={saving} onClick={handleSave}>{saving ? 'Saving…' : 'Save'}</button>
+          <CommonButton variant="primary" size="sm" disabled={saving} onClick={handleSave}>{saving ? 'Saving…' : 'Save'}</CommonButton>
           {override && (
-            <button type="button" className={historyStyles.deleteBtn} onClick={() => onReset(override.id)}>{hasBase ? 'Reset' : 'Delete'}</button>
+            <CommonButton variant="destructive" size="sm" onClick={() => onReset(override.id)}>{hasBase ? 'Reset' : 'Delete'}</CommonButton>
           )}
         </div>
       </td>
@@ -226,11 +233,11 @@ function NewProductForm({ catalog, existingKeys, conferenceKeys, onCreate, onDon
       {catalog.keySource === 'parent-conference' ? (
         <div className={`${calcStyles.field} ${pageStyles.maxWidth320}`}>
           <label className={calcStyles.label}>Attach to camera</label>
-          <select className={calcStyles.formControl} value={parentKey} onChange={(e) => setParentKey(e.target.value)}>
+          <Select value={parentKey} onChange={(e) => setParentKey(e.target.value)}>
             {conferenceKeys.map((key) => (
               <option key={key} value={key}>{key}</option>
             ))}
-          </select>
+          </Select>
         </div>
       ) : (
         !keyFromDerivedField && (
@@ -274,11 +281,11 @@ function NewProductForm({ catalog, existingKeys, conferenceKeys, onCreate, onDon
             return (
               <div key={f.key} className={calcStyles.field}>
                 <label className={calcStyles.label}>{f.label}</label>
-                <select className={calcStyles.formControl} value={values[f.key] ?? f.options?.[0] ?? ''} onChange={(e) => setValues((prev) => ({ ...prev, [f.key]: e.target.value }))}>
+                <Select value={values[f.key] ?? f.options?.[0] ?? ''} onChange={(e) => setValues((prev) => ({ ...prev, [f.key]: e.target.value }))}>
                   {(f.options || []).map((opt) => (
                     <option key={opt} value={opt}>{opt}</option>
                   ))}
-                </select>
+                </Select>
               </div>
             );
           }
@@ -310,8 +317,8 @@ function NewProductForm({ catalog, existingKeys, conferenceKeys, onCreate, onDon
       {error && <div className={`${historyStyles.loginError} ${calcStyles.mt10}`}>{error}</div>}
 
       <div className={pageStyles.createActionsRow}>
-        <button type="button" className={historyStyles.button} disabled={saving} onClick={handleSubmit}>{saving ? 'Creating…' : 'Create Product'}</button>
-        <button type="button" className={historyStyles.button} onClick={onDone}>Cancel</button>
+        <CommonButton variant="primary" size="md" disabled={saving} onClick={handleSubmit}>{saving ? 'Creating…' : 'Create Product'}</CommonButton>
+        <CommonButton variant="secondary" size="md" onClick={onDone}>Cancel</CommonButton>
       </div>
     </div>
   );
@@ -323,11 +330,33 @@ interface ProductCatalogViewProps {
   embedded?: boolean;
 }
 
+/** A catalog table with the shared pager (20 rows a page) right under it. */
+function PagedCatalogTable({ items, head, renderRow, empty }: { items: string[]; head: ReactNode; renderRow: (key: string) => ReactNode; empty: ReactNode }) {
+  const pager = usePagination(items, 20);
+  return (
+    <>
+      <div className={historyStyles.tableWrap}>
+        <table className={historyStyles.table}>
+          <thead>{head}</thead>
+          <tbody>
+            {pager.rows.map(renderRow)}
+            {items.length === 0 && empty}
+          </tbody>
+        </table>
+      </div>
+      <TablePager {...pager.props} noun="products" />
+    </>
+  );
+}
+
 export default function ProductCatalogView({ embedded }: ProductCatalogViewProps = {}) {
   const toast = useToast();
   const [activeId, setActiveId] = useState(TAB_CATALOGS[0].id);
   const [overrides, setOverrides] = useState<OverrideRecord[]>([]);
   const [status, setStatus] = useState('Loading…');
+  // First-load flag: until the overrides arrive the tables would show base
+  // catalog values, so a skeleton stands in. Reloads after a save keep the table.
+  const [loaded, setLoaded] = useState(false);
   const [search, setSearch] = useState('');
   const [addingTo, setAddingTo] = useState<string | null>(null);
 
@@ -341,6 +370,8 @@ export default function ProductCatalogView({ embedded }: ProductCatalogViewProps
       setStatus('');
     } catch {
       setStatus('Could not load overrides. Refresh to try again.');
+    } finally {
+      setLoaded(true);
     }
   }
 
@@ -401,10 +432,14 @@ export default function ProductCatalogView({ embedded }: ProductCatalogViewProps
       return key.toLowerCase().includes(q) || name.toLowerCase().includes(q);
     });
 
+    if (!loaded) {
+      return <SkeletonTable columns={3 + (catalog.nameField ? 1 : 0) + catalog.priceFields.length} rows={6} />;
+    }
+
     return (
-      <div className={historyStyles.tableWrap}>
-        <table className={historyStyles.table}>
-          <thead>
+      <PagedCatalogTable
+        items={keys}
+        head={
             <tr>
               <th>Product Key</th>
               {catalog.nameField && <th>Name</th>}
@@ -414,9 +449,8 @@ export default function ProductCatalogView({ embedded }: ProductCatalogViewProps
               <th>Status</th>
               <th>Actions</th>
             </tr>
-          </thead>
-          <tbody>
-            {keys.map((key) => (
+        }
+        renderRow={(key) => (
               <CatalogRow
                 key={`${catalog.id}-${key}-${overrideByKey.get(`${catalog.id}::${key}`)?.id || 'base'}`}
                 productKey={key}
@@ -427,15 +461,13 @@ export default function ProductCatalogView({ embedded }: ProductCatalogViewProps
                 onSave={(productKey, name, fields) => handleSave(catalog.id, productKey, name, fields)}
                 onReset={handleReset}
               />
-            ))}
-            {keys.length === 0 && (
+        )}
+        empty={
               <tr>
                 <td colSpan={4 + catalog.priceFields.length} className={historyStyles.empty}>No products match.</td>
               </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+        }
+      />
     );
   }
 
@@ -451,7 +483,7 @@ export default function ProductCatalogView({ embedded }: ProductCatalogViewProps
             onDone={() => setAddingTo(null)}
           />
         ) : (
-          <button type="button" className={historyStyles.button} onClick={() => setAddingTo(catalog.id)}>+ Add New Product</button>
+          <CommonButton variant="secondary" size="md" leadingIcon={<Plus />} onClick={() => setAddingTo(catalog.id)}>Add New Product</CommonButton>
         )}
       </div>
     );
@@ -461,31 +493,52 @@ export default function ProductCatalogView({ embedded }: ProductCatalogViewProps
 
   const content = (
     <>
-        <div className={historyStyles.status}>{status}</div>
+        {loaded && <div className={historyStyles.status}>{status}</div>}
         <div className={historyStyles.status}>
           Changes here apply to every NEW quotation from now on — a quotation already saved keeps whatever price/name it had at the time it was created.
           Reset a product to return it to its original catalog value.
         </div>
 
         <div className={historyStyles.toolbar}>
-          <select
-            className={`${calcStyles.formControl} ${pageStyles.maxWidth320}`}
+          <Dropdown
+            className={pageStyles.maxWidth320}
             value={activeId}
-            onChange={(e) => {
-              setActiveId(e.target.value);
+            onChange={(v) => {
+              if (!v) return;
+              setActiveId(v);
               setAddingTo(null);
             }}
+            clearable={false}
+            label="Catalog"
+            ariaLabel="Catalog"
+            options={TAB_CATALOGS.map((c) => ({ value: c.id, label: c.label }))}
+          />
+          <SearchInput className={pageStyles.maxWidth260} placeholder="Search by key or name…" value={search} onChange={(v) => setSearch(v)} />
+          {/* Pinned to the far right of the toolbar. */}
+          <CommonButton
+            variant="primary"
+            size="md"
+            leadingIcon={<Plus />}
+            className={pageStyles.pushRight}
+            expanded={addingTo === activeCatalog.id}
+            onClick={() => setAddingTo(addingTo === activeCatalog.id ? null : activeCatalog.id)}
           >
-            {TAB_CATALOGS.map((c) => (
-              <option key={c.id} value={c.id}>{c.label}</option>
-            ))}
-          </select>
-          <input className={`${calcStyles.formControl} ${pageStyles.maxWidth260}`} placeholder="Search by key or name…" value={search} onChange={(e) => setSearch(e.target.value)} />
+            Add New Product
+          </CommonButton>
         </div>
+
+        {addingTo === activeCatalog.id && (
+          <NewProductForm
+            catalog={activeCatalog}
+            existingKeys={allKeysFor(activeCatalog.id)}
+            conferenceKeys={allKeysFor('conference')}
+            onCreate={(productKey, name, fields) => handleSave(activeCatalog.id, productKey, name, fields)}
+            onDone={() => setAddingTo(null)}
+          />
+        )}
 
         <h2 className={calcStyles.h2}>{activeCatalog.label}</h2>
         {renderCatalogTable(activeCatalog)}
-        {renderAddSection(activeCatalog)}
 
         {activeId === 'conference' && (
           <>
@@ -499,7 +552,7 @@ export default function ProductCatalogView({ embedded }: ProductCatalogViewProps
 
   if (embedded) return content;
   return (
-    <AppShell title="Product Catalog" subtitle="Administration › rename or reprice any AV, Robotics, AI Analytics & VisitIQ product used in quotations.">
+    <AppShell fillPage={activeId !== 'conference' && !addingTo} title="Product Catalog" subtitle="Administration › rename or reprice any AV, Robotics, AI Analytics & VisitIQ product used in quotations.">
       {content}
     </AppShell>
   );

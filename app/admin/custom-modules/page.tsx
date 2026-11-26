@@ -1,15 +1,21 @@
 'use client';
 
 import { FormEvent, useEffect, useState } from 'react';
-import Link from 'next/link';
+import { ArrowDown, ArrowUp, Blocks, ExternalLink, LayoutGrid, ListPlus, Pencil, Plus, Power, ShieldCheck, Trash2 } from 'lucide-react';
 import { CustomFieldDef, CustomFieldType, CustomModuleDef, RoleRecord, UserRole } from '@/lib/types';
 import { MODULE_ICON_OPTIONS, resolveModuleIcon } from '@/lib/icons';
 import AppShell from '@/components/AppShell';
+import CommonButton from '@/components/ui/CommonButton';
 import historyStyles from '@/components/quotationHistory.module.css';
 import calcStyles from '@/components/calculator.module.css';
 import { useToast } from '@/components/ui/ToastProvider';
 import { useConfirm } from '@/components/ui/ConfirmDialog';
 import pageStyles from './customModulesPage.module.css';
+import { SkeletonCards } from '@/components/ui/Skeleton';
+import AppLink from '@/components/ui/AppLink';
+import { refreshShellData } from '@/lib/shellDataStore';
+import RowActions from '@/components/ui/RowActions';
+import Select from '@/components/ui/Select';
 
 function iconOptionLabel(key: string): string {
   return key.split('-').map((w) => w[0].toUpperCase() + w.slice(1)).join(' ');
@@ -66,6 +72,10 @@ export default function CustomModuleBuilderPage() {
   const [formError, setFormError] = useState('');
   const toast = useToast();
   const confirm = useConfirm();
+
+  // First load only: a reload after an edit keeps the current rows on screen.
+  const firstLoad = status === 'Loading...' && modules.length === 0;
+  const loadFailed = status.startsWith('Could not');
 
   async function load() {
     setStatus('Loading...');
@@ -158,6 +168,8 @@ export default function CustomModuleBuilderPage() {
       }
       cancelEdit();
       await load();
+      // Custom modules appear in the sidebar — refresh the once-per-login menu.
+      void refreshShellData();
     } catch {
       setFormError('Could not reach the server.');
     } finally {
@@ -173,17 +185,17 @@ export default function CustomModuleBuilderPage() {
       return;
     }
     await load();
+    void refreshShellData();
   }
 
   async function toggleEnabled(m: CustomModuleDef) {
     await fetch(`/api/admin/custom-modules/${m.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ enabled: !m.enabled }) });
     await load();
+    void refreshShellData();
   }
 
   return (
     <AppShell title="Custom Module Builder" subtitle="Administration › create new business modules — fields, approval, and permissions — without writing code.">
-        <div className={historyStyles.status}>{status}</div>
-
         {editingId ? (
           <form className={calcStyles.sectionPanel} onSubmit={handleSave}>
             <h2 className={`${calcStyles.h2} ${calcStyles.h2Flush}`}>{editingId === 'new' ? 'New Module' : 'Edit Module'}</h2>
@@ -200,11 +212,11 @@ export default function CustomModuleBuilderPage() {
                     const Icon = resolveModuleIcon(form.icon);
                     return Icon ? <Icon size={18} /> : null;
                   })()}
-                  <select className={`${calcStyles.formControl} ${pageStyles.iconSelectNarrow}`} value={form.icon} onChange={(e) => setForm((f) => ({ ...f, icon: e.target.value }))}>
+                  <Select className={pageStyles.iconSelectNarrow} value={form.icon} onChange={(e) => setForm((f) => ({ ...f, icon: e.target.value }))}>
                     {MODULE_ICON_OPTIONS.map((key) => (
                       <option key={key} value={key}>{iconOptionLabel(key)}</option>
                     ))}
-                  </select>
+                  </Select>
                 </div>
               </div>
               <div className={calcStyles.field}>
@@ -220,10 +232,10 @@ export default function CustomModuleBuilderPage() {
               {form.requiresApproval && (
                 <div className={`${calcStyles.field} ${pageStyles.approverField}`}>
                   <label className={calcStyles.label}>Approver role</label>
-                  <select className={calcStyles.formControl} value={form.approverRole} onChange={(e) => setForm((f) => ({ ...f, approverRole: e.target.value as UserRole }))}>
+                  <Select value={form.approverRole} onChange={(e) => setForm((f) => ({ ...f, approverRole: e.target.value as UserRole }))}>
                     <option value="">Select role...</option>
                     {roles.map((r) => <option key={r.key} value={r.key}>{r.label}</option>)}
-                  </select>
+                  </Select>
                 </div>
               )}
               <label className={pageStyles.checkboxLabel13}>
@@ -242,18 +254,18 @@ export default function CustomModuleBuilderPage() {
                   </div>
                   <div className={calcStyles.field}>
                     <label className={calcStyles.label}>Type</label>
-                    <select className={calcStyles.formControl} value={field.type} onChange={(e) => updateField(index, { type: e.target.value as CustomFieldType })}>
+                    <Select value={field.type} onChange={(e) => updateField(index, { type: e.target.value as CustomFieldType })}>
                       {FIELD_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
-                    </select>
+                    </Select>
                   </div>
                   <label className={pageStyles.requiredCheckboxLabel}>
                     <input type="checkbox" checked={field.required} onChange={(e) => updateField(index, { required: e.target.checked })} />
                     Required
                   </label>
                   <div className={pageStyles.fieldActionsRow}>
-                    <button type="button" className={historyStyles.toggleBtn} disabled={index === 0} onClick={() => moveField(index, -1)}>↑</button>
-                    <button type="button" className={historyStyles.toggleBtn} disabled={index === form.fields.length - 1} onClick={() => moveField(index, 1)}>↓</button>
-                    <button type="button" className={historyStyles.deleteBtn} onClick={() => removeField(index)}>Remove</button>
+                    <CommonButton variant="outlined" size="sm" iconOnly leadingIcon={<ArrowUp />} aria-label="Move field up" disabled={index === 0} onClick={() => moveField(index, -1)} />
+                    <CommonButton variant="outlined" size="sm" iconOnly leadingIcon={<ArrowDown />} aria-label="Move field down" disabled={index === form.fields.length - 1} onClick={() => moveField(index, 1)} />
+                    <CommonButton variant="destructive" size="sm" onClick={() => removeField(index)}>Remove</CommonButton>
                   </div>
                 </div>
                 {OPTION_TYPES.includes(field.type) && (
@@ -269,59 +281,114 @@ export default function CustomModuleBuilderPage() {
                 )}
               </div>
             ))}
-            <button type="button" className={historyStyles.button} onClick={addField}>+ Add Field</button>
+            <CommonButton variant="secondary" size="md" leadingIcon={<Plus />} onClick={addField}>Add Field</CommonButton>
 
             <div className={pageStyles.saveActionsRow}>
-              <button type="submit" className={calcStyles.btn} disabled={saving}>{saving ? 'Saving...' : 'Save Module'}</button>
-              <button type="button" className={historyStyles.button} onClick={cancelEdit}>Cancel</button>
+              <CommonButton type="submit" variant="primary" size="md" disabled={saving}>{saving ? 'Saving...' : 'Save Module'}</CommonButton>
+              <CommonButton variant="secondary" size="md" onClick={cancelEdit}>Cancel</CommonButton>
             </div>
           </form>
         ) : (
-          <button type="button" className={calcStyles.btn} onClick={startCreate}>+ Create New Module</button>
-        )}
+          <>
+            {/* Header: what this is, how many, and the one primary action. */}
+            <div className={pageStyles.listHead}>
+              <div>
+                <h2 className={pageStyles.listTitle}>
+                  Your modules
+                  {!firstLoad && modules.length > 0 && <span className={pageStyles.countPill}>{modules.length}</span>}
+                </h2>
+                <p className={pageStyles.listSub}>Each module gets its own page in the sidebar, with the fields, approval step and access you set here.</p>
+              </div>
+              {modules.length > 0 && (
+                <CommonButton variant="primary" size="md" leadingIcon={<Plus />} onClick={startCreate}>
+                  Create New Module
+                </CommonButton>
+              )}
+            </div>
 
-        <h2 className={calcStyles.h2}>Your modules</h2>
-        <div className={historyStyles.tableWrap}>
-          <table className={historyStyles.table}>
-            <thead>
-              <tr>
-                <th>Icon</th>
-                <th>Name</th>
-                <th>Section</th>
-                <th>Fields</th>
-                <th>Approval</th>
-                <th>Enabled</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {modules.map((m) => {
-                const Icon = resolveModuleIcon(m.icon);
-                return (
-                <tr key={m.id}>
-                  <td>{Icon ? <Icon size={16} /> : m.icon}</td>
-                  <td>{m.name}</td>
-                  <td>{m.section}</td>
-                  <td>{m.fields.length}</td>
-                  <td>{m.requiresApproval ? `Yes (${m.approverRole})` : 'No'}</td>
-                  <td>
-                    <span className={`${historyStyles.statusPill} ${m.enabled ? historyStyles.statusPillActive : historyStyles.statusPillInactive}`}>{m.enabled ? 'Enabled' : 'Disabled'}</span>
-                  </td>
-                  <td>
-                    <div className={historyStyles.rowActionsInline}>
-                      <Link className={historyStyles.button} href={`/modules/${m.key}`}>Open</Link>
-                      <button type="button" className={historyStyles.button} onClick={() => startEdit(m)}>Edit</button>
-                      <button type="button" className={historyStyles.button} onClick={() => toggleEnabled(m)}>{m.enabled ? 'Disable' : 'Enable'}</button>
-                      <button type="button" className={historyStyles.deleteBtn} onClick={() => handleDelete(m)}>Delete</button>
-                    </div>
-                  </td>
-                </tr>
-                );
-              })}
-              {modules.length === 0 && <tr><td colSpan={7} className={historyStyles.empty}>No custom modules yet.</td></tr>}
-            </tbody>
-          </table>
-        </div>
+            {loadFailed && <div className={historyStyles.loginError}>{status}</div>}
+
+            {firstLoad ? (
+              <SkeletonCards count={3} />
+            ) : modules.length === 0 && !loadFailed ? (
+              /* Empty: explain what a module is in three steps, then one clear call to action. */
+              <div className={pageStyles.empty}>
+                <span className={pageStyles.emptyIcon} aria-hidden="true">
+                  <Blocks />
+                </span>
+                <h3 className={pageStyles.emptyTitle}>No custom modules yet</h3>
+                <p className={pageStyles.emptyText}>Build a new business module — like a Visitor Register or Asset Tracker — without writing code.</p>
+                <ol className={pageStyles.steps}>
+                  <li>
+                    <span className={pageStyles.stepIcon} aria-hidden="true"><ListPlus /></span>
+                    <span className={pageStyles.stepText}><strong>Add fields</strong>Text, dates, dropdowns, files, people…</span>
+                  </li>
+                  <li>
+                    <span className={pageStyles.stepIcon} aria-hidden="true"><ShieldCheck /></span>
+                    <span className={pageStyles.stepText}><strong>Set approval</strong>Optionally route records to a role</span>
+                  </li>
+                  <li>
+                    <span className={pageStyles.stepIcon} aria-hidden="true"><LayoutGrid /></span>
+                    <span className={pageStyles.stepText}><strong>Publish</strong>It appears in the sidebar for its roles</span>
+                  </li>
+                </ol>
+                <CommonButton variant="primary" size="lg" leadingIcon={<Plus />} onClick={startCreate}>
+                  Create your first module
+                </CommonButton>
+              </div>
+            ) : (
+              <ul className={pageStyles.grid}>
+                {modules.map((m) => {
+                  const Icon = resolveModuleIcon(m.icon);
+                  const approver = roles.find((r) => r.key === m.approverRole)?.label || m.approverRole;
+                  return (
+                    <li key={m.id} className={`${pageStyles.card} ${m.enabled ? '' : pageStyles.cardOff}`}>
+                      <div className={pageStyles.cardTop}>
+                        <span className={pageStyles.cardIcon} aria-hidden="true">
+                          {Icon ? <Icon /> : m.icon}
+                        </span>
+                        <div className={pageStyles.cardName}>
+                          <AppLink href={`/modules/${m.key}`} className={pageStyles.cardLink}>
+                            {m.name}
+                          </AppLink>
+                          <span className={pageStyles.cardSection}>{m.section}</span>
+                        </div>
+                        <RowActions
+                          label={`Actions for ${m.name}`}
+                          actions={[
+                            { key: 'open', label: 'Open', icon: <ExternalLink />, href: `/modules/${m.key}` },
+                            { key: 'edit', label: 'Edit', icon: <Pencil />, onClick: () => startEdit(m) },
+                            { key: 'toggle', label: m.enabled ? 'Disable' : 'Enable', icon: <Power />, onClick: () => toggleEnabled(m) },
+                            { key: 'delete', label: 'Delete', icon: <Trash2 />, destructive: true, onClick: () => handleDelete(m) }
+                          ]}
+                        />
+                      </div>
+                      <div className={pageStyles.cardMeta}>
+                        <span className={pageStyles.metaChip}>
+                          <ListPlus aria-hidden="true" />
+                          {m.fields.length} field{m.fields.length === 1 ? '' : 's'}
+                        </span>
+                        <span className={pageStyles.metaChip}>
+                          <ShieldCheck aria-hidden="true" />
+                          {m.requiresApproval ? `Approval: ${approver}` : 'No approval'}
+                        </span>
+                      </div>
+                      <div className={pageStyles.cardFoot}>
+                        <span className={`${pageStyles.state} ${m.enabled ? pageStyles.stateOn : ''}`}>
+                          <span className={pageStyles.stateDot} aria-hidden="true" />
+                          {m.enabled ? 'Enabled' : 'Disabled'}
+                        </span>
+                        <CommonButton variant="ghost" size="sm" leadingIcon={<Pencil />} onClick={() => startEdit(m)}>
+                          Edit
+                        </CommonButton>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </>
+        )}
     </AppShell>
   );
 }

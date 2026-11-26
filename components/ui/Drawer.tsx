@@ -3,6 +3,7 @@
 import { ReactNode } from 'react';
 import { X } from 'lucide-react';
 import styles from './drawer.module.css';
+import CommonButton from './CommonButton';
 import { useModalBehavior } from '@/lib/useModalBehavior';
 
 export interface DrawerProps {
@@ -26,9 +27,7 @@ export default function Drawer({ title, ariaLabel, onClose, children, footer }: 
       <div ref={panelRef} className={styles.panel} role="dialog" aria-modal="true" aria-label={ariaLabel} tabIndex={-1} onClick={(e) => e.stopPropagation()}>
         <div className={styles.header}>
           <div className={styles.headerTitle}>{title}</div>
-          <button type="button" className={styles.closeBtn} onClick={onClose} aria-label="Close">
-            <X size={18} />
-          </button>
+          <CommonButton variant="ghost" iconOnly leadingIcon={<X />} onClick={onClose} aria-label="Close" />
         </div>
         <div className={styles.body}>{children}</div>
         {footer && <div className={styles.footer}>{footer}</div>}

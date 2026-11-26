@@ -2,8 +2,11 @@
 
 import { MODE_OF_TRAVEL_OPTIONS, PURPOSE_OPTIONS, isKnownPurpose } from '@/lib/travelOptions';
 import { TravelCoTraveller } from '@/lib/types';
+import { Plus } from 'lucide-react';
+import CommonButton from './ui/CommonButton';
 import calcStyles from './calculator.module.css';
 import styles from './travelScheduleForm.module.css';
+import Select from '@/components/ui/Select';
 
 // Flat slice of a host form's state that this shared block owns — both
 // components/TravelScheduleView.tsx's create form and
@@ -98,17 +101,16 @@ export default function TravelScheduleForm({ value, onChange, requesterOrigin, r
       <div className={`${calcStyles.row} ${calcStyles.columns}`}>
         <div className={calcStyles.field}>
           <label className={calcStyles.label}>Mode of Travel</label>
-          <select className={calcStyles.formControl} value={value.modeOfTravel} onChange={(e) => onChange({ modeOfTravel: e.target.value })}>
+          <Select value={value.modeOfTravel} onChange={(e) => onChange({ modeOfTravel: e.target.value })}>
             <option value="">— Select mode —</option>
             {MODE_OF_TRAVEL_OPTIONS.map((m) => (
               <option key={m} value={m}>{m}</option>
             ))}
-          </select>
+          </Select>
         </div>
         <div className={calcStyles.field}>
           <label className={calcStyles.label}>Purpose of Travel</label>
-          <select
-            className={calcStyles.formControl}
+          <Select
             value={purposeIsKnown ? value.purpose : value.purpose ? 'Others' : ''}
             onChange={(e) => onChange({ purpose: e.target.value })}
           >
@@ -116,7 +118,7 @@ export default function TravelScheduleForm({ value, onChange, requesterOrigin, r
             {PURPOSE_OPTIONS.map((p) => (
               <option key={p} value={p}>{p}</option>
             ))}
-          </select>
+          </Select>
         </div>
       </div>
       {showSpecifyPurpose && (
@@ -147,9 +149,9 @@ export default function TravelScheduleForm({ value, onChange, requesterOrigin, r
           <div key={i} className={`${calcStyles.sectionPanel} ${styles.coTravellerCard}`}>
             <div className={styles.rowBetweenMb6}>
               <strong className={styles.smallLabel}>Co-traveller {i + 1}</strong>
-              <button type="button" onClick={() => removeCoTraveller(i)} className={styles.removeLinkBtn}>
+              <CommonButton variant="destructive" size="sm" onClick={() => removeCoTraveller(i)}>
                 Remove
-              </button>
+              </CommonButton>
             </div>
             <div className={`${calcStyles.row} ${calcStyles.columns}`}>
               <div className={calcStyles.field}>
@@ -181,9 +183,9 @@ export default function TravelScheduleForm({ value, onChange, requesterOrigin, r
             </div>
           </div>
         ))}
-        <button type="button" className={`${calcStyles.secondaryButton} ${calcStyles.mt8}`} onClick={addCoTraveller}>
-          + Add Co-traveller
-        </button>
+        <CommonButton variant="secondary" size="md" leadingIcon={<Plus />} className={calcStyles.mt8} onClick={addCoTraveller}>
+          Add Co-traveller
+        </CommonButton>
       </div>
 
       <div className={`${calcStyles.sectionPanel} ${styles.subPanel}`}>

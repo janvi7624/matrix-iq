@@ -1,7 +1,7 @@
 'use client';
 
 import { FormEvent, useEffect, useState } from 'react';
-import Link from 'next/link';
+import Link from '@/components/ui/AppLink';
 import { ProjectRecord, TravelScheduleRecord, UserRole } from '@/lib/types';
 import { TRAVEL_STATUS_LABEL, TRAVEL_STATUS_TONE, travelPendingLabel } from '@/lib/travelLabels';
 import AppShell from './AppShell';
@@ -9,10 +9,16 @@ import StatusBadge from './ui/StatusBadge';
 import { useToast } from './ui/ToastProvider';
 import TravelScheduleForm, { EMPTY_TRAVEL_EXTRA_FIELDS, travelExtraFieldsToPayload } from './TravelScheduleForm';
 import ProjectSelect from './ui/ProjectSelect';
+import { Plus } from 'lucide-react';
+import CommonButton from './ui/CommonButton';
+import CommonChip from './ui/CommonChip';
 import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
 import styles from './travelScheduleView.module.css';
+import { SkeletonTable } from './ui/Skeleton';
 import { fetchCached, OPTIONS_TTL_MS } from '@/lib/fetchCached';
+import { RefreshButton } from './ui/ListControls';
+import Select from './ui/Select';
 
 interface UserOption {
   id: string;
@@ -98,12 +104,12 @@ export default function TravelScheduleView({ currentUser }: TravelScheduleViewPr
   }
 
   return (
-    <AppShell title="Travel Schedule" subtitle="Manage employee travel requests and approvals.">
+    <AppShell fillPage={!showForm} title="Travel Schedule" subtitle="Manage employee travel requests and approvals.">
       <div className={historyStyles.toolbar}>
-        <button type="button" className={historyStyles.button} onClick={() => setShowForm((v) => !v)}>
-          {showForm ? 'Cancel' : '+ New Travel Request'}
-        </button>
-        <button type="button" className={historyStyles.button} onClick={load}>Refresh</button>
+        <CommonButton variant="secondary" size="md" leadingIcon={showForm ? undefined : <Plus />} onClick={() => setShowForm((v) => !v)}>
+          {showForm ? 'Cancel' : 'New Travel Request'}
+        </CommonButton>
+        <RefreshButton onRefresh={load} pushRight />
       </div>
 
       {showForm && (
@@ -150,10 +156,13 @@ export default function TravelScheduleView({ currentUser }: TravelScheduleViewPr
                     {form.projectIds.map((id) => {
                       const project = projects.find((p) => p.id === id);
                       return (
-                        <span key={id} className={styles.pillEditable}>
-                          {project ? projectLabel(project) : id}
-                          <button type="button" onClick={() => setForm((f) => ({ ...f, projectIds: f.projectIds.filter((c) => c !== id) }))} className={styles.pillRemoveBtn}>&times;</button>
-                        </span>
+                        <CommonChip
+                          key={id}
+                          size="sm"
+                          label={project ? projectLabel(project) : id}
+                          removeLabel={`Remove ${project ? projectLabel(project) : id}`}
+                          onRemove={() => setForm((f) => ({ ...f, projectIds: f.projectIds.filter((c) => c !== id) }))}
+                        />
                       );
                     })}
                   </div>
@@ -186,43 +195,49 @@ export default function TravelScheduleView({ currentUser }: TravelScheduleViewPr
             />
             <div className={`${calcStyles.field} ${calcStyles.mt12}`}>
               <label className={calcStyles.label}>Travel Companions</label>
-              <select
-                className={calcStyles.formControl}
+              <Select
+                value=""
                 onChange={(e) => {
                   const id = e.target.value;
                   if (id && !form.companionIds.includes(id)) {
                     setForm((f) => ({ ...f, companionIds: [...f.companionIds, id] }));
                   }
-                  e.target.value = '';
                 }}
               >
                 <option value="">— Add companion —</option>
                 {users.filter((u) => u.username !== currentUser.username && !form.companionIds.includes(u.id)).map((u) => (
                   <option key={u.id} value={u.id}>{u.name || u.username}</option>
                 ))}
-              </select>
+              </Select>
               {form.companionIds.length > 0 && (
                 <div className={styles.companionPillRow}>
                   {form.companionIds.map((id) => {
                     const user = users.find((u) => u.id === id);
                     return (
-                      <span key={id} className={styles.pillEditable}>
-                        {user?.name || user?.username || id}
-                        <button type="button" onClick={() => setForm((f) => ({ ...f, companionIds: f.companionIds.filter((c) => c !== id) }))} className={styles.pillRemoveBtn}>&times;</button>
-                      </span>
+                      <CommonChip
+                        key={id}
+                        size="sm"
+                        label={user?.name || user?.username || id}
+                        removeLabel={`Remove ${user?.name || user?.username || id}`}
+                        onRemove={() => setForm((f) => ({ ...f, companionIds: f.companionIds.filter((c) => c !== id) }))}
+                      />
                     );
                   })}
                 </div>
               )}
             </div>
-            <button type="submit" className={calcStyles.btn} disabled={creating}>
+            <CommonButton type="submit" variant="primary" size="md" disabled={creating}>
               {creating ? 'Saving...' : 'Create Travel Request'}
-            </button>
+            </CommonButton>
           </form>
         </>
       )}
 
-      <div className={historyStyles.status}>{status}</div>
+      {!loaded && status === 'Loading...' ? (
+        <SkeletonTable columns={10} rows={6} />
+      ) : (
+        <div className={historyStyles.status}>{status}</div>
+      )}
       {loaded && (
         // Wrapped so a table wider than the window scrolls inside its own
         // box instead of giving the whole PAGE a horizontal scrollbar — the
@@ -287,7 +302,7 @@ export default function TravelScheduleView({ currentUser }: TravelScheduleViewPr
                     )}
                   </td>
                   <td>
-                    <Link href={`/travel-schedule/${r.id}`} className={historyStyles.button}>View</Link>
+                    <CommonButton href={`/travel-schedule/${r.id}`} variant="secondary" size="sm">View</CommonButton>
                   </td>
                 </tr>
               ))

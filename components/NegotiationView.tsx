@@ -1,14 +1,16 @@
 'use client';
 
 import { FormEvent, useEffect, useState } from 'react';
-import Link from 'next/link';
+import Link from '@/components/ui/AppLink';
 import { NegotiationRecord, ProjectRecord, UserRole } from '@/lib/types';
 import { exportListToPdf } from '@/lib/exportPdf';
 import AppShell from './AppShell';
+import CommonButton from './ui/CommonButton';
 import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
 import { useToast } from './ui/ToastProvider';
 import { useConfirm } from './ui/ConfirmDialog';
+import { SkeletonTable } from './ui/Skeleton';
 import { todayDateInputValue } from '@/lib/dateHelpers';
 import { Field, FieldRow } from './ui/Field';
 import Input from './ui/Input';
@@ -19,6 +21,7 @@ import FilterBar from './ui/FilterBar';
 import ToolbarButton from './ui/ToolbarButton';
 import Table, { TableColumn } from './ui/Table';
 import { fetchCached, OPTIONS_TTL_MS } from '@/lib/fetchCached';
+import { RefreshButton } from './ui/ListControls';
 
 const EMPTY_FORM = { projectId: '', discussionDate: '', person: '', discussion: '', offerGiven: '', discount: '', revisedPrice: '', expectedClosure: '' };
 
@@ -128,12 +131,12 @@ export default function NegotiationView({ currentUser }: NegotiationViewProps) {
     {
       key: 'actions',
       header: '',
-      render: (r) => isPrivileged && <button type="button" className={historyStyles.deleteBtn} onClick={() => handleDelete(r.id)}>Delete</button>
+      render: (r) => isPrivileged && <CommonButton variant="destructive" size="sm" onClick={() => handleDelete(r.id)}>Delete</CommonButton>
     }
   ];
 
   return (
-    <AppShell title="Negotiation" subtitle="Discussion history for every project — offers, discounts, revised pricing.">
+    <AppShell fillPage title="Negotiation" subtitle="Discussion history for every project — offers, discounts, revised pricing.">
         <h2 className={`${calcStyles.h2} ${calcStyles.h2Flush}`}>Log a discussion</h2>
         <form className={calcStyles.sectionPanel} onSubmit={handleCreate}>
           <FieldRow>
@@ -175,9 +178,13 @@ export default function NegotiationView({ currentUser }: NegotiationViewProps) {
         <FilterBar className={historyStyles.toolbarSpaced}>
           <ToolbarButton onClick={handleExportPdf}>Export PDF</ToolbarButton>
           <ToolbarButton onClick={() => window.print()}>Print</ToolbarButton>
-          <ToolbarButton onClick={load}>Refresh</ToolbarButton>
+          <RefreshButton onRefresh={load} loading={!loaded} pushRight />
         </FilterBar>
-        <div className={historyStyles.status}>{status}</div>
+        {!loaded && status === 'Loading...' ? (
+          <SkeletonTable columns={9} rows={6} />
+        ) : (
+          <div className={historyStyles.status}>{status}</div>
+        )}
         {loaded && (
           <Table
             columns={columns}

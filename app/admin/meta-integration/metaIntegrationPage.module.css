@@ -6,7 +6,7 @@
 
 .connectionRow { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
 .credentialNote { font-size: 12.5px; color: var(--mx-ink-muted); }
-.credentialsGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; margin-bottom: 14px; }
+.credentialsGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(220px, 100%), 1fr)); gap: 10px; margin-bottom: 14px; }
 .credentialRow { display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; border-radius: var(--mx-radius-sm); background: var(--mx-surface-sunken); font-size: 12.5px; }
 .monoText { font-family: monospace; }
 
@@ -16,7 +16,7 @@
 .testCheckOk { color: var(--mx-success); }
 .testCheckFail { color: var(--mx-brand); }
 
-.webhookGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; font-size: 13px; }
+.webhookGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(220px, 100%), 1fr)); gap: 12px; font-size: 13px; }
 .webhookFieldLabel { color: var(--mx-ink-faint); font-size: 11px; font-weight: 600; text-transform: uppercase; margin-bottom: 3px; }
 
 .assignModeField { max-width: 320px; margin-bottom: 12px; }
@@ -27,3 +27,14 @@
 
 .lastSyncText { font-size: 13px; margin-bottom: 10px; }
 .syncResultText { margin-top: 10px; font-size: 13px; }
+
+/* Responsive: these rows hold controls or a title + actions. They wrap
+   onto a second line when the screen is too narrow for them, instead of
+   overflowing or crushing their neighbours. No effect when they fit. */
+.connectionRow,
+.credentialRow,
+.testResultRow,
+.campaignRow {
+    flex-wrap: wrap;
+    row-gap: 8px;
+}

@@ -365,12 +365,15 @@ export interface QuotationFilters {
   // see". Combines with viewerUsername below when both are given: the
   // result is still clamped to the viewer's own scope, so this can't be
   // used to reach into another department's quotations by owner id.
-  ownerUsername?: string;
+  // A list narrows to ANY of those users, each matched exactly as a single
+  // value is, and clamped to the viewer's scope the same way.
+  ownerUsername?: string | string[];
   // The CURRENT viewer — when set, department-scopes the result to what
   // they're allowed to see (org-wide, or own + managed department's team).
   // See lib/departmentScope.ts.
   viewerUsername?: string;
-  status?: QuotationEffectiveStatus;
+  /** One status or several (any of them matches). */
+  status?: QuotationEffectiveStatus | QuotationEffectiveStatus[];
   projectId?: string;
   dateFrom?: string;
   dateTo?: string;
@@ -418,37 +421,44 @@ export async function listQuotationsForDashboard(viewerUsername: string): Promis
 export async function searchQuotationsFiltered(filters: QuotationFilters): Promise<QuotationRecord[]> {
   const andConditions: Record<string | symbol, unknown>[] = [];
 
-  if (filters.ownerUsername) {
-    const user = await db.User.findOne({
-      where: {
-        [Op.or]: [
-          { username: filters.ownerUsername },
-          { name: filters.ownerUsername }
-        ]
-      } as never
-    });
-    if (user) {
-      andConditions.push({
-        [Op.or]: [
-          { created_by: user.get('id') },
-          // prepared_by_user_id is the exact, reliable match (set for every
-          // quotation created since this field existed); the two prepared_by
-          // string comparisons stay as a fallback for older quotations that
-          // predate it, or a self-service quotation where prepared_by was
-          // typed/derived as the user's own name/username.
-          { prepared_by_user_id: user.get('id') },
-          { prepared_by: filters.ownerUsername },
-          { prepared_by: user.get('name') }
-        ]
+  // One owner (every legacy caller) or several (a multi-select filter: any of
+  // them). Each name gets exactly the clause a single owner always got.
+  const ownerNames = Array.from(new Set(
+    (Array.isArray(filters.ownerUsername) ? filters.ownerUsername : [filters.ownerUsername]).filter((name): name is string => !!name)
+  ));
+  if (ownerNames.length) {
+    const ownerClauses = await Promise.all(ownerNames.map(async (ownerName): Promise<Record<string | symbol, unknown>> => {
+      const user = await db.User.findOne({
+        where: {
+          [Op.or]: [
+            { username: ownerName },
+            { name: ownerName }
+          ]
+        } as never
       });
-    } else {
-      andConditions.push({
+      if (user) {
+        return {
+          [Op.or]: [
+            { created_by: user.get('id') },
+            // prepared_by_user_id is the exact, reliable match (set for every
+            // quotation created since this field existed); the two prepared_by
+            // string comparisons stay as a fallback for older quotations that
+            // predate it, or a self-service quotation where prepared_by was
+            // typed/derived as the user's own name/username.
+            { prepared_by_user_id: user.get('id') },
+            { prepared_by: ownerName },
+            { prepared_by: user.get('name') }
+          ]
+        };
+      }
+      return {
         [Op.or]: [
-          { prepared_by: filters.ownerUsername },
+          { prepared_by: ownerName },
           { created_by: '00000000-0000-0000-0000-000000000000' }
         ]
-      });
-    }
+      };
+    }));
+    andConditions.push(ownerClauses.length === 1 ? ownerClauses[0] : { [Op.or]: ownerClauses });
   }
 
   // Clamps to the viewer's own department scope — org-wide for
@@ -492,11 +502,11 @@ export async function searchQuotationsFiltered(filters: QuotationFilters): Promi
   // Picking Expired specifically still narrows to just those, which is the
   // more useful question of the two — "which died from silence" rather than
   // "which were turned down".
-  if (filters.status) {
+  const statuses = (Array.isArray(filters.status) ? filters.status : [filters.status]).filter((s): s is QuotationEffectiveStatus => !!s);
+  if (statuses.length) {
     records = records.filter((r) => {
       const effective = computeEffectiveStatus(r);
-      if (filters.status === 'rejected') return effective === 'rejected' || effective === 'expired';
-      return effective === filters.status;
+      return statuses.some((status) => (status === 'rejected' ? effective === 'rejected' || effective === 'expired' : effective === status));
     });
   }
   if (filters.dateFrom) records = records.filter((r) => r.created_at.slice(0, 10) >= filters.dateFrom!);

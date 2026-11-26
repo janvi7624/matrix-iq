@@ -1,6 +1,7 @@
 'use client';
 
 import calcStyles from '../calculator.module.css';
+import CommonChip from './CommonChip';
 import styles from '../materials.module.css';
 
 export interface AssignableRole {
@@ -61,26 +62,15 @@ export default function RoleScopePicker({
       <span className={calcStyles.small}>{hint}</span>
 
       <div className={styles.roleScopeRow}>
-        <button
-          type="button"
-          className={everyone ? styles.roleScopeChipOn : styles.roleScopeChip}
-          onClick={() => onChange([])}
-          aria-pressed={everyone}
-        >
+        <CommonChip size="sm" selected={everyone} onClick={() => onChange([])}>
           Everyone
-        </button>
+        </CommonChip>
         {roles.map((role) => {
           const on = value.includes(role.key);
           return (
-            <button
-              key={role.key}
-              type="button"
-              className={on ? styles.roleScopeChipOn : styles.roleScopeChip}
-              onClick={() => toggle(role.key)}
-              aria-pressed={on}
-            >
+            <CommonChip key={role.key} size="sm" selected={on} onClick={() => toggle(role.key)}>
               {role.label}
-            </button>
+            </CommonChip>
           );
         })}
       </div>

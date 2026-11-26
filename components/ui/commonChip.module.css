@@ -1,0 +1,154 @@
+/* CommonChip — filters, tags and selectable options. Built on the
+   --mx-chip-* and --mx-selected-* tokens in app/globals.css. */
+
+.root {
+  box-sizing: border-box;
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  max-width: 100%;
+  border: 1px solid var(--mx-unselected-border);
+  border-radius: var(--mx-chip-radius);
+  background: var(--mx-unselected-bg);
+  color: var(--mx-unselected-fg);
+  font-family: inherit;
+  font-weight: var(--mx-weight-medium);
+  line-height: var(--mx-leading-tight);
+  white-space: nowrap;
+  vertical-align: middle;
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    background var(--mx-duration-base) var(--mx-ease),
+    border-color var(--mx-duration-base) var(--mx-ease),
+    color var(--mx-duration-base) var(--mx-ease),
+    box-shadow var(--mx-duration-base) var(--mx-ease),
+    transform var(--mx-duration-fast) var(--mx-ease);
+}
+
+.sm { min-height: var(--mx-chip-h-sm); padding: 0 var(--mx-chip-px-sm); font-size: var(--mx-chip-font-sm); }
+.md { min-height: var(--mx-chip-h-md); padding: 0 var(--mx-chip-px-md); font-size: var(--mx-chip-font-md); }
+.lg { min-height: var(--mx-chip-h-lg); padding: 0 var(--mx-chip-px-lg); font-size: var(--mx-chip-font-lg); }
+
+/* Interactive chips (rendered as <button>) */
+.interactive { cursor: pointer; user-select: none; }
+.interactive:hover:not(:disabled):not(.selected) {
+  border-color: var(--mx-unselected-hover-border);
+  color: var(--mx-text-primary);
+  background: var(--mx-gray-50);
+}
+.interactive:active:not(:disabled) { transform: scale(0.97); }
+.interactive:focus-visible {
+  outline: var(--mx-focus-ring-width) solid var(--mx-focus-ring-color);
+  outline-offset: var(--mx-focus-ring-offset);
+}
+/* Touch target: chips stay visually compact, the hit area reaches 44px. */
+@media (pointer: coarse) {
+  .interactive::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 50%;
+    height: var(--mx-touch-target);
+    transform: translateY(-50%);
+  }
+}
+
+/* Selected — solid brand fill + white text, clearly unlike the unselected
+   white/bordered chip next to it. */
+.selected {
+  background: var(--mx-selected-bg);
+  border-color: var(--mx-selected-border);
+  color: var(--mx-selected-fg);
+}
+.selected.interactive:hover:not(:disabled) {
+  background: var(--mx-selected-bg-hover);
+  border-color: var(--mx-selected-bg-hover);
+}
+
+/* Static tag tones (non-interactive labels) */
+.neutral { background: var(--mx-surface-sunken); border-color: transparent; color: var(--mx-gray-700); }
+.brand { background: var(--mx-brand-subtle); border-color: var(--mx-red-200); color: var(--mx-brand-text); }
+.info { background: var(--mx-info-subtle); border-color: transparent; color: var(--mx-info); }
+.success { background: var(--mx-success-subtle); border-color: transparent; color: var(--mx-success); }
+.warning { background: var(--mx-warning-subtle); border-color: transparent; color: var(--mx-warning); }
+.danger { background: var(--mx-danger-subtle); border-color: transparent; color: var(--mx-danger); }
+
+.root:disabled,
+.disabled {
+  opacity: var(--mx-disabled-opacity);
+  cursor: not-allowed;
+  transform: none;
+}
+
+.label { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+
+.icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  line-height: 1;
+}
+.icon :global(svg) { width: var(--mx-icon-xs); height: var(--mx-icon-xs); }
+.lg .icon :global(svg) { width: var(--mx-icon-sm); height: var(--mx-icon-sm); }
+
+.check { composes: icon; }
+
+.count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: var(--mx-radius-full);
+  background: var(--mx-surface-sunken);
+  color: var(--mx-gray-700);
+  font-size: 11px;
+  font-weight: var(--mx-weight-semibold);
+}
+.selected .count { background: rgba(255, 255, 255, 0.25); color: var(--mx-selected-fg); }
+
+/* Removable chip: the chip is a <span>, its remove control is its own button */
+.removable { padding-right: 4px; }
+.remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  margin-left: 2px;
+  padding: 0;
+  border: none;
+  border-radius: var(--mx-radius-full);
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  opacity: 0.75;
+}
+.remove:hover { opacity: 1; background: rgba(17, 24, 39, 0.08); }
+.selected .remove:hover { background: rgba(255, 255, 255, 0.2); }
+.remove:focus-visible { outline: var(--mx-focus-ring-width) solid var(--mx-focus-ring-color); outline-offset: 1px; }
+.remove :global(svg) { width: 12px; height: 12px; }
+
+/* Group */
+.group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--mx-chip-gap);
+  min-width: 0;
+}
+.groupNoWrap {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.groupNoWrap::-webkit-scrollbar { display: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .root { transition: none; }
+}

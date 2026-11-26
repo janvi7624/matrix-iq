@@ -19,3 +19,20 @@
 .infoCardTitle { font-weight: 700; font-size: 14px; margin-bottom: 8px; }
 .activityGroupsRow { display: flex; gap: 16px; flex-wrap: wrap; }
 .mt16 { margin-top: 16px; }
+
+/* Responsive: these rows hold controls or a title + actions. They wrap
+   onto a second line when the screen is too narrow for them, instead of
+   overflowing or crushing their neighbours. No effect when they fit. */
+.infoRow,
+.activityGroupHeader,
+.badgeRow {
+    flex-wrap: wrap;
+    row-gap: 8px;
+}
+
+/* Shared vertical spacing between stacked blocks (app/globals.css → "Stack spacing"). */
+.infoRow { composes: mx-block from global; }
+
+.infoCardsRow { composes: mx-grid from global; }
+
+.activityGroupsRow { composes: mx-grid from global; }

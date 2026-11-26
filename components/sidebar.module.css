@@ -361,21 +361,7 @@
     overflow-y: auto;
     overflow-x: hidden;
     padding: 6px 10px 16px;
-    scrollbar-width: thin;
-    scrollbar-color: rgba(148, 163, 184, 0.4) transparent;
-}
-
-.nav::-webkit-scrollbar {
-    width: 4px;
-}
-
-.nav::-webkit-scrollbar-thumb {
-    background: rgba(148, 163, 184, 0.3);
-    border-radius: 999px;
-}
-
-.nav::-webkit-scrollbar-thumb:hover {
-    background: rgba(148, 163, 184, 0.6);
+    /* Scrollbar: the app-wide design (app/globals.css "Scrollbars"). */
 }
 
 /* Bottom fade shown only while the nav list has more content below the

@@ -1,8 +1,10 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import CommonButton from '@/components/ui/CommonButton';
 import Modal, { ModalCancelButton, ModalOkButton } from '@/components/ui/Modal';
 import { useToast } from '@/components/ui/ToastProvider';
+import { SkeletonList, SkeletonText } from '@/components/ui/Skeleton';
 import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
 
@@ -120,7 +122,12 @@ export default function ProjectDetailRemindersDialog({ onClose }: { onClose: () 
       }
     >
       {error && <p className={calcStyles.small} style={{ color: 'var(--mx-danger)' }}>{error}</p>}
-      {!report && !error && <p className={calcStyles.small}>Checking every project…</p>}
+      {!report && !error && (
+        <>
+          <SkeletonText lines={2} />
+          <div style={{ marginTop: 12 }}><SkeletonList rows={4} avatar={false} /></div>
+        </>
+      )}
 
       {report && (
         <>
@@ -153,15 +160,15 @@ export default function ProjectDetailRemindersDialog({ onClose }: { onClose: () 
                     {person.items.length} project{person.items.length === 1 ? '' : 's'}
                   </span>
                 </label>
-                <button
-                  type="button"
-                  className={calcStyles.small}
-                  style={{ marginTop: 6, background: 'none', border: 0, padding: 0, textDecoration: 'underline', cursor: 'pointer', color: 'inherit' }}
+                <CommonButton
+                  variant="link"
+                  size="sm"
+                  style={{ marginTop: 6 }}
                   aria-expanded={isOpen}
                   onClick={() => setExpanded((s) => toggle(s, person.username))}
                 >
                   {isOpen ? 'Hide what they will be told' : 'Show what they will be told'}
-                </button>
+                </CommonButton>
                 {isOpen && (
                   <ul style={{ margin: '8px 0 0', paddingLeft: 20 }}>
                     {person.items.map((item, i) => (

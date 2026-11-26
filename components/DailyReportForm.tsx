@@ -18,6 +18,7 @@ import Input from './ui/Input';
 import Select from './ui/Select';
 import Textarea from './ui/Textarea';
 import Button from './ui/Button';
+import CommonButton from './ui/CommonButton';
 import { useConfirm } from './ui/ConfirmDialog';
 import { useSalesAutoDetail } from './useSalesAutoDetail';
 import TmsTaskPicker, { TmsLinkableTask } from './TmsTaskPicker';
@@ -526,7 +527,7 @@ export default function DailyReportForm({ template, value, onChange, issues = {}
       )}
 
       {template.layout === 'matrix' && totals && (
-        <div className={styles.matrixWrap}>
+        <div className={`${styles.matrixWrap} mx-rtable-wrap`}>
           <table className={styles.matrixTable}>
             <caption className="mx-sr-only">
               Today&apos;s activity counts by measure and product vertical, with calculated totals
@@ -652,9 +653,11 @@ export default function DailyReportForm({ template, value, onChange, issues = {}
                     {!disabled && (!isAutoRow || isTmsLinked) && (
                       <div className={styles.entryTools}>
                         {template.supportsTmsTaskLink && (
-                          <button
-                            type="button"
-                            className={styles.iconBtn}
+                          <CommonButton
+                            variant="ghost"
+                            size="sm"
+                            iconOnly
+                            leadingIcon={<Link2 size={15} />}
                             onClick={() => setTmsPickerTarget(index)}
                             aria-label={
                               isTmsLinked
@@ -662,47 +665,45 @@ export default function DailyReportForm({ template, value, onChange, issues = {}
                                 : `Link ${template.entryNoun ?? 'entry'} ${index + 1} to an existing TMS task`
                             }
                             title={isTmsLinked ? 'Link to a different TMS task' : 'Link to an existing TMS task'}
-                          >
-                            <Link2 size={15} />
-                          </button>
+                          />
                         )}
                         {isTmsLinked && (
-                          <button
-                            type="button"
-                            className={styles.iconBtn}
+                          <CommonButton
+                            variant="ghost"
+                            size="sm"
+                            iconOnly
+                            leadingIcon={<Unlink size={15} />}
                             onClick={() => unlinkTmsTask(index)}
                             aria-label={`Unlink ${template.entryNoun ?? 'entry'} ${index + 1} from its TMS task`}
                             title="Unlink from TMS — keeps the text, makes the row editable again"
-                          >
-                            <Unlink size={15} />
-                          </button>
+                          />
                         )}
-                        <button
-                          type="button"
-                          className={styles.iconBtn}
+                        <CommonButton
+                          variant="ghost"
+                          size="sm"
+                          iconOnly
+                          leadingIcon={<ArrowUp size={15} />}
                           onClick={() => moveEntry(index, -1)}
                           disabled={index === 0}
                           aria-label={`Move ${template.entryNoun ?? 'entry'} ${index + 1} up`}
-                        >
-                          <ArrowUp size={15} />
-                        </button>
-                        <button
-                          type="button"
-                          className={styles.iconBtn}
+                        />
+                        <CommonButton
+                          variant="ghost"
+                          size="sm"
+                          iconOnly
+                          leadingIcon={<ArrowDown size={15} />}
                           onClick={() => moveEntry(index, 1)}
                           disabled={index === entries.length - 1}
                           aria-label={`Move ${template.entryNoun ?? 'entry'} ${index + 1} down`}
-                        >
-                          <ArrowDown size={15} />
-                        </button>
-                        <button
-                          type="button"
-                          className={`${styles.iconBtn} ${styles.iconBtnDanger}`}
+                        />
+                        <CommonButton
+                          variant="destructive"
+                          size="sm"
+                          iconOnly
+                          leadingIcon={<Trash2 size={15} />}
                           onClick={() => removeEntry(index)}
                           aria-label={`Remove ${template.entryNoun ?? 'entry'} ${index + 1}`}
-                        >
-                          <Trash2 size={15} />
-                        </button>
+                        />
                       </div>
                     )}
                   </div>

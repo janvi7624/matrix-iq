@@ -1,14 +1,9 @@
 'use client';
 
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
-import Link from 'next/link';
+import Link from '@/components/ui/AppLink';
 import { useSearchParams } from 'next/navigation';
-import {
-  Megaphone, CheckCircle2, AlertTriangle, Send, UserCheck, ShieldAlert,
-  Clock, FileText, Paperclip, ChevronDown, ChevronUp, Trash2,
-  Lock, ArrowRight, MessageSquare, Wrench, Sparkles, Check, X,
-  ExternalLink, Layers, RefreshCw, Handshake
-} from 'lucide-react';
+import { Megaphone, CheckCircle2, AlertTriangle, Send, UserCheck, ShieldAlert, Clock, FileText, Paperclip, ChevronDown, ChevronUp, Trash2, Lock, ArrowRight, MessageSquare, Wrench, Sparkles, Check, X, ExternalLink, Layers, Handshake, Plus } from 'lucide-react';
 import {
   MARKETING_PRODUCT_CATEGORIES,
   MarketingProductCategory,
@@ -35,17 +30,23 @@ import MarketingRequestWizard, { MarketingRequestForm } from './MarketingRequest
 import { useToast } from './ui/ToastProvider';
 import { useConfirm } from './ui/ConfirmDialog';
 import { usePrompt } from './ui/PromptDialog';
-import { SkeletonRows } from './ui/Skeleton';
+import { Skeleton, SkeletonPage, SkeletonTable } from './ui/Skeleton';
 import EmptyState from './ui/EmptyState';
 import ErrorState from './ui/ErrorState';
 import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
 import styles from './marketingRequests.module.css';
 import Button from './ui/Button';
+import CommonButton from './ui/CommonButton';
+import StatCard, { StatCardGrid } from './ui/StatCard';
 import Modal from './ui/Modal';
 import SharedStatusBadge, { StatusTone } from './ui/StatusBadge';
 import SharedPriorityBadge, { PriorityTone } from './ui/PriorityBadge';
 import { fetchCached } from '@/lib/fetchCached';
+import { RefreshButton } from './ui/ListControls';
+import SearchInput from './ui/SearchInput';
+import Dropdown, { inSelection } from './ui/Dropdown';
+import Select from './ui/Select';
 
 interface MarketingRequestsViewProps {
   currentUser: { id?: string; username: string; role: UserRole; isPrivileged: boolean };
@@ -556,9 +557,15 @@ function MarketingRequestRow({
           <div className={calcStyles.mt4}><ReminderBadge record={r} /></div>
         </td>
         <td>
-          <button type="button" className={historyStyles.toggleBtn} onClick={(e) => { e.stopPropagation(); setExpanded((v) => !v); }}>
-            {expanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-          </button>
+          <CommonButton
+            variant="ghost"
+            size="sm"
+            iconOnly
+            leadingIcon={expanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+            aria-label={expanded ? 'Hide details' : 'Show details'}
+            aria-expanded={expanded}
+            onClick={(e) => { e.stopPropagation(); setExpanded((v) => !v); }}
+          />
         </td>
       </tr>
 
@@ -567,9 +574,7 @@ function MarketingRequestRow({
           title={
             <div className={styles.modalTitleRow}>
               <span>{r.title}</span>
-              <button type="button" className={historyStyles.toggleBtn} onClick={() => setExpanded(false)} aria-label="Close">
-                <ChevronUp size={16} />
-              </button>
+              <CommonButton variant="ghost" size="sm" iconOnly leadingIcon={<ChevronUp size={16} />} onClick={() => setExpanded(false)} aria-label="Close" />
             </div>
           }
           ariaLabel={`Marketing request details: ${r.title}`}
@@ -779,14 +784,15 @@ function MarketingRequestRow({
                         onChange={(e) => handleMarketingFileUpload(e.target.files)}
                       />
                       <div className={calcStyles.inlineFlexGap8}>
-                        <button
-                          type="button"
-                          className={calcStyles.secondaryButton}
+                        <CommonButton
+                          variant="secondary"
+                          size="sm"
+                          leadingIcon={uploadingMarketingFiles ? undefined : <Plus />}
                           disabled={uploadingMarketingFiles}
                           onClick={() => mktFileInputRef.current?.click()}
                         >
-                          {uploadingMarketingFiles ? 'Uploading…' : '+ Attach Prepared File / Design'}
-                        </button>
+                          {uploadingMarketingFiles ? 'Uploading…' : 'Attach Prepared File / Design'}
+                        </CommonButton>
                       </div>
 
                       {marketingFiles.length > 0 && (
@@ -988,14 +994,15 @@ function MarketingRequestRow({
                         className={calcStyles.hidden}
                         onChange={(e) => handleFinalFileUpload(e.target.files)}
                       />
-                      <button
-                        type="button"
-                        className={calcStyles.secondaryButton}
+                      <CommonButton
+                        variant="secondary"
+                        size="sm"
+                        leadingIcon={uploadingFinalFiles ? undefined : <Plus />}
                         disabled={uploadingFinalFiles}
                         onClick={() => finalFileInputRef.current?.click()}
                       >
-                        {uploadingFinalFiles ? 'Uploading…' : '+ Add Final Deliverable File(s)'}
-                      </button>
+                        {uploadingFinalFiles ? 'Uploading…' : 'Add Final Deliverable File(s)'}
+                      </CommonButton>
 
                       {finalFiles.length > 0 && (
                         <div className={`${historyStyles.imageStrip} ${calcStyles.mt8}`}>
@@ -1075,8 +1082,7 @@ function MarketingRequestRow({
                 <div className={`${calcStyles.row} ${calcStyles.columns} ${calcStyles.mb0}`}>
                   <div className={calcStyles.field}>
                     <label className={calcStyles.label}>Marketing Assignee</label>
-                    <select
-                      className={calcStyles.formControl}
+                    <Select
                       disabled={busy}
                       value={r.assigned_to_id || marketingRoster.find((u) => u.username === r.assigned_to)?.id || users.find((u) => u.username === r.assigned_to)?.id || ''}
                       onChange={(e) => run(() => onAssign(r.id, { assigneeId: e.target.value }))}
@@ -1087,7 +1093,7 @@ function MarketingRequestRow({
                           {u.name || u.username} ({u.username})
                         </option>
                       ))}
-                    </select>
+                    </Select>
                   </div>
 
                   {needsTechnicalReview && (
@@ -1095,8 +1101,7 @@ function MarketingRequestRow({
                       <label className={calcStyles.label}>
                         Technical Member for Verification ({r.product_category ? `${r.product_category} Specialist` : 'Technical'})
                       </label>
-                      <select
-                        className={calcStyles.formControl}
+                      <Select
                         disabled={busy}
                         value={r.technical_member_id || technicalRoster.find((t) => t.username === r.technical_member_username)?.id || ''}
                         onChange={(e) => run(() => onAssign(r.id, { technicalMemberId: e.target.value }))}
@@ -1136,7 +1141,7 @@ function MarketingRequestRow({
                             </option>
                           ))
                         )}
-                      </select>
+                      </Select>
                     </div>
                   )}
                 </div>
@@ -1226,10 +1231,12 @@ function MarketingRequestsViewContent({ currentUser, isReviewer, isMarketingTeam
   const [users, setUsers] = useState<{ id: string; username: string; name: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadFailed, setLoadFailed] = useState(false);
+  // Stat values only skeleton on the very first load — a refresh keeps the counts.
+  const statsLoading = loading && requests.length === 0;
   const [creating, setCreating] = useState(false);
   const [q, setQ] = useState('');
-  const [categoryFilter, setCategoryFilter] = useState<string>('');
-  const [priorityFilter, setPriorityFilter] = useState<string>('');
+  const [categoryFilter, setCategoryFilter] = useState<string[]>([]);
+  const [priorityFilter, setPriorityFilter] = useState<string[]>([]);
   // Deep-linked from the Dashboard/sidebar's "due today or overdue" count (?filter=due).
   const [dueOnly, setDueOnly] = useState(startFilter === 'due');
   const [partnerOnly, setPartnerOnly] = useState(false);
@@ -1284,13 +1291,13 @@ function MarketingRequestsViewContent({ currentUser, isReviewer, isMarketingTeam
     }
 
     // Category filter
-    if (categoryFilter) {
-      rows = rows.filter((r) => r.product_category === categoryFilter);
+    if (categoryFilter.length) {
+      rows = rows.filter((r) => inSelection(r.product_category, categoryFilter));
     }
 
     // Priority filter
-    if (priorityFilter) {
-      rows = rows.filter((r) => r.priority === priorityFilter);
+    if (priorityFilter.length) {
+      rows = rows.filter((r) => inSelection(r.priority, priorityFilter));
     }
 
     // Partner-raised only. Keyed on partner_id, the column set at creation —
@@ -1425,25 +1432,29 @@ function MarketingRequestsViewContent({ currentUser, isReviewer, isMarketingTeam
 
   return (
     <AppShell
+      fillPage={mode === 'list'}
       title="Marketing Request Workflow"
       subtitle="Collaborative marketing collateral pipeline: Requester ➔ Marketing ➔ Technical Review ➔ Final Delivery."
     >
       {/* Top Header Mode Toggle */}
       <div className={historyStyles.modeToggle}>
-        <button
-          type="button"
-          className={`${historyStyles.modeToggleBtn} ${mode === 'new' ? historyStyles.modeToggleBtnActive : ''}`}
+        <CommonButton
+          variant="secondary"
+          size="md"
+          leadingIcon={<Plus />}
+          selected={mode === 'new'}
           onClick={() => setMode('new')}
         >
-          + New Marketing Request
-        </button>
-        <button
-          type="button"
-          className={`${historyStyles.modeToggleBtn} ${mode === 'list' ? historyStyles.modeToggleBtnActive : ''}`}
+          New Marketing Request
+        </CommonButton>
+        <CommonButton
+          variant="secondary"
+          size="md"
+          selected={mode === 'list'}
           onClick={() => { setMode('list'); loadRequests(); }}
         >
           Workflow Board ({requests.length})
-        </button>
+        </CommonButton>
       </div>
 
       {mode === 'new' && (
@@ -1459,95 +1470,86 @@ function MarketingRequestsViewContent({ currentUser, isReviewer, isMarketingTeam
           {/* Triage & Stage Quick Metric Cards — shared quickActionGrid
               container for the same reason as the summary bar above: gets
               the existing <=640px 2-column override for free. */}
-          <div className={`${historyStyles.quickActionGrid} ${styles.metricGrid}`}>
-            <button
-              type="button"
+          <StatCardGrid className={styles.metricGrid}>
+            <StatCard
+              value={statsLoading ? <Skeleton width={64} height={24} /> : counts.all}
+              label="All Requests"
+              selected={tab === 'all'}
               onClick={() => setTab('all')}
-              className={`${calcStyles.sectionPanel} ${styles.metricCard} ${tab === 'all' ? styles.metricCardActiveBlue : ''}`}
-            >
-              <div className={styles.metricLabelDefault}>All Requests</div>
-              <div className={styles.metricValueDefault}>{counts.all}</div>
-            </button>
-
-            <button
-              type="button"
+              actionLabel="Show all requests"
+            />
+            <StatCard
+              value={statsLoading ? <Skeleton width={64} height={24} /> : counts.marketingQueue}
+              label="Awaiting Marketing"
+              tone="info"
+              selected={tab === 'marketing_queue'}
               onClick={() => setTab('marketing_queue')}
-              className={`${calcStyles.sectionPanel} ${styles.metricCard} ${tab === 'marketing_queue' ? styles.metricCardActiveBlue : ''}`}
-            >
-              <div className={styles.metricLabelBlue}>Awaiting Marketing</div>
-              <div className={styles.metricValueInfo}>{counts.marketingQueue}</div>
-            </button>
-
-            <button
-              type="button"
+              actionLabel="Show requests awaiting marketing"
+            />
+            <StatCard
+              value={statsLoading ? <Skeleton width={64} height={24} /> : counts.technicalReview}
+              label="Pending Technical"
+              tone="accent"
+              selected={tab === 'technical_review'}
               onClick={() => setTab('technical_review')}
-              className={`${calcStyles.sectionPanel} ${styles.metricCard} ${tab === 'technical_review' ? styles.metricCardActiveTeal : ''}`}
-            >
-              <div className={styles.metricLabelTeal}>Pending Technical</div>
-              <div className={styles.metricValueTeal}>{counts.technicalReview}</div>
-            </button>
-
-            <button
-              type="button"
+              actionLabel="Show requests pending technical review"
+            />
+            <StatCard
+              value={statsLoading ? <Skeleton width={64} height={24} /> : counts.readyDelivery}
+              label="Ready for Delivery"
+              tone="brand"
+              selected={tab === 'ready_delivery'}
               onClick={() => setTab('ready_delivery')}
-              className={`${calcStyles.sectionPanel} ${styles.metricCard} ${tab === 'ready_delivery' ? styles.metricCardActiveViolet : ''}`}
-            >
-              <div className={styles.metricLabelViolet}>Ready for Delivery</div>
-              <div className={styles.metricValueViolet}>{counts.readyDelivery}</div>
-            </button>
-
-            <button
-              type="button"
+              actionLabel="Show requests ready for delivery"
+            />
+            <StatCard
+              value={statsLoading ? <Skeleton width={64} height={24} /> : counts.completed}
+              label="Completed"
+              tone="success"
+              selected={tab === 'completed'}
               onClick={() => setTab('completed')}
-              className={`${calcStyles.sectionPanel} ${styles.metricCard} ${tab === 'completed' ? styles.metricCardActiveGreen : ''}`}
-            >
-              <div className={styles.metricLabelGreen}>Completed</div>
-              <div className={styles.metricValueSuccess}>{counts.completed}</div>
-            </button>
-
-            <button
-              type="button"
+              actionLabel="Show completed requests"
+            />
+            <StatCard
+              value={statsLoading ? <Skeleton width={64} height={24} /> : counts.myRequests}
+              label="My Requests"
+              tone="warning"
+              selected={tab === 'my_requests'}
               onClick={() => setTab('my_requests')}
-              className={`${calcStyles.sectionPanel} ${styles.metricCard} ${tab === 'my_requests' ? styles.metricCardActiveOrange : ''}`}
-            >
-              <div className={styles.metricLabelOrange}>My Requests</div>
-              <div className={styles.metricValueOrange}>{counts.myRequests}</div>
-            </button>
-          </div>
+              actionLabel="Show my requests"
+            />
+          </StatCardGrid>
 
           {/* Search & Filter Toolbar */}
           <div className={historyStyles.toolbar}>
-            <input
-              type="text"
+            <SearchInput
               placeholder="Search title, category, requester, partner, marketing, technical..."
               value={q}
-              onChange={(e) => setQ(e.target.value)}
+              onChange={(v) => setQ(v)}
             />
 
-            <select
-              className={`${calcStyles.formControl} ${styles.selectAuto}`}
+            <Dropdown
+              multiple
               value={categoryFilter}
-              onChange={(e) => setCategoryFilter(e.target.value)}
-            >
-              <option value="">All Product Categories</option>
-              {MARKETING_PRODUCT_CATEGORIES.map((cat) => (
-                <option key={cat} value={cat}>
-                  {cat}
-                </option>
-              ))}
-            </select>
+              onChange={setCategoryFilter}
+              placeholder="All Product Categories"
+              label="Category"
+              options={MARKETING_PRODUCT_CATEGORIES.map((cat) => ({ value: cat, label: cat }))}
+            />
 
-            <select
-              className={`${calcStyles.formControl} ${styles.selectAuto}`}
+            <Dropdown
+              multiple
               value={priorityFilter}
-              onChange={(e) => setPriorityFilter(e.target.value)}
-            >
-              <option value="">All Priorities</option>
-              <option value="urgent">Urgent</option>
-              <option value="high">High</option>
-              <option value="medium">Medium</option>
-              <option value="low">Low</option>
-            </select>
+              onChange={setPriorityFilter}
+              placeholder="All Priorities"
+              label="Priority"
+              options={[
+                { value: 'urgent', label: 'Urgent' },
+                { value: 'high', label: 'High' },
+                { value: 'medium', label: 'Medium' },
+                { value: 'low', label: 'Low' }
+              ]}
+            />
 
             <label className={styles.dueOnlyLabel}>
               <input type="checkbox" checked={dueOnly} onChange={(e) => setDueOnly(e.target.checked)} />
@@ -1559,32 +1561,28 @@ function MarketingRequestsViewContent({ currentUser, isReviewer, isMarketingTeam
               From partners only
             </label>
 
-            {(categoryFilter || priorityFilter || dueOnly || partnerOnly || q) && (
-              <button
-                type="button"
-                className={historyStyles.button}
+            {(categoryFilter.length > 0 || priorityFilter.length > 0 || dueOnly || partnerOnly || q) && (
+              <CommonButton
+                variant="ghost"
+                size="md"
                 onClick={() => {
-                  setCategoryFilter('');
-                  setPriorityFilter('');
+                  setCategoryFilter([]);
+                  setPriorityFilter([]);
                   setDueOnly(false);
                   setPartnerOnly(false);
                   setQ('');
                 }}
               >
                 Clear Filters
-              </button>
+              </CommonButton>
             )}
 
-            <button type="button" className={historyStyles.button} onClick={loadRequests}>
-              <RefreshCw size={14} className={styles.refreshIconSpacing} /> Refresh
-            </button>
+            <RefreshButton onRefresh={loadRequests} loading={loading} label="Refresh requests" pushRight />
           </div>
 
           {/* Table Wrap */}
           {loading ? (
-            <div className={historyStyles.tableWrap}>
-              <SkeletonRows rows={8} columns={9} />
-            </div>
+            <SkeletonTable columns={9} rows={8} />
           ) : loadFailed ? (
             <ErrorState
               message="Could not load marketing requests. Please check your connection."
@@ -1653,9 +1651,9 @@ function MarketingRequestsViewContent({ currentUser, isReviewer, isMarketingTeam
                           }
                           action={
                             requests.length === 0 ? (
-                              <button type="button" className={calcStyles.btn} onClick={() => setMode('new')}>
-                                + New Marketing Request
-                              </button>
+                              <CommonButton variant="primary" size="md" leadingIcon={<Plus />} onClick={() => setMode('new')}>
+                                New Marketing Request
+                              </CommonButton>
                             ) : undefined
                           }
                         />
@@ -1677,7 +1675,7 @@ export default function MarketingRequestsView(props: MarketingRequestsViewProps)
     <Suspense
       fallback={
         <AppShell title="Marketing Requests" subtitle="Loading marketing workflow...">
-          {null}
+          <SkeletonPage stats={6} columns={9} />
         </AppShell>
       }
     >

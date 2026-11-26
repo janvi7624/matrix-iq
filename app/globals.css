@@ -299,6 +299,96 @@
   --mx-z-modal: 1100;
 }
 
+/* ===========================================================================
+   Component tokens — the contract the shared components in components/ui
+   (CommonButton, CommonChip, CommonHeader) are built on. Every value here is
+   expressed in terms of the base tokens above, so the brand, the neutrals and
+   the radius/shadow scales stay the single source of truth; these just name
+   the role each one plays ("the selected fill", "a small button's height")
+   so a page never has to re-decide them.
+=========================================================================== */
+:root {
+  /* Role aliases over the palette above */
+  --mx-primary: var(--mx-brand);
+  --mx-primary-hover: var(--mx-brand-hover);
+  --mx-on-primary: #ffffff; /* 4.8:1 on --mx-brand */
+  --mx-secondary: var(--mx-ink);
+  --mx-on-secondary: #ffffff;
+  --mx-bg: var(--mx-page-bg);
+  --mx-text-primary: var(--mx-ink);
+  --mx-text-secondary: var(--mx-ink-muted);
+
+  /* Selection — one look for every "this one is chosen" state (chips,
+     toggle buttons, segmented controls). A solid brand fill with white text,
+     not a faint tint: the faint tint is what made selected and unselected
+     options hard to tell apart. */
+  --mx-selected-bg: var(--mx-brand);
+  --mx-selected-bg-hover: var(--mx-brand-hover);
+  --mx-selected-fg: #ffffff;
+  --mx-selected-border: var(--mx-brand);
+  --mx-unselected-bg: #ffffff;
+  --mx-unselected-fg: var(--mx-gray-700);
+  --mx-unselected-border: var(--mx-border-strong);
+  --mx-unselected-hover-border: var(--mx-ink-faint);
+
+  /* Disabled */
+  --mx-disabled-opacity: 0.5;
+  --mx-disabled-bg: var(--mx-surface-sunken);
+  --mx-disabled-fg: var(--mx-ink-faint);
+
+  /* Focus — keyboard focus ring for every interactive common component */
+  --mx-focus-ring-color: var(--mx-brand);
+  --mx-focus-ring-width: 2px;
+  --mx-focus-ring-offset: 2px;
+
+  /* Touch target floor (WCAG 2.5.5 / Apple HIG) */
+  --mx-touch-target: 44px;
+
+  /* Buttons */
+  --mx-btn-h-sm: 36px;
+  --mx-btn-h-md: var(--mx-control-h);
+  --mx-btn-h-lg: 52px;
+  --mx-btn-px-sm: 12px;
+  --mx-btn-px-md: 18px;
+  --mx-btn-px-lg: 24px;
+  --mx-btn-font-sm: 13px;
+  --mx-btn-font-md: var(--mx-text-control);
+  --mx-btn-font-lg: 15.5px;
+  --mx-btn-radius: var(--mx-radius-sm);
+  --mx-btn-gap: var(--mx-space-2);
+
+  /* Chips */
+  --mx-chip-h-sm: 28px;
+  --mx-chip-h-md: 34px;
+  --mx-chip-h-lg: 40px;
+  --mx-chip-px-sm: 10px;
+  --mx-chip-px-md: 14px;
+  --mx-chip-px-lg: 18px;
+  --mx-chip-font-sm: 12px;
+  --mx-chip-font-md: 13px;
+  --mx-chip-font-lg: 14px;
+  --mx-chip-radius: var(--mx-radius-full);
+  --mx-chip-gap: var(--mx-space-2);
+
+  /* Icon sizes */
+  --mx-icon-xs: 14px;
+  --mx-icon-sm: 16px;
+  --mx-icon-md: 18px;
+  --mx-icon-lg: 20px;
+  --mx-icon-xl: 24px;
+
+  /* Header — the dark application bar */
+  --mx-header-bg: var(--mx-ink);
+  --mx-header-fg: #ffffff;
+  --mx-header-fg-muted: rgba(255, 255, 255, 0.65);
+  --mx-header-fg-faint: rgba(255, 255, 255, 0.5);
+  --mx-header-accent: var(--mx-brand);
+  --mx-header-control-hover: rgba(255, 255, 255, 0.12);
+  --mx-header-px: 24px;
+  --mx-header-py: 14px;
+  --mx-header-title-size: 20px;
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -324,83 +414,84 @@ body {
   font-family: var(--mx-font-sans);
 }
 
-/* Shared "nice" scrollbar for popup/overlay scroll areas (modals, drawers,
-   popovers, dropdown panels, the command palette) — a thin, rounded,
-   low-contrast thumb instead of the browser's chunky default. Not applied
-   to ordinary page scrolling, only where a CSS Module class opts in via
-   `composes: mx-nice-scroll from global;` on its own scrollable element. */
-.mx-nice-scroll {
-  scrollbar-width: thin;
-  scrollbar-color: var(--mx-ink-faint) transparent;
+/* ===========================================================================
+   Scrollbars — ONE design for every scrollable area in the app (page, tables,
+   sidebar, dropdowns, dialogs, drawers, text areas). Built on tokens so it is
+   changed in one place. components/ui/ScrollArea.tsx is the component for a
+   new scrollable panel; nothing else needs a scrollbar style of its own.
+
+   Look: a soft rounded track; a pill-shaped slate thumb inset from the track
+   edge; brand red on hover, darker red while dragging.
+
+   Chrome/Edge ignore ::-webkit-scrollbar styling on any element that also sets
+   the standard scrollbar-color/scrollbar-width, so the standard properties
+   are applied ONLY where ::-webkit-scrollbar isn't supported (Firefox).
+   Intentionally hidden scrollbars (chip rows, tab strips: scrollbar-width:none
+   + ::-webkit-scrollbar { display:none }) keep working as before.
+=========================================================================== */
+:root {
+  --mx-scrollbar-size: 10px;
+  --mx-scrollbar-track: var(--mx-slate-100);
+  --mx-scrollbar-track-edge: var(--mx-border);
+  --mx-scrollbar-thumb: var(--mx-slate-300);
+  --mx-scrollbar-thumb-end: var(--mx-slate-400);
+  --mx-scrollbar-thumb-hover: var(--mx-brand);
+  --mx-scrollbar-thumb-active: var(--mx-brand-hover);
 }
-.mx-nice-scroll::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+
+*::-webkit-scrollbar {
+  width: var(--mx-scrollbar-size);
+  height: var(--mx-scrollbar-size);
 }
-.mx-nice-scroll::-webkit-scrollbar-track {
-  background: transparent;
-}
-.mx-nice-scroll::-webkit-scrollbar-thumb {
-  background-color: var(--mx-ink-faint);
+*::-webkit-scrollbar-track {
+  background: var(--mx-scrollbar-track);
   border-radius: 999px;
+  box-shadow: inset 0 0 0 1px var(--mx-scrollbar-track-edge);
+}
+*::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, var(--mx-scrollbar-thumb), var(--mx-scrollbar-thumb-end));
   border: 2px solid transparent;
+  border-radius: 999px;
+  background-clip: padding-box;
+  min-height: 36px;
+  min-width: 36px;
+}
+*::-webkit-scrollbar-thumb:horizontal {
+  background: linear-gradient(90deg, var(--mx-scrollbar-thumb), var(--mx-scrollbar-thumb-end));
   background-clip: padding-box;
 }
-.mx-nice-scroll::-webkit-scrollbar-thumb:hover {
-  background-color: var(--mx-ink-muted);
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--mx-scrollbar-thumb-hover);
+  background-clip: padding-box;
 }
-/* Windows Chrome/Edge render a pair of up/down (or left/right) arrow
-   buttons at the scrollbar's ends by default — collapsing them to 0 is the
-   only way to actually remove them (display:none alone is ignored here). */
-.mx-nice-scroll::-webkit-scrollbar-button {
+*::-webkit-scrollbar-thumb:active {
+  background: var(--mx-scrollbar-thumb-active);
+  background-clip: padding-box;
+}
+/* Windows Chrome/Edge draw arrow buttons at the ends by default — collapsing
+   them to 0 is the only way to remove them (display:none alone is ignored). */
+*::-webkit-scrollbar-button {
   display: none;
   width: 0;
   height: 0;
 }
-.mx-nice-scroll::-webkit-scrollbar-corner {
+*::-webkit-scrollbar-corner {
   background: transparent;
 }
 
-/* Like .mx-nice-scroll above, but for TABLE and PANEL scroll areas, where
-   the scrollbar must stay visible at rest rather than fade away.
+/* Firefox (no ::-webkit-scrollbar): the same colours via the standard props. */
+@supports not selector(::-webkit-scrollbar) {
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--mx-scrollbar-thumb-end) var(--mx-scrollbar-track);
+  }
+}
 
-   macOS defaults to overlay scrollbars that disappear when you stop
-   scrolling, so a height-capped table simply looked like it ended — nothing
-   indicated there were more rows below or more columns to the right.
-   Styling ::-webkit-scrollbar at all opts Chrome out of overlay mode, and
-   unlike .mx-nice-scroll the track is tinted rather than transparent, so
-   the lane reads as a scrollbar even while the thumb is idle. */
+/* Kept for the many modules that compose them — they now simply mean "this
+   area scrolls"; the look comes from the global rules above. */
+.mx-nice-scroll,
 .mx-visible-scroll {
-  scrollbar-width: thin;
-  scrollbar-color: var(--mx-ink-faint) rgba(17, 24, 39, 0.07);
-}
-.mx-visible-scroll::-webkit-scrollbar {
-  width: 11px;
-  height: 11px;
-}
-.mx-visible-scroll::-webkit-scrollbar-track {
-  background: rgba(17, 24, 39, 0.07);
-  border-radius: 999px;
-}
-.mx-visible-scroll::-webkit-scrollbar-thumb {
-  background-color: var(--mx-ink-faint);
-  border-radius: 999px;
-  border: 2px solid transparent;
-  background-clip: padding-box;
-}
-.mx-visible-scroll::-webkit-scrollbar-thumb:hover {
-  background-color: var(--mx-ink-muted);
-}
-/* Same Windows arrow-button removal as .mx-nice-scroll — display:none alone
-   is ignored there, the size has to go to 0 too. */
-.mx-visible-scroll::-webkit-scrollbar-button {
-  display: none;
-  width: 0;
-  height: 0;
-}
-/* Where both axes scroll, the little square between them. */
-.mx-visible-scroll::-webkit-scrollbar-corner {
-  background: transparent;
+  overscroll-behavior: contain;
 }
 
 /* Visible to screen readers, invisible on screen. Used for a <caption> or a
@@ -431,4 +522,330 @@ body {
   clip: rect(0, 0, 0, 0);
   white-space: nowrap;
   border: 0;
+}
+
+/* ===========================================================================
+   Responsive tables — phone card layout.
+
+   Every table built on the shared `.table` class (quotationHistory.module.css,
+   which `composes` this global `mx-rtable` marker) turns into a stack of cards
+   at phone width: one card per row, one "Label   value" line per cell. The
+   labels are the table's own column headers, copied onto each cell as
+   data-label by components/ui/ResponsiveTables.tsx. A side-scrolling grid
+   with 8+ columns is unusable on a 360px screen; a card list is not.
+
+   Opt-out for a table that must stay a grid (a matrix, a sheet):
+     <table data-mobile-layout="scroll" …>  → keeps horizontal scrolling.
+   Only tables with a <thead> are converted — no headers, no labels.
+=========================================================================== */
+@media (max-width: 640px) {
+  table.mx-rtable:has(> thead):not([data-mobile-layout='scroll']) {
+    display: block;
+    width: 100% !important;
+    min-width: 0 !important;
+    table-layout: auto !important;
+    background: transparent;
+    box-shadow: none;
+    border-radius: 0;
+    overflow: visible;
+  }
+  /* Headers become the per-cell labels; kept for screen readers. */
+  table.mx-rtable:has(> thead):not([data-mobile-layout='scroll']) > thead {
+    position: absolute;
+    left: 0;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+  }
+  table.mx-rtable:has(> thead):not([data-mobile-layout='scroll']) > tbody,
+  table.mx-rtable:has(> thead):not([data-mobile-layout='scroll']) > tfoot {
+    display: block;
+    width: 100%;
+  }
+  table.mx-rtable:has(> thead):not([data-mobile-layout='scroll']) > tbody > tr,
+  table.mx-rtable:has(> thead):not([data-mobile-layout='scroll']) > tfoot > tr {
+    display: block;
+    margin: 0 0 10px;
+    padding: 4px 14px;
+    border: 1px solid var(--mx-border);
+    border-radius: var(--mx-radius-md);
+    background: #ffffff;
+    box-shadow: 0 1px 2px rgba(17, 24, 39, 0.04), 0 3px 10px rgba(17, 24, 39, 0.05);
+  }
+  table.mx-rtable:has(> thead):not([data-mobile-layout='scroll']) > tbody > tr > td,
+  table.mx-rtable:has(> thead):not([data-mobile-layout='scroll']) > tfoot > tr > td,
+  table.mx-rtable:has(> thead):not([data-mobile-layout='scroll']) > tbody > tr > th {
+    /* Block, not grid: the cell's own content flows normally in the value
+       column (a badge + text, two buttons…), and the label sits in a gutter
+       on the left (::before, absolutely positioned). */
+    display: block;
+    position: relative !important;
+    width: auto !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    padding: 9px 0 9px calc(min(36%, 140px) + 12px) !important;
+    min-height: 20px;
+    border: 0;
+    border-bottom: 1px dashed var(--mx-border);
+    background: transparent !important;
+    text-align: left !important;
+    white-space: normal !important;
+    overflow-wrap: anywhere;
+  }
+  table.mx-rtable:has(> thead):not([data-mobile-layout='scroll']) > tbody > tr > td:last-child,
+  table.mx-rtable:has(> thead):not([data-mobile-layout='scroll']) > tfoot > tr > td:last-child {
+    border-bottom: 0;
+  }
+  table.mx-rtable:has(> thead):not([data-mobile-layout='scroll']) > tbody > tr > td::before,
+  table.mx-rtable:has(> thead):not([data-mobile-layout='scroll']) > tfoot > tr > td::before {
+    content: attr(data-label);
+    position: absolute;
+    left: 0;
+    top: 9px;
+    width: min(36%, 140px);
+    font-size: 12px;
+    font-weight: var(--mx-weight-medium);
+    color: var(--mx-text-secondary);
+    line-height: 1.5;
+  }
+  /* No header for this column (actions, checkboxes) or a full-width cell
+     (an empty-state row, an expanded detail row): no label, full width. */
+  table.mx-rtable:has(> thead):not([data-mobile-layout='scroll']) td:is([data-label=''], :not([data-label]), [colspan]:not([colspan='1'])) {
+    padding-left: 0 !important;
+  }
+  /* An actions cell (no header): its buttons sit in a wrapping row. */
+  table.mx-rtable:has(> thead):not([data-mobile-layout='scroll']) td:is([data-label=''], :not([data-label])) > :is(button, a, [role='button']) {
+    margin: 2px 8px 2px 0;
+  }
+  table.mx-rtable:has(> thead):not([data-mobile-layout='scroll']) td:is([data-label=''], :not([data-label]), [colspan]:not([colspan='1']))::before {
+    display: none;
+  }
+  /* Row hover tint is meaningless on touch and fights the card surface. */
+  table.mx-rtable:has(> thead):not([data-mobile-layout='scroll']) tr:hover > td {
+    background: transparent !important;
+  }
+  /* Controls inside a card cell use the full value column. */
+  table.mx-rtable:has(> thead):not([data-mobile-layout='scroll']) td :is(input:not([type='checkbox']):not([type='radio']), select, textarea) {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+  }
+  /* The scroll wrapper has nothing left to scroll once rows are cards. */
+  .mx-rtable-wrap:has(> table.mx-rtable > thead):has(> table:not([data-mobile-layout='scroll'])) {
+    overflow-x: visible;
+    max-height: none;
+    box-shadow: none;
+    background: transparent;
+  }
+}
+
+/* A table cell holding row actions (components/ui/RowActions — a ⋮ menu,
+   plus Approve/Reject at most) takes only the width it needs; the space goes
+   to the data columns. Phone card layout overrides width (see above). */
+td:has(> [data-row-actions]) {
+  width: 1%;
+  white-space: nowrap;
+}
+
+/* ===========================================================================
+   Horizontal-scroll cues for tables (components/ui/TableScrollHints.tsx sets
+   data-more-left / data-more-right on every .mx-rtable-wrap that overflows).
+   - a one-line hint above the table while more columns are off-screen,
+   - the edge with hidden content fades out,
+   - a pinned Actions column (.mx-sticky-actions) gets a divider + shadow so
+     it clearly reads as fixed while the rest slides underneath it.
+=========================================================================== */
+.mx-rtable-wrap[data-more-right]::before,
+.mx-rtable-wrap[data-more-left]::before {
+  content: 'Scroll sideways to see more columns →';
+  position: sticky;
+  left: 0;
+  display: block;
+  width: max-content;
+  margin: 0 0 6px;
+  padding: 3px 10px;
+  border-radius: var(--mx-radius-full);
+  background: var(--mx-info-subtle);
+  color: var(--mx-info);
+  font-size: 12px;
+  font-weight: var(--mx-weight-medium);
+}
+.mx-rtable-wrap[data-more-left]:not([data-more-right])::before {
+  content: '← Scroll back to see the first columns';
+}
+/* Fade the side that still has columns hidden. */
+.mx-rtable-wrap[data-more-right]:not([data-more-left]):not(:has(.mx-sticky-actions)) {
+  -webkit-mask-image: linear-gradient(to left, rgba(0, 0, 0, 0.35) 0, #000 40px);
+  mask-image: linear-gradient(to left, rgba(0, 0, 0, 0.35) 0, #000 40px);
+}
+.mx-rtable-wrap[data-more-left]:not([data-more-right]),
+.mx-rtable-wrap[data-more-left][data-more-right]:has(.mx-sticky-actions) {
+  -webkit-mask-image: linear-gradient(to right, rgba(0, 0, 0, 0.35) 0, #000 40px);
+  mask-image: linear-gradient(to right, rgba(0, 0, 0, 0.35) 0, #000 40px);
+}
+.mx-rtable-wrap[data-more-left][data-more-right]:not(:has(.mx-sticky-actions)) {
+  -webkit-mask-image: linear-gradient(to right, rgba(0, 0, 0, 0.35) 0, #000 40px, #000 calc(100% - 40px), rgba(0, 0, 0, 0.35) 100%);
+  mask-image: linear-gradient(to right, rgba(0, 0, 0, 0.35) 0, #000 40px, #000 calc(100% - 40px), rgba(0, 0, 0, 0.35) 100%);
+}
+/* The pinned Actions column: always a divider; a shadow while content is under it. */
+.mx-sticky-actions {
+  box-shadow: inset 1px 0 0 var(--mx-border);
+}
+th.mx-sticky-actions {
+  background: var(--mx-surface-sunken) !important;
+}
+.mx-rtable-wrap[data-more-right] .mx-sticky-actions {
+  box-shadow: -14px 0 16px -12px rgba(17, 24, 39, 0.35), inset 1px 0 0 var(--mx-border-strong);
+}
+@media (max-width: 640px) {
+  /* Phone card layout has nothing to scroll sideways. */
+  .mx-sticky-actions { box-shadow: none !important; position: static !important; }
+}
+
+/* ===========================================================================
+   Table viewport — a table is at most one screen tall; its rows scroll inside
+   it (the header row is already sticky: .table th { position: sticky }), and
+   the pager footer (components/ui/TablePager) sits right below it.
+   --mx-table-offset is roughly the page chrome above the table (app header,
+   page title, filters); a page can override it on the wrapper.
+=========================================================================== */
+@media (min-width: 641px) {
+  .mx-rtable-wrap {
+    max-height: calc(100dvh - var(--mx-table-offset, 230px));
+    min-height: 220px;
+    overflow: auto;
+    overscroll-behavior: contain;
+  }
+  /* Small tables shouldn't reserve empty space. */
+  .mx-rtable-wrap:not(:has(tbody > tr:nth-child(4))) { min-height: 0; }
+  /* A table nested inside an expanded row isn't capped again. */
+  .mx-rtable-wrap .mx-rtable-wrap { max-height: none; min-height: 0; }
+  /* Rows scroll under the header row of every capped table. Zero
+     specificity: a module that styles its header cells (background,
+     z-index…) still wins; the white fallback stops rows showing through. */
+  :where(.mx-rtable-wrap > table > thead > tr > th) {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background-color: var(--mx-surface);
+  }
+}
+
+/* Table scrollbars use the app-wide scrollbar design (see "Scrollbars" above). */
+/* .table's own overflow:hidden would make the TABLE the sticky reference, so
+   the header row would never stick while rows scroll in the wrapper. */
+.mx-rtable-wrap > table.mx-rtable { overflow: visible; }
+.mx-rtable-wrap > table.mx-rtable > thead th { z-index: 2; }
+/* Header cell of a pinned Actions column: above both the header row and the pinned cells. */
+.mx-rtable-wrap > table.mx-rtable > thead th.mx-sticky-actions { z-index: 3; }
+/* Safety net: a body cell is always a real table cell on desktop. A utility
+   class with display:flex on a <td> takes it out of the table grid, and the
+   cell renders outside the table (seen with the Projects ⋮ column). */
+@media (min-width: 641px) {
+  table.mx-rtable > tbody > tr > td,
+  table.mx-rtable > thead > tr > th { display: table-cell; }
+}
+/* Row actions sit at the right edge of their cell (the ⋮ lines up on the
+   table's right side, like a standard data table). */
+td:has(> [data-row-actions]) { text-align: right; }
+@media (max-width: 640px) {
+  td:has(> [data-row-actions]) { text-align: left !important; }
+}
+
+/* ===========================================================================
+   Fill-the-screen list pages (.mx-fill-page on the page's content wrapper):
+   the page itself doesn't scroll. Stat cards, tabs and filters keep their
+   height; the table takes ALL the remaining height and scrolls inside, with
+   its pager (components/ui/TablePager) directly underneath.
+   --mx-header-h is published by PortalHeader (the app bar's live height).
+=========================================================================== */
+@media (min-width: 641px) {
+  .mx-fill-page {
+    display: flex;
+    flex-direction: column;
+    height: calc(100dvh - var(--mx-header-h, 76px) - 48px);
+    min-height: 520px;
+  }
+  .mx-fill-page > * { flex: 0 0 auto; min-width: 0; }
+  /* The table — directly, or inside one wrapping section box. */
+  .mx-fill-page > .mx-rtable-wrap,
+  .mx-fill-page > :has(> .mx-rtable-wrap) {
+    flex: 1 1 0;
+    min-height: 180px;
+  }
+  .mx-fill-page > :has(> .mx-rtable-wrap) { display: flex; flex-direction: column; }
+  .mx-fill-page > .mx-rtable-wrap,
+  .mx-fill-page > :has(> .mx-rtable-wrap) > .mx-rtable-wrap {
+    flex: 1 1 0;
+    min-height: 0;
+    max-height: none;
+    background: var(--mx-surface);
+    border-radius: var(--mx-radius-sm);
+    box-shadow: var(--mx-shadow-xs);
+  }
+  /* Deeper nesting: every container between .mx-fill-page and the table
+     wrapper is marked .mx-fill-grow — it takes the remaining height and
+     passes it down (a view component's own root, a section card…). */
+  .mx-fill-page .mx-fill-grow {
+    flex: 1 1 0;
+    min-height: 200px;
+    display: flex;
+    flex-direction: column;
+    row-gap: 14px;
+  }
+  .mx-fill-page .mx-fill-grow > * { flex: 0 0 auto; min-width: 0; margin-top: 0 !important; margin-bottom: 0 !important; }
+  .mx-fill-page .mx-fill-grow > .mx-rtable-wrap,
+  .mx-fill-page .mx-fill-grow > .mx-fill-grow {
+    flex: 1 1 0;
+    min-height: 0;
+  }
+  .mx-fill-page .mx-fill-grow > .mx-rtable-wrap {
+    max-height: none;
+    background: var(--mx-surface);
+    border-radius: var(--mx-radius-sm);
+  }
+  /* The pager sits flush under the table. */
+  /* (pager spacing comes from the row-gap below) */
+  /* Only the shell's normal top/bottom padding — no extra page scroll. */
+  main:has(.mx-fill-page) { padding-bottom: 24px !important; }
+}
+
+/* Scrollbar ends stay clear of rounded corners (the sidebar's bottom, a
+   table's corners): the track is inset a little at both ends. */
+*::-webkit-scrollbar-track { margin: 4px; }
+
+/* ===========================================================================
+   Stack spacing — two stacked page blocks never touch.
+   Block classes opt in by composing mx-block (or are tables: mx-rtable-wrap):
+   section panels, toolbars, action rows, summary bars, KPI rows, tables, the
+   table skeleton… Two of them next to each other get 16px between.
+   :where() keeps this at zero specificity, so any spacing a module already
+   sets wins; containers that lay blocks out SIDE BY SIDE compose mx-grid and
+   are exempt (a top margin there would knock a column out of line).
+=========================================================================== */
+:where(:not(.mx-grid)) > :where(.mx-block, .mx-rtable-wrap) + :where(.mx-block, .mx-rtable-wrap) {
+  margin-top: 16px;
+}
+/* The fill-the-screen layout is a flex column (margins don't collapse there),
+   so it spaces its children with a gap instead of relying on margins. */
+@media (min-width: 641px) {
+  /* One even rhythm: every block (cards, tabs, filters, summary, table,
+     pager) 14px apart, instead of each module's own top/bottom margins. */
+  .mx-fill-page { row-gap: 14px; }
+  .mx-fill-page > * { margin-top: 0 !important; margin-bottom: 0 !important; }
+}
+
+/* Any other native single <select> gets the same chevron (zero specificity —
+   a module that styles its select fully still wins). Form selects using
+   .formControl are styled in components/calculator.module.css. */
+:where(select:not([multiple])) {
+  -webkit-appearance: none;
+  appearance: none;
+  padding-right: 34px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  background-size: 14px 14px;
+  cursor: pointer;
 }

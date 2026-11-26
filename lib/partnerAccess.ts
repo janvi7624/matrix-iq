@@ -92,7 +92,7 @@ export async function canReviewPartnerDocuments(
  *
  * This is the rule PartnerCreateView promises on the spot — "You will be
  * recorded as this partner's relationship manager, so it appears in your
- * Partner list and you approve its Agreement, NDA and Payment Agreement" —
+ * Partner list and you approve its Agreement, NDA, GST and PAN" —
  * for an ordinary sales account with none of canManagePartners' org-wide
  * grants. Before this existed, every app/api/admin/partners/[id]/** route
  * checked canManagePartners ALONE, which is true only for an admin, a sales

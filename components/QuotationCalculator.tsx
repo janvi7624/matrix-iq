@@ -1,9 +1,9 @@
 'use client';
 
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
-import { Bot, Building2, Cable, Camera, FileSignature, Layers, Monitor, Package, PanelTop, Presentation, ScanFace, Send, Sparkles, SquarePen, Tv, User } from 'lucide-react';
+import { Bot, Building2, Cable, Camera, ChevronLeft, ChevronRight, FileSignature, Layers, Monitor, Package, PanelTop, Presentation, ScanFace, Send, Sparkles, SquarePen, Tv, User } from 'lucide-react';
 import ChoiceCards, { ChoiceOption, StepLabel } from './ui/ChoiceCards';
-import Link from 'next/link';
+import Link from '@/components/ui/AppLink';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { composeQuote } from '@/lib/calculations';
 import { generateQuotationPdf } from '@/lib/pdf';
@@ -14,6 +14,7 @@ import { selectAllOnFocus } from '@/lib/numberInputHelpers';
 import { DOMAIN_DISPLAY_NAME } from '@/lib/domainLabels';
 import { STAGE_LABEL as PROJECT_STAGE_LABEL } from '@/lib/projectStages';
 import AppShell from './AppShell';
+import CommonButton from './ui/CommonButton';
 import StandeeEstimator from './estimators/StandeeEstimator';
 import LedEstimator, { LedModelPreset } from './estimators/LedEstimator';
 import ConferenceEstimator, { ModelPreset } from './estimators/ConferenceEstimator';
@@ -41,6 +42,7 @@ import styles from './calculator.module.css';
 import historyStyles from './quotationHistory.module.css';
 import pro from './quotePro.module.css';
 import { fetchCached, OPTIONS_TTL_MS, invalidateProjectCaches } from '@/lib/fetchCached';
+import Select from '@/components/ui/Select';
 
 const DEFAULT_COST_INPUTS: CostInputs = { installationCost: 0, fabricationCost: 0, scaffoldingCost: 0, markupPercent: 0 };
 
@@ -722,9 +724,9 @@ function QuotationCalculatorContent({ currentUser, canEditPricing, isPrivileged,
         <div className={styles.topBar}>
           <span className={`${styles.rolePill} ${ROLE_PILL_CLASS[currentUser.role] || styles.rolePillUser}`}>{ROLE_LABELS[currentUser.role] || currentUser.role}</span>
           {isPrivileged && (
-            <Link className={historyStyles.button} href="/quotation-history" target="_blank" rel="noreferrer">
+            <CommonButton href="/quotation-history" target="_blank" rel="noreferrer">
               Quotation History
-            </Link>
+            </CommonButton>
           )}
         </div>
         {revisingFrom && (
@@ -835,20 +837,19 @@ function QuotationCalculatorContent({ currentUser, canEditPricing, isPrivileged,
                   <div className={`${styles.row} ${styles.columns} ${styles.rowSpacedTop}`}>
                     <div className={styles.field}>
                       <label className={styles.label} htmlFor="domainSelect">What are you quoting?</label>
-                      <select id="domainSelect" className={styles.formControl} value={domain} onChange={(e) => handleDomainChange(e.target.value as DomainKey | '')}>
+                      <Select id="domainSelect" value={domain} onChange={(e) => handleDomainChange(e.target.value as DomainKey | '')}>
                         <option value="">-- Choose a product category --</option>
                         <option value="av">AV</option>
                         <option value="robotics">Robotics</option>
                         <option value="ai">AI Video Analytics (Video Management System)</option>
                         <option value="si">System Integration</option>
                         <option value="visitiq">VisitIQ VMS (Visitor Management System)</option>
-                      </select>
+                      </Select>
                     </div>
                     <div className={styles.field}>
                       <label className={styles.label} htmlFor="projectVertical">Client&apos;s industry (optional)</label>
-                      <select
+                      <Select
                         id="projectVertical"
-                        className={styles.formControl}
                         value={details.projectVertical}
                         onChange={(e) => setDetails((d) => ({ ...d, projectVertical: e.target.value }))}
                       >
@@ -860,7 +861,7 @@ function QuotationCalculatorContent({ currentUser, canEditPricing, isPrivileged,
                         <option value="Healthcare">Healthcare</option>
                         <option value="Government">Government</option>
                         <option value="Other">Other</option>
-                      </select>
+                      </Select>
                     </div>
                   </div>
                 </details>
@@ -870,9 +871,8 @@ function QuotationCalculatorContent({ currentUser, canEditPricing, isPrivileged,
                 <div className={`${styles.row} ${styles.columns}`}>
                   <div className={styles.field}>
                     <label className={styles.label} htmlFor="projectVertical">Client&apos;s industry (optional)</label>
-                    <select
+                    <Select
                       id="projectVertical"
-                      className={styles.formControl}
                       value={details.projectVertical}
                       onChange={(e) => setDetails((d) => ({ ...d, projectVertical: e.target.value }))}
                     >
@@ -884,7 +884,7 @@ function QuotationCalculatorContent({ currentUser, canEditPricing, isPrivileged,
                       <option value="Healthcare">Healthcare</option>
                       <option value="Government">Government</option>
                       <option value="Other">Other</option>
-                    </select>
+                    </Select>
                   </div>
                 </div>
                 </>
@@ -935,9 +935,9 @@ function QuotationCalculatorContent({ currentUser, canEditPricing, isPrivileged,
                     <span className={styles.flexFill}>
                       <strong>{item.categoryLabel}:</strong> {item.modelLabel} — {item.reason}
                     </span>
-                    <button type="button" className={historyStyles.button} onClick={() => applyRoomSuggestion(item)}>
+                    <CommonButton size="sm" onClick={() => applyRoomSuggestion(item)}>
                       Use this
-                    </button>
+                    </CommonButton>
                   </div>
                 ))}
               </div>
@@ -1052,12 +1052,12 @@ function QuotationCalculatorContent({ currentUser, canEditPricing, isPrivileged,
             </div>
 
             <div className={`${styles.actions} ${styles.actionsSpaced}`}>
-              <button type="button" className={styles.btn} disabled={pdfBusy} onClick={handleDownloadPdf}>
-                {pdfBusy ? 'Working…' : quotationMode === 'proposal' ? 'Save Proposal' : 'Save & Download PDF'}
-              </button>
-              <button type="button" className={`${styles.btn} ${styles.btnGhost}`} onClick={handleReset}>
+              <CommonButton variant="primary" loading={pdfBusy} loadingLabel="Working…" onClick={handleDownloadPdf}>
+                {quotationMode === 'proposal' ? 'Save Proposal' : 'Save & Download PDF'}
+              </CommonButton>
+              <CommonButton variant="ghost" onClick={handleReset}>
                 Start Over
-              </button>
+              </CommonButton>
             </div>
             {logStatus && (
               <div className={`${styles.small} ${logStatus.tone === 'success' ? styles.logStatusSuccess : styles.logStatusError}`}>
@@ -1075,9 +1075,9 @@ function QuotationCalculatorContent({ currentUser, canEditPricing, isPrivileged,
                     {/* Technical staff can't create demo requests — the
                         project's sales owner moves it to Demo. */}
                     {!isTechnical && (
-                      <button type="button" className={historyStyles.button} disabled={movingToDemo} onClick={handleMoveToDemo}>
-                        {movingToDemo ? 'Moving…' : 'Move to Demo'}
-                      </button>
+                      <CommonButton size="sm" loading={movingToDemo} loadingLabel="Moving…" onClick={handleMoveToDemo}>
+                        Move to Demo
+                      </CommonButton>
                     )}
                   </>
                 ) : (
@@ -1090,12 +1090,12 @@ function QuotationCalculatorContent({ currentUser, canEditPricing, isPrivileged,
 
         <div className={historyStyles.wizardNav}>
           {wizardStep > 0 ? (
-            <button type="button" className={historyStyles.bigBtnGhost} onClick={goBack}>← Back</button>
+            <CommonButton variant="ghost" size="lg" leadingIcon={<ChevronLeft />} onClick={goBack}>Back</CommonButton>
           ) : <span />}
           {wizardStep < WIZARD_STEPS.length - 1 && (
-            <button type="button" className={historyStyles.bigBtn} onClick={goNext}>
-              Next: {WIZARD_STEPS[wizardStep + 1].label} →
-            </button>
+            <CommonButton variant="primary" size="lg" trailingIcon={<ChevronRight />} onClick={goNext}>
+              Next: {WIZARD_STEPS[wizardStep + 1].label}
+            </CommonButton>
           )}
         </div>
     </div>

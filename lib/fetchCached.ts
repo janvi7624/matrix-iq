@@ -200,6 +200,18 @@ export function clearFetchCache(): void {
   // the per-URL epochs alone would let it, since its captured value would
   // match the fresh zero.
   globalEpoch += 1;
+  for (const cb of clearListeners) cb();
+}
+
+const clearListeners = new Set<() => void>();
+
+/**
+ * Run `cb` whenever the cache is cleared (i.e. on every sign-out). Lets other
+ * session-scoped client caches — lib/shellDataStore.ts — be cleared by the
+ * same call every sign-out path already makes.
+ */
+export function onFetchCacheClear(cb: () => void): void {
+  clearListeners.add(cb);
 }
 
 /** The endpoints a write path invalidates. Named so the call sites read. */

@@ -3,6 +3,7 @@ import {
   applyPaymentFilters,
   collectFacets,
   isOverdue,
+  parsePaymentFilters,
   periodBounds,
   summariseFiltered
 } from '../../lib/paymentFilters';
@@ -158,6 +159,18 @@ describe('applyPaymentFilters — department and employee', () => {
     expect(applyPaymentFilters(items, { employee: 'Asha R' }).map((i) => i.paymentId)).toEqual(['a', 'c']);
   });
 
+  it('matches any of several departments / employees', () => {
+    expect(applyPaymentFilters(items, { department: ['sales', 'Accounts'] })).toHaveLength(3);
+    expect(applyPaymentFilters(items, { employee: ['Vikram S', 'Acme Supplies'] }).map((i) => i.paymentId)).toEqual(['b', 'c']);
+  });
+
+  it('parses repeated query keys and a single legacy value', () => {
+    const multi = parsePaymentFilters(new URLSearchParams('department=Sales&department=Accounts&status=on_hold'), 'createdAt');
+    expect(multi.department).toEqual(['Sales', 'Accounts']);
+    expect(multi.status).toEqual(['on_hold']);
+    expect(applyPaymentFilters(items, parsePaymentFilters(new URLSearchParams('employee=Asha+R&source=all'), 'createdAt')).map((i) => i.paymentId)).toEqual(['a', 'c']);
+  });
+
   it('combines department and employee as AND', () => {
     expect(applyPaymentFilters(items, { department: 'Accounts', employee: 'Asha R' })).toEqual([]);
   });
@@ -185,6 +198,12 @@ describe('applyPaymentFilters — amount, source, status, search', () => {
 
   it('treats "all" as no filter', () => {
     expect(applyPaymentFilters(items, { source: 'all', status: 'all' })).toHaveLength(3);
+  });
+
+  it('matches any of several sources / statuses, and an empty list is no filter', () => {
+    expect(applyPaymentFilters(items, { source: ['bom_request', 'reimbursement_sheet'] })).toHaveLength(3);
+    expect(applyPaymentFilters(items, { status: ['on_hold'] }).map((i) => i.paymentId)).toEqual(['c']);
+    expect(applyPaymentFilters(items, { source: [], status: [] })).toHaveLength(3);
   });
 
   it('searches across id, payee, description, requester and reference', () => {

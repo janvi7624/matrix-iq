@@ -6,8 +6,10 @@ import {
   User, Building2, Briefcase, Phone, Mail, Cake, CalendarCheck, MapPin, Hash,
 } from 'lucide-react';
 import AppShell from './AppShell';
+import CommonButton from './ui/CommonButton';
+import StatCard, { StatCardGrid } from './ui/StatCard';
 import AppreciationWall from './AppreciationWall';
-import { SkeletonRows } from './ui/Skeleton';
+import { SkeletonDetail } from './ui/Skeleton';
 import historyStyles from './quotationHistory.module.css';
 import styles from './profileView.module.css';
 
@@ -89,15 +91,13 @@ export default function ProfileView() {
   return (
     <AppShell title="My Profile" subtitle="Your employee details on file.">
       {loading ? (
-        <div className={historyStyles.tableWrap}>
-          <SkeletonRows rows={5} columns={4} />
-        </div>
+        <SkeletonDetail panels={2} pairs={6} />
       ) : loadFailed || !profile ? (
         <div className={historyStyles.status}>
           Could not load your profile.{' '}
-          <button type="button" className={historyStyles.button} onClick={load}>
+          <CommonButton variant="secondary" size="sm" onClick={load}>
             Retry
-          </button>
+          </CommonButton>
         </div>
       ) : (
         <>
@@ -119,17 +119,11 @@ export default function ProfileView() {
               </div>
 
               {/* Quick info tiles — responsive, not a rigid 4-column grid */}
-              <div className={`${historyStyles.summaryCardGrid} ${styles.infoGrid}`}>
+              <StatCardGrid className={styles.infoGrid}>
                 {infoCards.map(({ icon: Icon, label, value, tone }) => (
-                  <div key={label} className={`${styles.infoTile} ${TONE_BG[tone]}`}>
-                    <div className={styles.infoTileHead}>
-                      <Icon size={15} strokeWidth={2.2} className={TONE_TEXT[tone]} />
-                      <span className={`${styles.infoTileLabel} ${TONE_TEXT[tone]}`}>{label}</span>
-                    </div>
-                    <span className={styles.infoTileValue}>{value}</span>
-                  </div>
+                  <StatCard key={label} size="compact" valueSize="sm" icon={<Icon />} tone={tone === 'warning' ? 'accent' : tone} label={label} value={value} />
                 ))}
-              </div>
+              </StatCardGrid>
             </div>
           </div>
 

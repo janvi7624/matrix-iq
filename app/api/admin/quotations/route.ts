@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { searchQuotationsFiltered } from '@/lib/quotationStore';
 import { apiErrorResponse } from '@/lib/apiError';
+import { getListParam } from '@/lib/listParam';
 import { QuotationEffectiveStatus } from '@/lib/types';
 import { getViewerContext } from '@/lib/viewerContext';
 
@@ -17,13 +18,15 @@ export async function GET(request: NextRequest) {
 
   try {
     const params = request.nextUrl.searchParams;
-    const status = params.get('status');
+    // Repeated params = several picked (any of them); unknown statuses dropped.
+    const statuses = getListParam(params, 'status').filter((s): s is QuotationEffectiveStatus => VALID_STATUSES.includes(s as QuotationEffectiveStatus));
+    const salesPeople = getListParam(params, 'salesPerson');
     const records = await searchQuotationsFiltered({
       query: params.get('q') || undefined,
       viewerUsername: viewer.username,
-      ownerUsername: params.get('salesPerson') || undefined,
+      ownerUsername: salesPeople.length ? salesPeople : undefined,
       projectId: params.get('projectId') || undefined,
-      status: status && VALID_STATUSES.includes(status as QuotationEffectiveStatus) ? (status as QuotationEffectiveStatus) : undefined,
+      status: statuses.length ? statuses : undefined,
       dateFrom: params.get('dateFrom') || undefined,
       dateTo: params.get('dateTo') || undefined
     });

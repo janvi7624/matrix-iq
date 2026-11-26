@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  ArrowLeft,
   Award,
   Cake,
   CalendarHeart,
@@ -21,10 +20,14 @@ import {
   type LucideIcon
 } from 'lucide-react';
 import AppShell from './AppShell';
+import CommonButton from './ui/CommonButton';
+import CommonHeader from './ui/CommonHeader';
 import { useConfirm } from './ui/ConfirmDialog';
 import { usePrompt } from './ui/PromptDialog';
 import historyStyles from './quotationHistory.module.css';
+import { SkeletonCards } from './ui/Skeleton';
 import calcStyles from './calculator.module.css';
+import RowActions from './ui/RowActions';
 
 // A fixed key from the built-in seven, or a custom one HR added on top
 // (lib/companyCelebrationStore.ts's company_celebration_categories table) —
@@ -410,31 +413,17 @@ export default function CompanyCelebrationsView({ canManage, canContribute }: { 
     if (await send(`/api/hr/celebrations/categories/${encodeURIComponent(cat.key)}`, 'DELETE')) await loadTop();
   }
 
-  // Two identical small square icon buttons, pinned top-right. Sized and
-  // styled here rather than via historyStyles.actionBtn, whose padding made
-  // the pair uneven and large enough to sit on top of the tile's title.
-  const tileBtn = (danger: boolean): React.CSSProperties => ({
-    width: 28,
-    height: 28,
-    display: 'inline-flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 8,
-    border: `1px solid ${danger ? '#fecaca' : 'var(--mx-border, #e2e8f0)'}`,
-    background: '#ffffff',
-    color: danger ? '#b91c1c' : 'var(--mx-ink-muted, #475569)',
-    cursor: 'pointer',
-    padding: 0,
-    boxShadow: '0 1px 2px rgba(15, 23, 42, 0.06)'
-  });
+  // The tile's Edit / Delete live in one ⋮ menu, pinned top-right so it never
+  // sits on top of the tile's title.
   const tileActions = (onEdit: () => void, onDelete: () => void, what: string) => (
-    <div style={{ position: 'absolute', top: 10, right: 10, zIndex: 1, display: 'flex', gap: 6 }}>
-      <button type="button" style={tileBtn(false)} aria-label={`Edit ${what}`} title={`Edit ${what}`} onClick={onEdit}>
-        <Pencil size={13} />
-      </button>
-      <button type="button" style={tileBtn(true)} aria-label={`Delete ${what}`} title={`Delete ${what}`} onClick={onDelete}>
-        <Trash2 size={13} />
-      </button>
+    <div style={{ position: 'absolute', top: 10, right: 10, zIndex: 1 }}>
+      <RowActions
+        label={`Actions for ${what}`}
+        actions={[
+          { key: 'edit', label: 'Edit', icon: <Pencil size={14} />, onClick: onEdit },
+          { key: 'delete', label: 'Delete', icon: <Trash2 size={14} />, destructive: true, onClick: onDelete }
+        ]}
+      />
     </div>
   );
 
@@ -443,16 +432,18 @@ export default function CompanyCelebrationsView({ canManage, canContribute }: { 
       <input ref={fileInputRef} type="file" accept="image/*,video/*" hidden onChange={handleFileChosen} />
 
       {(category || subfolder) && (
-        <div className={historyStyles.toolbar}>
-          <button type="button" className={historyStyles.button} onClick={goBack}>
-            <ArrowLeft size={14} /> Back
-          </button>
-          <span style={{ marginLeft: 8, fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-            {category && <CategoryIcon category={category} categories={categories} size={14} />}
-            {category ? categoryLabelFor(category, categories) : ''}
-            {subfolder ? ` / ${subfolder}` : ''}
-          </span>
-        </div>
+        <CommonHeader
+          tone="light"
+          onBack={goBack}
+          backLabel="Back"
+          title={
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+              {category && <CategoryIcon category={category} categories={categories} size={14} />}
+              {category ? categoryLabelFor(category, categories) : ''}
+              {subfolder ? ` / ${subfolder}` : ''}
+            </span>
+          }
+        />
       )}
 
       {error && <p style={{ color: 'var(--mx-danger)', marginTop: 8 }}>{error}</p>}
@@ -462,9 +453,9 @@ export default function CompanyCelebrationsView({ canManage, canContribute }: { 
         <>
           {canManage && !showNewFolder && (
             <div className={historyStyles.toolbar}>
-              <button type="button" className={historyStyles.button} onClick={startNewFolder}>
-                <FolderPlus size={16} /> Add Folder
-              </button>
+              <CommonButton variant="secondary" size="md" leadingIcon={<FolderPlus size={16} />} onClick={startNewFolder}>
+                Add Folder
+              </CommonButton>
             </div>
           )}
 
@@ -523,15 +514,20 @@ export default function CompanyCelebrationsView({ canManage, canContribute }: { 
                 />
               </div>
               <div className={`${calcStyles.inlineFlexGap8} ${calcStyles.mt8}`}>
-                <button type="button" className={`${historyStyles.button} ${historyStyles.primary}`} onClick={confirmNewFolder} disabled={savingFolder}>
-                  {savingFolder ? 'Adding…' : 'Add Folder'}
-                </button>
-                <button type="button" className={historyStyles.button} onClick={() => setShowNewFolder(false)}>
-                  <X size={14} /> Cancel
-                </button>
+                <CommonButton variant="primary" size="md" onClick={confirmNewFolder} loading={savingFolder} loadingLabel="Adding…">
+                  Add Folder
+                </CommonButton>
+                <CommonButton variant="secondary" size="md" leadingIcon={<X size={14} />} onClick={() => setShowNewFolder(false)}>
+                  Cancel
+                </CommonButton>
               </div>
             </div>
           )}
+
+          {status === 'Loading…' && categories.length === 0 && (
+            <div style={{ marginTop: 12 }}><SkeletonCards count={6} minWidth={220} /></div>
+          )}
+          {status && status !== 'Loading…' && categories.length === 0 && <p className={calcStyles.small}>{status}</p>}
 
           <div className={calcStyles.row} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 16, marginTop: 12 }}>
             {categories.map((cat) => (
@@ -559,9 +555,9 @@ export default function CompanyCelebrationsView({ canManage, canContribute }: { 
         <>
           {canContribute && (
             <div className={historyStyles.toolbar} style={{ marginTop: 8 }}>
-              <button type="button" className={`${historyStyles.button} ${historyStyles.primary}`} onClick={startNewAlbum}>
-                <Plus size={16} /> New Album
-              </button>
+              <CommonButton variant="primary" size="md" leadingIcon={<Plus size={16} />} onClick={startNewAlbum}>
+                New Album
+              </CommonButton>
             </div>
           )}
 
@@ -587,17 +583,21 @@ export default function CompanyCelebrationsView({ canManage, canContribute }: { 
                 />
               </div>
               <div className={`${calcStyles.inlineFlexGap8} ${calcStyles.mt8}`}>
-                <button type="button" className={`${historyStyles.button} ${historyStyles.primary}`} onClick={confirmNewAlbum}>
-                  <Upload size={14} /> Choose Photo/Video
-                </button>
-                <button type="button" className={historyStyles.button} onClick={() => setShowNewAlbum(false)}>
-                  <X size={14} /> Cancel
-                </button>
+                <CommonButton variant="primary" size="md" leadingIcon={<Upload size={14} />} onClick={confirmNewAlbum}>
+                  Choose Photo/Video
+                </CommonButton>
+                <CommonButton variant="secondary" size="md" leadingIcon={<X size={14} />} onClick={() => setShowNewAlbum(false)}>
+                  Cancel
+                </CommonButton>
               </div>
             </div>
           )}
 
-          {status && <p className={calcStyles.small}>{status}</p>}
+          {status === 'Loading…' && subfolders.length === 0 ? (
+            <div style={{ marginTop: 12 }}><SkeletonCards count={6} minWidth={180} /></div>
+          ) : (
+            status && <p className={calcStyles.small}>{status}</p>
+          )}
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 16, marginTop: 12 }}>
             {subfolders.map((sf) => (
@@ -645,24 +645,28 @@ export default function CompanyCelebrationsView({ canManage, canContribute }: { 
           {(canContribute || canManage) && (
             <div className={historyStyles.toolbar} style={{ marginTop: 8 }}>
               {canContribute && (
-                <button type="button" className={`${historyStyles.button} ${historyStyles.primary}`} onClick={triggerUploadIntoCurrentAlbum}>
-                  <Upload size={16} /> Add Photo/Video
-                </button>
+                <CommonButton variant="primary" size="md" leadingIcon={<Upload size={16} />} onClick={triggerUploadIntoCurrentAlbum}>
+                  Add Photo/Video
+                </CommonButton>
               )}
               {canManage && (
-                <>
-                  <button type="button" className={historyStyles.button} onClick={() => handleRenameAlbum(subfolder)}>
-                    <Pencil size={14} /> Rename Album
-                  </button>
-                  <button type="button" className={historyStyles.button} style={{ color: 'var(--mx-danger, #b91c1c)' }} onClick={() => handleDeleteAlbum(subfolder, items.length)}>
-                    <Trash2 size={14} /> Delete Album
-                  </button>
-                </>
+                <RowActions
+                  size="md"
+                  label="Album actions"
+                  actions={[
+                    { key: 'rename', label: 'Rename Album', icon: <Pencil size={14} />, onClick: () => handleRenameAlbum(subfolder) },
+                    { key: 'delete', label: 'Delete Album', icon: <Trash2 size={14} />, destructive: true, onClick: () => handleDeleteAlbum(subfolder, items.length) }
+                  ]}
+                />
               )}
             </div>
           )}
 
-          {status && <p className={calcStyles.small}>{status}</p>}
+          {status === 'Loading…' && items.length === 0 ? (
+            <div style={{ marginTop: 12 }}><SkeletonCards count={6} minWidth={200} /></div>
+          ) : (
+            status && <p className={calcStyles.small}>{status}</p>
+          )}
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 16, marginTop: 12 }}>
             {items.map((item) => (

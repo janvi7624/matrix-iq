@@ -1,8 +1,11 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { Plus, X } from 'lucide-react';
+import CommonButton from './ui/CommonButton';
 import Modal, { ModalCancelButton, ModalOkButton } from './ui/Modal';
 import { useToast } from './ui/ToastProvider';
+import { SkeletonList } from './ui/Skeleton';
 import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
 import styles from './taskCategoryEditor.module.css';
@@ -97,8 +100,10 @@ function ListBlock({
                 onChange={(e) => onChange(values, { ...subs, [value]: e.target.value.split(',').map((v) => v.trim()) })}
               />
             )}
-            <button
-              type="button"
+            <CommonButton
+              variant="destructive"
+              size="sm"
+              iconOnly
               className={styles.removeBtn}
               aria-label={`Remove ${value}`}
               onClick={() => {
@@ -107,19 +112,20 @@ function ListBlock({
                 onChange(values.filter((_, i) => i !== index), nextSubs);
               }}
             >
-              ×
-            </button>
+              <X />
+            </CommonButton>
           </div>
         ))}
       </div>
 
-      <button
-        type="button"
-        className={historyStyles.button}
+      <CommonButton
+        variant="secondary"
+        size="sm"
+        leadingIcon={<Plus />}
         onClick={() => onChange([...values, uniqueName(values, `New ${title.toLowerCase()}`)], subs)}
       >
-        + Add {title.toLowerCase()}
-      </button>
+        Add {title.toLowerCase()}
+      </CommonButton>
     </section>
   );
 }
@@ -198,7 +204,11 @@ export default function ExpenseCategoryEditor({ onClose, onSaved }: { onClose: (
         filed keep whatever they recorded — removing an option only stops it being chosen again.
       </p>
 
-      {status && <div className={historyStyles.status}>{status}</div>}
+      {!data && status === 'Loading…' ? (
+        <SkeletonList rows={4} avatar={false} />
+      ) : (
+        status && <div className={historyStyles.status}>{status}</div>
+      )}
 
       {data && options && (
         <>
@@ -221,14 +231,13 @@ export default function ExpenseCategoryEditor({ onClose, onSaved }: { onClose: (
             onChange={(items, itemSubOptions) => setOptions({ ...options, items, itemSubOptions })}
           />
 
-          <button
-            type="button"
-            className={historyStyles.button}
+          <CommonButton
+            variant="secondary"
             style={{ marginTop: 12 }}
             onClick={() => setOptions({ ...data.defaults })}
           >
             Reset both lists to defaults
-          </button>
+          </CommonButton>
         </>
       )}
     </Modal>

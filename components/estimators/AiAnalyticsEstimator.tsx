@@ -7,7 +7,9 @@ import { formatMoney, slugify } from '@/lib/format';
 import { selectAllOnFocus } from '@/lib/numberInputHelpers';
 import { DomainResult, LineItem } from '@/lib/types';
 import { applyOverride, extraProductKeys, overrideMapKey, OverrideMap } from '@/lib/catalogOverrides';
+import CommonButton from '../ui/CommonButton';
 import styles from '../calculator.module.css';
+import Select from '@/components/ui/Select';
 
 interface AiAnalyticsEstimatorProps {
   active: boolean;
@@ -241,21 +243,21 @@ export default function AiAnalyticsEstimator({ active, onResultChange, canEditPr
       <div className={`${styles.row} ${styles.columns}`}>
         <div className={styles.field}>
           <label className={styles.label} htmlFor="aiPricingMode">Pricing mode</label>
-          <select id="aiPricingMode" className={styles.formControl} value={pricingMode} onChange={(e) => setPricingMode(e.target.value as PricingMode)}>
+          <Select id="aiPricingMode" value={pricingMode} onChange={(e) => setPricingMode(e.target.value as PricingMode)}>
             <option value="ala-carte">Individual Pricing (pick individual analytics)</option>
             <option value="bundle">Bundle (recommended package, best savings)</option>
             {canEditPricing && (
               <option value="custom-bundle">Custom Bundle (sales-assembled, {CUSTOM_BUNDLE_DISCOUNT_PERCENT}% off, min {CUSTOM_BUNDLE_MIN_FEATURES} analytics)</option>
             )}
-          </select>
+          </Select>
         </div>
         <div className={styles.field}>
           <label className={styles.label} htmlFor="aiBillingCycle">Billing cycle</label>
-          <select id="aiBillingCycle" className={styles.formControl} value={billingCycle} onChange={(e) => setBillingCycle(e.target.value as BillingCycle)}>
+          <Select id="aiBillingCycle" value={billingCycle} onChange={(e) => setBillingCycle(e.target.value as BillingCycle)}>
             <option value="yearly">Yearly (list price)</option>
             <option value="monthly">Monthly (annual rate ÷ 12)</option>
             <option value="onetime">One Time (Permanent License)</option>
-          </select>
+          </Select>
         </div>
       </div>
 
@@ -298,11 +300,11 @@ export default function AiAnalyticsEstimator({ active, onResultChange, canEditPr
         <div className={styles.domainPanel}>
           <div className={styles.field}>
             <label className={styles.label} htmlFor="aiBundleSelect">Bundle package</label>
-            <select id="aiBundleSelect" className={styles.formControl} value={bundleIndex} onChange={(e) => setBundleIndex(parseInt(e.target.value, 10))}>
+            <Select id="aiBundleSelect" value={bundleIndex} onChange={(e) => setBundleIndex(parseInt(e.target.value, 10))}>
               {effectiveBundles.map((b, i) => (
                 <option key={b.name} value={i}>{b.name} — {b.includedFeatureNames.length || effectiveAnalytics.length} analytics</option>
               ))}
-            </select>
+            </Select>
           </div>
           <p className={`${styles.small} ${styles.mt8}`}>{selectedBundle.description}</p>
           <p className={styles.small}>
@@ -347,17 +349,16 @@ export default function AiAnalyticsEstimator({ active, onResultChange, canEditPr
           <input id="aiOneTimeCost" className={styles.formControl} type="number" step="any" min={0} value={oneTimeCost} onFocus={selectAllOnFocus} onChange={(e) => setOneTimeCost(parseFloat(e.target.value) || 0)} />
           <div className={`${styles.small} ${styles.mt6}`}>
             Recommended for {AI_SLAB_LABELS[slabIndex]}: {formatMoney(recommendedSetupCost)}{' '}
-            <button type="button" className={styles.secondaryButton} onClick={() => setOneTimeCost(recommendedSetupCost)}>
+            <CommonButton variant="secondary" size="sm" onClick={() => setOneTimeCost(recommendedSetupCost)}>
               Use this
-            </button>
+            </CommonButton>
           </div>
         </div>
         {showFeaturePicker && (
           <div className={styles.field}>
             <label className={styles.label} htmlFor="aiCategoryJump">Jump to category</label>
-            <select
+            <Select
               id="aiCategoryJump"
-              className={styles.formControl}
               value={categoryJump}
               onChange={(e) => {
                 const value = e.target.value;
@@ -369,7 +370,7 @@ export default function AiAnalyticsEstimator({ active, onResultChange, canEditPr
               {categories.map((c) => (
                 <option key={c} value={c}>{c}</option>
               ))}
-            </select>
+            </Select>
           </div>
         )}
       </div>
@@ -377,12 +378,12 @@ export default function AiAnalyticsEstimator({ active, onResultChange, canEditPr
       <div className={`${styles.row} ${styles.columns}`}>
         <div className={styles.field}>
           <label className={styles.label} htmlFor="aiInfraCostMode">Hardware / cloud infrastructure</label>
-          <select id="aiInfraCostMode" className={styles.formControl} value={infraCostMode} onChange={(e) => setInfraCostMode(e.target.value as InfraCostMode)}>
+          <Select id="aiInfraCostMode" value={infraCostMode} onChange={(e) => setInfraCostMode(e.target.value as InfraCostMode)}>
             <option value="none">Not included in this quote</option>
             <option value="hardware">Hardware / on-site server (one-time cost)</option>
             <option value="cloud">Cloud / hosted server (monthly cost)</option>
             <option value="client">Client-provided (in client's scope — no cost)</option>
-          </select>
+          </Select>
         </div>
         {infraCostMode === 'hardware' && (
           <div className={styles.field}>
@@ -460,14 +461,14 @@ export default function AiAnalyticsEstimator({ active, onResultChange, canEditPr
                           />
                           <span>{periodUnitSuffix}</span>
                           {detectionOverrides[index] !== undefined && (
-                            <button
-                              type="button"
-                              className={styles.secondaryButton}
+                            <CommonButton
+                              variant="secondary"
+                              size="sm"
                               onClick={() => setDetectionOverrides((prev) => { const next = { ...prev }; delete next[index]; return next; })}
                               title={`Reset to list price ${formatMoney(computedRate)}`}
                             >
                               Reset
-                            </button>
+                            </CommonButton>
                           )}
                         </div>
                       ) : (

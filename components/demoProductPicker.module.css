@@ -20,49 +20,6 @@
   gap: 8px;
 }
 
-.chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 7px 14px;
-  border: 1px solid var(--mx-border-strong, #d1d5db);
-  border-radius: var(--mx-radius-full, 999px);
-  background: var(--mx-surface, #f7f7f8);
-  color: var(--mx-ink-muted, #6b7280);
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  user-select: none;
-  transition: background 0.15s, border-color 0.15s, color 0.15s;
-}
-
-.chip:hover {
-  border-color: var(--mx-brand, #dc2626);
-  color: var(--mx-ink, #111827);
-}
-
-.chip input {
-  position: absolute;
-  opacity: 0;
-  pointer-events: none;
-}
-
-.chip:has(input:focus-visible) {
-  outline: 2px solid var(--mx-brand, #dc2626);
-  outline-offset: 2px;
-}
-
-.chipOn {
-  border-color: var(--mx-brand, #dc2626);
-  background: var(--mx-brand-subtle, rgba(220, 38, 38, 0.08));
-  color: var(--mx-brand-text, #b91c1c);
-}
-
-.tick {
-  font-size: 12px;
-  line-height: 1;
-}
-
 /* ---- Domain panel ---- */
 .panel {
   border: 1px solid var(--mx-border, #e5e7eb);
@@ -90,7 +47,7 @@
 
 .products {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(230px, 100%), 1fr));
   gap: 8px;
 }
 
@@ -146,8 +103,9 @@
   gap: 6px;
 }
 
-.input,
-.select {
+.select { flex: 1 1 200px; min-width: 0; }
+
+.input {
   flex: 1 1 200px;
   min-width: 0;
   height: 36px;
@@ -160,8 +118,7 @@
   font-size: 13px;
 }
 
-.input:focus,
-.select:focus {
+.input:focus {
   outline: none;
   border-color: var(--mx-brand, #dc2626);
   box-shadow: 0 0 0 3px var(--mx-brand-subtle, rgba(220, 38, 38, 0.08));
@@ -201,41 +158,19 @@
   outline: none;
 }
 
-.iconBtn {
-  width: 32px;
-  height: 32px;
-  border: 1px solid transparent;
-  border-radius: var(--mx-radius-xs, 8px);
-  background: transparent;
-  color: var(--mx-ink-faint, #9ca3af);
-  cursor: pointer;
-  font-size: 14px;
-}
-
-.iconBtn:hover {
-  border-color: var(--mx-danger-subtle, rgba(220, 38, 38, 0.12));
-  background: var(--mx-danger-subtle, rgba(220, 38, 38, 0.12));
-  color: var(--mx-danger, #b91c1c);
-}
-
 .addBtn {
   align-self: flex-start;
-  padding: 4px 10px;
-  border: 1px dashed var(--mx-border-strong, #d1d5db);
-  border-radius: var(--mx-radius-full, 999px);
-  background: transparent;
-  color: var(--mx-brand-text, #b91c1c);
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.addBtn:hover {
-  border-color: var(--mx-brand, #dc2626);
-  background: var(--mx-brand-subtle, rgba(220, 38, 38, 0.08));
 }
 
 .empty {
   font-size: 12px;
   color: var(--mx-ink-faint, #9ca3af);
+}
+
+/* Responsive: these rows hold controls or a title + actions. They wrap
+   onto a second line when the screen is too narrow for them, instead of
+   overflowing or crushing their neighbours. No effect when they fit. */
+.productHead {
+    flex-wrap: wrap;
+    row-gap: 8px;
 }

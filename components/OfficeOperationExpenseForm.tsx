@@ -3,12 +3,17 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import AppShell from './AppShell';
+import CommonButton from './ui/CommonButton';
+import CommonChip from './ui/CommonChip';
+import PageBackButton from './ui/PageBackButton';
 import { useToast } from './ui/ToastProvider';
+import { SkeletonForm } from './ui/Skeleton';
 import { OfficeOperationExpenseRecord } from '@/lib/types';
 import { OFFICE_LOCATIONS, PAID_BY_OPTIONS } from '@/lib/officeOperationExpenseOptions';
 import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
 import styles from './officeOperationExpenses.module.css';
+import Select from '@/components/ui/Select';
 
 interface OptionsPayload {
   usecases: string[];
@@ -226,14 +231,14 @@ export default function OfficeOperationExpenseForm({ editId }: OfficeOperationEx
     <AppShell title={editId ? 'Edit Expense' : 'Add Expense'} subtitle="HR/Admin office operating expense register">
       <div className={styles.pageWrap}>
         <div className={styles.headerRow}>
-          <h2 className={styles.pageTitle}>{editId ? 'Edit Expense' : 'Add Expense'}</h2>
-          <button type="button" className={historyStyles.button} onClick={goBack}>
-            ← Back to register
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <PageBackButton fallbackRoute="/office-operation-expenses" label="Back to register" />
+            <h2 className={styles.pageTitle}>{editId ? 'Edit Expense' : 'Add Expense'}</h2>
+          </div>
         </div>
 
         {loadingRecord ? (
-          <div className={styles.loadingState}>Loading…</div>
+          <SkeletonForm fields={8} />
         ) : (
           <form onSubmit={handleSubmit}>
             <div className={styles.editingNote}>
@@ -268,24 +273,24 @@ export default function OfficeOperationExpenseForm({ editId }: OfficeOperationEx
 
               <div>
                 <label className={styles.fieldLabel}>Category *</label>
-                <select
-                  className={`${calcStyles.formControl} ${styles.fullWidth}`}
+                <Select
+                  className={styles.fullWidth}
                   value={form.usecase}
                   onChange={(e) => { setField('usecase', e.target.value); setField('usecaseDetail', ''); }}
                   disabled={!options}
                 >
                   <option value="">Select category…</option>
                   {options?.usecases.map((u) => <option key={u} value={u}>{u}</option>)}
-                </select>
+                </Select>
               </div>
 
               {usecaseSubs && (
                 <div>
                   <label className={styles.fieldLabel}>{form.usecase} — which one? *</label>
-                  <select className={`${calcStyles.formControl} ${styles.fullWidth}`} value={form.usecaseDetail} onChange={(e) => setField('usecaseDetail', e.target.value)}>
+                  <Select className={styles.fullWidth} value={form.usecaseDetail} onChange={(e) => setField('usecaseDetail', e.target.value)}>
                     <option value="">Select…</option>
                     {usecaseSubs.map((s) => <option key={s} value={s}>{s}</option>)}
-                  </select>
+                  </Select>
                 </div>
               )}
 
@@ -298,15 +303,15 @@ export default function OfficeOperationExpenseForm({ editId }: OfficeOperationEx
 
               <div>
                 <label className={styles.fieldLabel}>Expense Head *</label>
-                <select
-                  className={`${calcStyles.formControl} ${styles.fullWidth}`}
+                <Select
+                  className={styles.fullWidth}
                   value={form.itemName}
                   onChange={(e) => { setField('itemName', e.target.value); setForm((prev) => ({ ...prev, itemSubNames: [], itemSubOther: '', itemFreeTextDetail: '' })); }}
                   disabled={!options}
                 >
                   <option value="">Select expense head…</option>
                   {options?.items.map((i) => <option key={i} value={i}>{i}</option>)}
-                </select>
+                </Select>
               </div>
 
               {!!itemSubs?.length && (
@@ -323,22 +328,9 @@ export default function OfficeOperationExpenseForm({ editId }: OfficeOperationEx
                     {itemSubs.map((sub) => {
                       const on = form.itemSubNames.includes(sub);
                       return (
-                        <label key={sub} style={{
-                          display: 'inline-flex', alignItems: 'center', gap: 6, cursor: 'pointer',
-                          padding: '4px 10px', borderRadius: 14, fontSize: '13px', userSelect: 'none',
-                          border: `1px solid ${on ? 'var(--mx-brand, #2563eb)' : 'var(--mx-border, #e5e7eb)'}`,
-                          background: on ? 'var(--mx-brand-subtle, #eff6ff)' : 'transparent',
-                          color: on ? 'var(--mx-brand, #2563eb)' : 'var(--mx-ink)',
-                          fontWeight: on ? 600 : 400
-                        }}>
-                          <input
-                            type="checkbox"
-                            checked={on}
-                            onChange={() => toggleSubItem(sub)}
-                            style={{ accentColor: 'var(--mx-brand, #2563eb)', margin: 0 }}
-                          />
+                        <CommonChip key={sub} size="sm" selected={on} onClick={() => toggleSubItem(sub)}>
                           {sub}
-                        </label>
+                        </CommonChip>
                       );
                     })}
                   </div>
@@ -392,14 +384,14 @@ export default function OfficeOperationExpenseForm({ editId }: OfficeOperationEx
               </div>
               <div>
                 <label className={styles.fieldLabel}>Paid By *</label>
-                <select
-                  className={`${calcStyles.formControl} ${styles.fullWidth}`}
+                <Select
+                  className={styles.fullWidth}
                   value={form.remarks}
                   onChange={(e) => { setField('remarks', e.target.value); if (e.target.value !== 'Other') setField('remarksOther', ''); }}
                 >
                   <option value="">Select who paid…</option>
                   {PAID_BY_OPTIONS.map((p) => <option key={p} value={p}>{p}</option>)}
-                </select>
+                </Select>
                 {form.remarks === 'Other' && (
                   <input
                     className={`${calcStyles.formControl} ${styles.fullWidth}`}
@@ -413,12 +405,12 @@ export default function OfficeOperationExpenseForm({ editId }: OfficeOperationEx
             </div>
 
             <div className={styles.formActions}>
-              <button type="submit" className={`${historyStyles.button} ${historyStyles.primary}`} disabled={saving}>
-                {saving ? (editId ? 'Updating…' : 'Saving…') : (editId ? 'Update Expense' : 'Save Expense')}
-              </button>
-              <button type="button" className={historyStyles.button} onClick={goBack} disabled={saving}>
+              <CommonButton type="submit" variant="primary" loading={saving} loadingLabel={editId ? 'Updating…' : 'Saving…'}>
+                {editId ? 'Update Expense' : 'Save Expense'}
+              </CommonButton>
+              <CommonButton onClick={goBack} disabled={saving}>
                 Cancel
-              </button>
+              </CommonButton>
             </div>
           </form>
         )}

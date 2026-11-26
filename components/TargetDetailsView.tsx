@@ -7,9 +7,10 @@ import StatTile from './ui/StatTile';
 import Table from './ui/Table';
 import StatusBadge, { StatusTone } from './ui/StatusBadge';
 import ToolbarButton from './ui/ToolbarButton';
+import CommonButton from './ui/CommonButton';
 import ErrorState from './ui/ErrorState';
 import EmptyState from './ui/EmptyState';
-import { SkeletonRows } from './ui/Skeleton';
+import { SkeletonStatCards, SkeletonTable } from './ui/Skeleton';
 import { useToast } from './ui/ToastProvider';
 import TargetDrilldownModal from './TargetDrilldownModal';
 import TargetFormDialog from './TargetFormDialog';
@@ -18,6 +19,8 @@ import { formatMoney } from '@/lib/format';
 import calcStyles from './calculator.module.css';
 import historyStyles from './quotationHistory.module.css';
 import styles from './targetDetails.module.css';
+import { RefreshButton } from './ui/ListControls';
+import Select from './ui/Select';
 
 const PERIOD_TYPE_LABEL: Record<TargetPeriodType, string> = {
   monthly: 'Monthly',
@@ -133,6 +136,7 @@ export default function TargetDetailsView() {
 
   return (
     <AppShell
+      fillPage={tab === 'overview'}
       title="Target Details"
       subtitle={data?.displayPeriod ? `Sales Team targets vs achievement — showing ${data.displayPeriod}` : 'Sales Team targets vs achievement, by period.'}
     >
@@ -144,35 +148,42 @@ export default function TargetDetailsView() {
       <div className={historyStyles.toolbar}>
         <span className={historyStyles.filterDateGroup}>
           <label className={historyStyles.filterDateGroupLabel} htmlFor="targetPeriodType">View by</label>
-          <select id="targetPeriodType" className={calcStyles.formControl} value={periodType} onChange={(e) => handlePeriodTypeChange(e.target.value as TargetPeriodType)}>
+          <Select auto id="targetPeriodType" value={periodType} onChange={(e) => handlePeriodTypeChange(e.target.value as TargetPeriodType)}>
             {(Object.keys(PERIOD_TYPE_LABEL) as TargetPeriodType[]).map((pt) => (
               <option key={pt} value={pt}>{PERIOD_TYPE_LABEL[pt]}</option>
             ))}
-          </select>
+          </Select>
         </span>
         <span className={historyStyles.filterDateGroup}>
           <label className={historyStyles.filterDateGroupLabel} htmlFor="targetFiscalYear">Year</label>
-          <select id="targetFiscalYear" className={calcStyles.formControl} value={fiscalYear} onChange={(e) => setFiscalYear(e.target.value)}>
+          <Select auto id="targetFiscalYear" value={fiscalYear} onChange={(e) => setFiscalYear(e.target.value)}>
             {fiscalYearOptions().map((fy) => (
               <option key={fy} value={fy}>FY {fy}</option>
             ))}
-          </select>
+          </Select>
         </span>
         {periodType !== 'annual' && (
           <span className={historyStyles.filterDateGroup}>
             <label className={historyStyles.filterDateGroupLabel} htmlFor="targetPeriodKey">Period</label>
-            <select id="targetPeriodKey" className={calcStyles.formControl} value={periodKey} onChange={(e) => setPeriodKey(e.target.value)}>
+            <Select auto id="targetPeriodKey" value={periodKey} onChange={(e) => setPeriodKey(e.target.value)}>
               {periodOptions.map((p) => (
                 <option key={p.key} value={p.key}>{p.label}</option>
               ))}
-            </select>
+            </Select>
           </span>
         )}
-        <ToolbarButton onClick={load}>Refresh</ToolbarButton>
+        <RefreshButton onRefresh={load} loading={loading} pushRight />
       </div>
 
       {loading ? (
-        <SkeletonRows rows={6} columns={4} />
+        tab === 'overview' ? (
+          <>
+            <SkeletonStatCards count={7} withIcon={false} />
+            <div style={{ marginTop: 16 }}><SkeletonTable columns={8} rows={6} /></div>
+          </>
+        ) : (
+          <SkeletonTable columns={4} rows={6} />
+        )
       ) : loadFailed ? (
         <ErrorState message="Could not load Target Details — check your connection and try again." onRetry={load} />
       ) : !data ? null : tab === 'overview' ? (
@@ -255,9 +266,9 @@ function OverviewTab({
               key: 'employee',
               header: 'Employee',
               render: (row: EmployeeRow) => (
-                <button type="button" className={historyStyles.toggleBtn} onClick={() => onOpenDrilldown(row.employeeId, row.name)}>
+                <CommonButton variant="link" size="sm" onClick={() => onOpenDrilldown(row.employeeId, row.name)}>
                   {row.name}
-                </button>
+                </CommonButton>
               )
             },
             { key: 'target', header: 'Target', render: (row: EmployeeRow) => (row.targetId ? formatMoney(row.targetAmount) : '—') },
@@ -276,9 +287,9 @@ function OverviewTab({
               key: 'actions',
               header: '',
               render: (row: EmployeeRow) => (
-                <button type="button" className={historyStyles.toggleBtn} onClick={() => onOpenForm(row)}>
+                <CommonButton variant="secondary" size="sm" onClick={() => onOpenForm(row)}>
                   {row.targetId ? 'Edit' : 'Set Target'}
-                </button>
+                </CommonButton>
               )
             }
           ]}
@@ -388,15 +399,15 @@ function WeeklyUpdateTab({
   return (
     <>
       <div className={historyStyles.toolbar}>
-        <select className={calcStyles.formControl} value={employeeId} onChange={(e) => setEmployeeId(e.target.value)} aria-label="Employee">
+        <Select auto value={employeeId} onChange={(e) => setEmployeeId(e.target.value)} aria-label="Employee">
           {data.employees.map((e) => (
             <option key={e.employeeId} value={e.employeeId}>{e.name}</option>
           ))}
-        </select>
+        </Select>
       </div>
 
       {loading ? (
-        <SkeletonRows rows={4} columns={4} />
+        <SkeletonTable columns={4} rows={4} />
       ) : error ? (
         <ErrorState message={error} />
       ) : (
@@ -410,8 +421,9 @@ function WeeklyUpdateTab({
                 key: 'status',
                 header: 'Sales Status',
                 render: (q: WeeklyQuotation) => (
-                  <select
-                    className={calcStyles.formControl}
+                  <Select
+                    dropdownSize="sm"
+                    auto
                     value={q.status}
                     disabled={busyId === q.id}
                     onChange={(e) => flipStatus(q.id, e.target.value)}
@@ -420,7 +432,7 @@ function WeeklyUpdateTab({
                     <option value="sent">Sent</option>
                     <option value="approved">Approved</option>
                     <option value="rejected">Rejected</option>
-                  </select>
+                  </Select>
                 )
               }
             ]}

@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import calcStyles from '../calculator.module.css';
 import { PROJECT_SOURCE_OPTIONS } from '@/lib/projectSourceOptions';
+import Select from './Select';
 
 interface ProjectSourceFieldProps {
   value: string;
@@ -24,8 +25,7 @@ export default function ProjectSourceField({ value, onChange, required }: Projec
 
   return (
     <>
-      <select
-        className={calcStyles.formControl}
+      <Select
         required={required}
         value={selectValue}
         onChange={(e) => {
@@ -36,7 +36,7 @@ export default function ProjectSourceField({ value, onChange, required }: Projec
       >
         <option value="">— Select source —</option>
         {PROJECT_SOURCE_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
-      </select>
+      </Select>
       {showOther && (
         <input
           type="text"

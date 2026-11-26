@@ -8,21 +8,25 @@ import AppShell from './AppShell';
 import calcStyles from './calculator.module.css';
 import historyStyles from './quotationHistory.module.css';
 import styles from './dailyReport.module.css';
-import Button from './ui/Button';
+import CommonButton from './ui/CommonButton';
 import Input from './ui/Input';
-import Select from './ui/Select';
 import Textarea from './ui/Textarea';
 import FilterBar from './ui/FilterBar';
+import SearchInput from './ui/SearchInput';
+import Dropdown from './ui/Dropdown';
+import { setListParam } from '@/lib/listParam';
 import DailyReportPdfExport from './DailyReportPdfExport';
 import StatTile from './ui/StatTile';
 import Modal, { ModalCancelButton, ModalOkButton } from './ui/Modal';
 import EmptyState from './ui/EmptyState';
 import ErrorState from './ui/ErrorState';
-import { SkeletonRows } from './ui/Skeleton';
+import { SkeletonCards, SkeletonTable } from './ui/Skeleton';
 import { SegmentedButton } from './ui/SegmentedToggle';
 import { useToast } from './ui/ToastProvider';
 import { useAutoRefresh } from '@/lib/useAutoRefresh';
 import { formatIstDate, formatIstDateTime } from '@/lib/dailyReportTime';
+import RowActions from './ui/RowActions';
+import { RefreshButton } from './ui/ListControls';
 
 // HR Daily Report Review — two tabs, because HR does two distinct jobs here:
 // decide leave exemptions, and review or waive missed-report warnings.
@@ -70,7 +74,8 @@ export default function HrDailyReportReviewView({ initialTab }: { initialTab?: s
   const toast = useToast();
   const [tab, setTab] = useState<Tab>(initialTab === 'warnings' ? 'warnings' : 'leave');
 
-  const [claimStatus, setClaimStatus] = useState('PENDING');
+  // Multi-select: an empty list means every status.
+  const [claimStatus, setClaimStatus] = useState<string[]>(['PENDING']);
   const [claimSearch, setClaimSearch] = useState('');
   const [claims, setClaims] = useState<DailyReportLeaveClaimRecord[]>([]);
   const [claimTotal, setClaimTotal] = useState(0);
@@ -100,7 +105,7 @@ export default function HrDailyReportReviewView({ initialTab }: { initialTab?: s
     try {
       if (tab === 'leave') {
         const params = new URLSearchParams();
-        if (claimStatus) params.set('status', claimStatus);
+        setListParam(params, 'status', claimStatus);
         if (claimSearch.trim()) params.set('search', claimSearch.trim());
         const response = await fetch(`/api/daily-reports/hr/leave-claims?${params.toString()}`);
         const body = await response.json().catch(() => null);
@@ -217,7 +222,7 @@ export default function HrDailyReportReviewView({ initialTab }: { initialTab?: s
   const totalActive = groups.reduce((sum, group) => sum + group.active_warnings, 0);
 
   return (
-    <AppShell title={title} subtitle={subtitle}>
+    <AppShell title={title} subtitle={subtitle} fillPage={tab === 'leave' && !loadFailed}>
       <div className={styles.tabRow} role="tablist" aria-label="Daily report review sections">
         <SegmentedButton active={tab === 'leave'} onClick={() => setTab('leave')} role="tab" aria-selected={tab === 'leave'}>
           Leave Claims
@@ -225,9 +230,10 @@ export default function HrDailyReportReviewView({ initialTab }: { initialTab?: s
         <SegmentedButton active={tab === 'warnings'} onClick={() => setTab('warnings')} role="tab" aria-selected={tab === 'warnings'}>
           Warnings
         </SegmentedButton>
-        <span style={{ marginLeft: 'auto' }}>
+        <span style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 8 }}>
           {/* Server decides scope: HR manager / admin get every employee. */}
           <DailyReportPdfExport mode="team" label="All Employees Reports PDF" />
+          <RefreshButton onRefresh={load} loading={loading} label="Refresh claims and warnings" />
         </span>
       </div>
 
@@ -236,13 +242,20 @@ export default function HrDailyReportReviewView({ initialTab }: { initialTab?: s
       ) : tab === 'leave' ? (
         <>
           <FilterBar>
-            <Select auto value={claimStatus} onChange={(e) => setClaimStatus(e.target.value)} aria-label="Claim status">
-              <option value="PENDING">Pending</option>
-              <option value="APPROVED">Approved</option>
-              <option value="REJECTED">Rejected</option>
-              <option value="">All</option>
-            </Select>
-            <input type="text" value={claimSearch} placeholder="Search employee…" onChange={(e) => setClaimSearch(e.target.value)} aria-label="Search employee" />
+            <Dropdown
+              multiselect
+              value={claimStatus}
+              onChange={setClaimStatus}
+              placeholder="All"
+              label="Status"
+              ariaLabel="Claim status"
+              options={[
+                { value: 'PENDING', label: 'Pending' },
+                { value: 'APPROVED', label: 'Approved' },
+                { value: 'REJECTED', label: 'Rejected' }
+              ]}
+            />
+            <SearchInput value={claimSearch} placeholder="Search employee…" onChange={(v) => setClaimSearch(v)} aria-label="Search employee" />
           </FilterBar>
 
           <div className={styles.kpiRow}>
@@ -251,11 +264,11 @@ export default function HrDailyReportReviewView({ initialTab }: { initialTab?: s
           </div>
 
           {loading && !claims.length ? (
-            <div className={historyStyles.tableWrap}><SkeletonRows rows={5} columns={6} /></div>
+            <SkeletonTable columns={9} rows={5} />
           ) : claims.length === 0 ? (
             <EmptyState
               icon={CalendarOff}
-              title={claimStatus === 'PENDING' ? 'No leave claims awaiting a decision' : 'No leave claims match this filter'}
+              title={claimStatus.length === 1 && claimStatus[0] === 'PENDING' ? 'No leave claims awaiting a decision' : 'No leave claims match this filter'}
               message="When an employee marks a reporting date as leave, the claim appears here for approval."
             />
           ) : (
@@ -312,28 +325,30 @@ export default function HrDailyReportReviewView({ initialTab }: { initialTab?: s
                       <td>{claim.decision_reason || '—'}</td>
                       <td>
                         {claim.status === 'PENDING' ? (
-                          <div className={historyStyles.rowActionsInline}>
-                            <button
-                              type="button"
-                              className={`${historyStyles.rowAction} ${historyStyles.rowActionPrimary}`}
-                              onClick={() => {
-                                setReason('');
-                                setClaimDialog({ claim, decision: 'APPROVED' });
-                              }}
-                            >
-                              <CheckCircle2 size={14} /> Approve
-                            </button>
-                            <button
-                              type="button"
-                              className={`${historyStyles.rowAction} ${historyStyles.rowActionDanger}`}
-                              onClick={() => {
-                                setReason('');
-                                setClaimDialog({ claim, decision: 'REJECTED' });
-                              }}
-                            >
-                              <XCircle size={14} /> Reject
-                            </button>
-                          </div>
+                          <RowActions
+                            label="Claim actions"
+                            actions={[
+                              {
+                                key: 'approve', pinned: true,
+                                label: 'Approve',
+                                icon: <CheckCircle2 />,
+                                onClick: () => {
+                                  setReason('');
+                                  setClaimDialog({ claim, decision: 'APPROVED' });
+                                }
+                              },
+                              {
+                                key: 'reject', pinned: true,
+                                label: 'Reject',
+                                icon: <XCircle />,
+                                destructive: true,
+                                onClick: () => {
+                                  setReason('');
+                                  setClaimDialog({ claim, decision: 'REJECTED' });
+                                }
+                              }
+                            ]}
+                          />
                         ) : (
                           <span className={calcStyles.small}>Decided {formatDateTime(claim.reviewed_at)}</span>
                         )}
@@ -349,12 +364,18 @@ export default function HrDailyReportReviewView({ initialTab }: { initialTab?: s
         <>
           <FilterBar>
             <Input type="month" auto value={month} onChange={(e) => setMonth(e.target.value)} aria-label="Reporting month" />
-            <Select auto value={warningView} onChange={(e) => setWarningView(e.target.value)} aria-label="Warning view">
-              <option value="escalated">Needs action — final warning reached</option>
-              <option value="active">Everyone with any active warning</option>
-              <option value="all">All, including fully waived</option>
-            </Select>
-            <input type="text" value={warningSearch} placeholder="Search employee…" onChange={(e) => setWarningSearch(e.target.value)} aria-label="Search employee" />
+            <Dropdown
+              value={warningView}
+              onChange={(v) => setWarningView(v || 'escalated')}
+              clearable={false}
+              ariaLabel="Warning view"
+              options={[
+                { value: 'escalated', label: 'Needs action — final warning reached' },
+                { value: 'active', label: 'Everyone with any active warning' },
+                { value: 'all', label: 'All, including fully waived' }
+              ]}
+            />
+            <SearchInput value={warningSearch} placeholder="Search employee…" onChange={(v) => setWarningSearch(v)} aria-label="Search employee" />
           </FilterBar>
 
           <div className={styles.kpiRow}>
@@ -369,7 +390,7 @@ export default function HrDailyReportReviewView({ initialTab }: { initialTab?: s
           </div>
 
           {loading && !groups.length ? (
-            <div className={calcStyles.sectionPanel}><SkeletonRows rows={4} columns={3} /></div>
+            <SkeletonCards count={3} minWidth={640} />
           ) : groups.length === 0 ? (
             <EmptyState
               icon={ShieldAlert}
@@ -423,16 +444,16 @@ export default function HrDailyReportReviewView({ initialTab }: { initialTab?: s
                     <>
                       <div className={styles.dateChips}>
                         <span className={styles.groupMeta}>{finalWarningHeadline(group, threshold)}</span>
-                        <button
-                          type="button"
-                          className={styles.dateChip}
+                        <CommonButton
+                          variant="outlined"
+                          size="sm"
                           onClick={() => {
                             setReason('');
                             setWaiveDialog({ warningId: final.id, employeeName: group.employee_name, reportDate: final.report_date });
                           }}
                         >
                           {formatDate(final.report_date)} · waive
-                        </button>
+                        </CommonButton>
                       </div>
                       {earlier.length > 0 && (
                         <details className={styles.detailsBlock}>
@@ -441,17 +462,17 @@ export default function HrDailyReportReviewView({ initialTab }: { initialTab?: s
                           </summary>
                           <div className={styles.dateChips}>
                             {earlier.map((warning) => (
-                              <button
+                              <CommonButton
                                 key={warning.id}
-                                type="button"
-                                className={styles.dateChip}
+                                variant="outlined"
+                                size="sm"
                                 onClick={() => {
                                   setReason('');
                                   setWaiveDialog({ warningId: warning.id, employeeName: group.employee_name, reportDate: warning.report_date });
                                 }}
                               >
                                 {formatDate(warning.report_date)} · waive
-                              </button>
+                              </CommonButton>
                             ))}
                           </div>
                         </details>
@@ -475,16 +496,16 @@ export default function HrDailyReportReviewView({ initialTab }: { initialTab?: s
                         {group.hr_reminders_sent > 0 &&
                           ` · manager reminded ${group.hr_reminders_sent}×`}
                       </span>
-                      <button
-                        type="button"
-                        className={styles.dateChip}
+                      <CommonButton
+                        variant="outlined"
+                        size="sm"
                         onClick={() => {
                           setActionNote('');
                           setActionDialog({ escalationId: group.escalation_id, employeeName: group.employee_name, monthKey: group.month_key });
                         }}
                       >
                         Record action
-                      </button>
+                      </CommonButton>
                     </div>
                   )
                 )}
@@ -625,10 +646,6 @@ export default function HrDailyReportReviewView({ initialTab }: { initialTab?: s
           </div>
         </Modal>
       )}
-
-      <div className={styles.footerActions}>
-        <Button variant="ghost" onClick={load} disabled={loading}>Refresh</Button>
-      </div>
     </AppShell>
   );
 }

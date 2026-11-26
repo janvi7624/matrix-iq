@@ -12,7 +12,10 @@ import PriorityBadge from './ui/PriorityBadge';
 import ActivityTimeline from './ui/ActivityTimeline';
 import Textarea from './ui/Textarea';
 import ToolbarButton from './ui/ToolbarButton';
+import CommonButton from './ui/CommonButton';
 import { useToast } from './ui/ToastProvider';
+import { SkeletonDetail } from './ui/Skeleton';
+import Select from '@/components/ui/Select';
 
 interface DetailResponse {
   task: GeneralTaskRecord;
@@ -335,7 +338,8 @@ export default function GeneralTaskDetailPanel({ taskId, onTitleChange, onChange
   }
 
   if (!data) {
-    return <div className={historyStyles.status}>{status || 'Loading...'}</div>;
+    if (!status || status === 'Loading...') return <SkeletonDetail panels={3} pairs={6} withTopRow={false} />;
+    return <div className={historyStyles.status}>{status}</div>;
   }
 
   const { task, updates, deadlineChanges, activity, permissions } = data;
@@ -383,13 +387,13 @@ export default function GeneralTaskDetailPanel({ taskId, onTitleChange, onChange
       <div className={`${calcStyles.sectionPanel} ${styles.panelSpaced16}`}>
         <div className={`${calcStyles.h2} ${calcStyles.h2Flush}`}>Actions</div>
         <div className={styles.actionButtonsRow}>
-          {permissions.canAct && <button type="button" className={calcStyles.btn} disabled={acting} onClick={submitStart}>Start Task</button>}
-          {permissions.canSubmit && <button type="button" className={calcStyles.btn} disabled={acting} onClick={() => startAction('submit')}>Submit</button>}
-          {permissions.canReopen && <button type="button" className={calcStyles.btn} disabled={acting} onClick={submitReopen}>Resume</button>}
+          {permissions.canAct && <CommonButton variant="primary" size="md" disabled={acting} onClick={submitStart}>Start Task</CommonButton>}
+          {permissions.canSubmit && <CommonButton variant="primary" size="md" disabled={acting} onClick={() => startAction('submit')}>Submit</CommonButton>}
+          {permissions.canReopen && <CommonButton variant="primary" size="md" disabled={acting} onClick={submitReopen}>Resume</CommonButton>}
           {permissions.canDecline && <ToolbarButton disabled={acting} onClick={() => startAction('decline')}>Deny Task</ToolbarButton>}
           {permissions.canReview && (
             <>
-              <button type="button" className={calcStyles.btn} disabled={acting} onClick={() => startAction('review-approve')}>Approve</button>
+              <CommonButton variant="success" size="md" disabled={acting} onClick={() => startAction('review-approve')}>Approve</CommonButton>
               <ToolbarButton disabled={acting} onClick={() => startAction('review-rework')}>Rework Required</ToolbarButton>
               <ToolbarButton disabled={acting} onClick={() => startAction('review-reject')}>Reject</ToolbarButton>
             </>
@@ -421,7 +425,7 @@ export default function GeneralTaskDetailPanel({ taskId, onTitleChange, onChange
             <Textarea rows={2} placeholder="Work summary (required)" value={workSummary} onChange={(e) => setWorkSummary(e.target.value)} />
             <Textarea rows={2} placeholder="Remarks (optional)" value={remark} onChange={(e) => setRemark(e.target.value)} />
             <div className={`${styles.actionButtonsRow} ${calcStyles.mt10}`}>
-              <button type="button" className={calcStyles.btn} disabled={acting} onClick={confirmSubmit}>{acting ? 'Saving…' : 'Confirm Submit'}</button>
+              <CommonButton variant="primary" size="md" disabled={acting} onClick={confirmSubmit}>{acting ? 'Saving…' : 'Confirm Submit'}</CommonButton>
               <ToolbarButton disabled={acting} onClick={() => setPendingAction(null)}>Cancel</ToolbarButton>
             </div>
           </div>
@@ -439,7 +443,7 @@ export default function GeneralTaskDetailPanel({ taskId, onTitleChange, onChange
               This goes back to whoever created the task, with your reason, so they can reassign it.
             </div>
             <div className={`${styles.actionButtonsRow} ${calcStyles.mt10}`}>
-              <button type="button" className={calcStyles.btn} disabled={acting} onClick={confirmDecline}>{acting ? 'Saving…' : 'Confirm Deny'}</button>
+              <CommonButton variant="primary" size="md" disabled={acting} onClick={confirmDecline}>{acting ? 'Saving…' : 'Confirm Deny'}</CommonButton>
               <ToolbarButton disabled={acting} onClick={() => setPendingAction(null)}>Cancel</ToolbarButton>
             </div>
           </div>
@@ -454,14 +458,14 @@ export default function GeneralTaskDetailPanel({ taskId, onTitleChange, onChange
               onChange={(e) => setRemark(e.target.value)}
             />
             <div className={`${styles.actionButtonsRow} ${calcStyles.mt10}`}>
-              <button
-                type="button"
-                className={calcStyles.btn}
+              <CommonButton
+                variant="primary"
+                size="md"
                 disabled={acting}
                 onClick={() => confirmReview(pendingAction === 'review-approve' ? 'approve' : pendingAction === 'review-rework' ? 'rework' : 'reject')}
               >
                 {acting ? 'Saving…' : 'Confirm'}
-              </button>
+              </CommonButton>
               <ToolbarButton disabled={acting} onClick={() => setPendingAction(null)}>Cancel</ToolbarButton>
             </div>
           </div>
@@ -469,15 +473,15 @@ export default function GeneralTaskDetailPanel({ taskId, onTitleChange, onChange
 
         {pendingAction === 'reassign' && (
           <div className={`${calcStyles.field} ${styles.commentBox}`}>
-            <select className={calcStyles.formControl} value={newAssigneeId} onChange={(e) => setNewAssigneeId(e.target.value)}>
+            <Select value={newAssigneeId} onChange={(e) => setNewAssigneeId(e.target.value)}>
               <option value="">Select employee</option>
               {assignableEmployees.filter((e) => e.id !== task.assignee_id).map((e) => (
                 <option key={e.id} value={e.id}>{e.name}</option>
               ))}
-            </select>
+            </Select>
             <Textarea rows={2} placeholder="Reason (required)" value={remark} onChange={(e) => setRemark(e.target.value)} />
             <div className={`${styles.actionButtonsRow} ${calcStyles.mt10}`}>
-              <button type="button" className={calcStyles.btn} disabled={acting} onClick={confirmReassign}>{acting ? 'Saving…' : 'Confirm'}</button>
+              <CommonButton variant="primary" size="md" disabled={acting} onClick={confirmReassign}>{acting ? 'Saving…' : 'Confirm'}</CommonButton>
               <ToolbarButton disabled={acting} onClick={() => setPendingAction(null)}>Cancel</ToolbarButton>
             </div>
           </div>
@@ -488,7 +492,7 @@ export default function GeneralTaskDetailPanel({ taskId, onTitleChange, onChange
             <input type="date" className={calcStyles.formControl} min={task.deadline} value={newDeadline} onChange={(e) => setNewDeadline(e.target.value)} />
             <Textarea rows={2} placeholder="Reason (required)" value={remark} onChange={(e) => setRemark(e.target.value)} />
             <div className={`${styles.actionButtonsRow} ${calcStyles.mt10}`}>
-              <button type="button" className={calcStyles.btn} disabled={acting} onClick={confirmExtendDeadline}>{acting ? 'Saving…' : 'Confirm'}</button>
+              <CommonButton variant="primary" size="md" disabled={acting} onClick={confirmExtendDeadline}>{acting ? 'Saving…' : 'Confirm'}</CommonButton>
               <ToolbarButton disabled={acting} onClick={() => setPendingAction(null)}>Cancel</ToolbarButton>
             </div>
           </div>
@@ -498,15 +502,15 @@ export default function GeneralTaskDetailPanel({ taskId, onTitleChange, onChange
           <div className={`${calcStyles.field} ${styles.commentBox}`}>
             <input className={calcStyles.formControl} placeholder="Title (required)" value={editTitle} onChange={(e) => setEditTitle(e.target.value)} />
             <Textarea rows={3} placeholder="Description" value={editDescription} onChange={(e) => setEditDescription(e.target.value)} />
-            <select className={calcStyles.formControl} value={editPriority} onChange={(e) => setEditPriority(e.target.value as GeneralTaskPriority)}>
+            <Select value={editPriority} onChange={(e) => setEditPriority(e.target.value as GeneralTaskPriority)}>
               {(['low', 'medium', 'high', 'critical'] as GeneralTaskPriority[]).map((p) => (
                 <option key={p} value={p}>{GENERAL_TASK_PRIORITY_LABEL[p]}</option>
               ))}
-            </select>
+            </Select>
             <input className={calcStyles.formControl} placeholder="Category" value={editCategory} onChange={(e) => setEditCategory(e.target.value)} />
             <Textarea rows={2} placeholder="Remarks" value={editRemarks} onChange={(e) => setEditRemarks(e.target.value)} />
             <div className={`${styles.actionButtonsRow} ${calcStyles.mt10}`}>
-              <button type="button" className={calcStyles.btn} disabled={acting} onClick={confirmEdit}>{acting ? 'Saving…' : 'Save Changes'}</button>
+              <CommonButton variant="primary" size="md" disabled={acting} onClick={confirmEdit}>{acting ? 'Saving…' : 'Save Changes'}</CommonButton>
               <ToolbarButton disabled={acting} onClick={() => setPendingAction(null)}>Cancel</ToolbarButton>
             </div>
           </div>
@@ -518,7 +522,7 @@ export default function GeneralTaskDetailPanel({ taskId, onTitleChange, onChange
               Delete &ldquo;{task.title}&rdquo;? This removes it from everyone&rsquo;s task list — assignee and reviewer included. This can&rsquo;t be undone from here.
             </div>
             <div className={`${styles.actionButtonsRow} ${calcStyles.mt10}`}>
-              <button type="button" className={calcStyles.btn} disabled={acting} onClick={confirmDelete}>{acting ? 'Deleting…' : 'Confirm Delete'}</button>
+              <CommonButton variant="destructive" size="md" disabled={acting} onClick={confirmDelete}>{acting ? 'Deleting…' : 'Confirm Delete'}</CommonButton>
               <ToolbarButton disabled={acting} onClick={() => setPendingAction(null)}>Cancel</ToolbarButton>
             </div>
           </div>

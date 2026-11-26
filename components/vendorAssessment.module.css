@@ -52,55 +52,9 @@
   font-size: 13px;
 }
 
-.primary,
-.ghost,
-.ghostDanger,
-.approve,
-.reject {
-  padding: 9px 16px;
-  border-radius: 8px;
-  font-size: 13px;
-  font-weight: 700;
-  cursor: pointer;
-  border: 1px solid transparent;
-}
-.primary {
-  background: var(--mx-brand, #dc2626);
-  color: #fff;
-}
-.primary:hover {
-  filter: brightness(0.95);
-}
-.ghost {
-  background: transparent;
-  border-color: var(--mx-border-strong, #d1d5db);
-  color: var(--mx-ink, #111827);
-}
-.ghostDanger {
-  background: transparent;
-  border-color: #fecaca;
-  color: #b91c1c;
+/* Pushes the drawer-footer Delete to the far left. */
+.pushLeft {
   margin-right: auto;
-}
-.approve {
-  background: #16a34a;
-  color: #fff;
-}
-.reject {
-  background: transparent;
-  border-color: #fca5a5;
-  color: #b91c1c;
-}
-/* Scoped to this file's own button classes — CSS Modules reject a bare
-   `button:disabled` (no local class), which failed the production build. */
-.primary:disabled,
-.ghost:disabled,
-.ghostDanger:disabled,
-.approve:disabled,
-.reject:disabled,
-.chip:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
 }
 
 .errorBox {
@@ -127,7 +81,7 @@
 /* ---------- cards ---------- */
 .grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(300px, 100%), 1fr));
   gap: 14px;
 }
 .card {
@@ -235,25 +189,6 @@
   flex-wrap: wrap;
   gap: 6px;
 }
-.chip {
-  padding: 3px 10px;
-  border-radius: 999px;
-  border: 1px solid var(--mx-border, #e5e7eb);
-  background: var(--mx-surface-sunken, #f3f4f6);
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--mx-ink, #111827);
-}
-button.chip {
-  cursor: pointer;
-  font: inherit;
-  font-size: 12px;
-}
-.chipOn {
-  border-color: var(--mx-brand, #dc2626);
-  background: var(--mx-brand-subtle, rgba(220, 38, 38, 0.08));
-  color: var(--mx-brand-text, #b91c1c);
-}
 
 /* ---------- stepper ---------- */
 .stepper {
@@ -355,14 +290,6 @@ button.chip {
 .drawerHead {
   padding: 16px 20px;
   border-bottom: 1px solid var(--mx-border, #e5e7eb);
-}
-.close {
-  border: 0;
-  background: transparent;
-  font-size: 26px;
-  line-height: 1;
-  color: var(--mx-ink-muted, #6b7280);
-  cursor: pointer;
 }
 .drawerBody {
   flex: 1;
@@ -589,27 +516,10 @@ button.chip {
   gap: 6px;
   flex-wrap: wrap;
 }
-.segBtn,
-.relationBtn {
-  padding: 9px 16px;
-  border: 1px solid var(--mx-border-strong, #d1d5db);
-  border-radius: 10px;
-  background: var(--mx-surface, #fff);
-  color: var(--mx-ink, #111827);
-  font: inherit;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-}
 .relationGrid {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 8px;
-}
-.segOn {
-  border-color: var(--mx-brand, #dc2626);
-  background: var(--mx-brand-subtle, rgba(220, 38, 38, 0.08));
-  color: var(--mx-brand-text, #b91c1c);
 }
 
 .docForm {
@@ -653,13 +563,6 @@ button.chip {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-.fileRow button {
-  border: 0;
-  background: transparent;
-  color: #b91c1c;
-  cursor: pointer;
-  font-size: 16px;
 }
 
 .teamList {
@@ -732,45 +635,6 @@ button.chip {
   gap: 10px;
   margin-bottom: 16px;
 }
-.stat {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 14px 16px;
-  border: 1px solid var(--mx-border, #e5e7eb);
-  border-radius: 14px;
-  background: var(--mx-surface, #fff);
-  text-align: left;
-  font: inherit;
-  cursor: pointer;
-  border-top: 3px solid var(--mx-ink-faint, #9ca3af);
-  transition: box-shadow 0.15s, transform 0.15s;
-}
-.stat:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 6px 18px rgba(17, 24, 39, 0.07);
-}
-.stat strong {
-  font-size: 26px;
-  font-weight: 800;
-  line-height: 1.1;
-  color: var(--mx-ink, #111827);
-}
-.stat span {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--mx-ink-muted, #6b7280);
-}
-.statAmber { border-top-color: #f59e0b; }
-.statGreen { border-top-color: #16a34a; }
-.statRed { border-top-color: #dc2626; }
-.statBrand {
-  border-top-color: var(--mx-brand, #dc2626);
-  background: var(--mx-brand-subtle, rgba(220, 38, 38, 0.06));
-}
-.statActive {
-  box-shadow: 0 0 0 2px var(--mx-brand, #dc2626);
-}
 
 /* relation colour cues */
 .toneBlue, .toneViolet, .toneAmber, .toneTeal { font-weight: 700; }
@@ -810,24 +674,12 @@ button.chip {
   margin-bottom: 12px;
   font-size: 15px;
 }
-.guideHide,
-.guideShow {
-  border: 1px solid var(--mx-border-strong, #d1d5db);
-  background: var(--mx-surface, #fff);
-  color: var(--mx-ink-muted, #4b5563);
-  border-radius: 999px;
-  padding: 5px 12px;
-  font: inherit;
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-}
 .guideShow {
   margin-bottom: 14px;
 }
 .guideSteps {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));
   gap: 12px;
   margin: 0;
   padding: 0;
@@ -950,4 +802,18 @@ button.chip {
   .wizNow {
     font-size: 11px;
   }
+}
+
+/* Responsive: these rows hold controls or a title + actions. They wrap
+   onto a second line when the screen is too narrow for them, instead of
+   overflowing or crushing their neighbours. No effect when they fit. */
+.cardHead,
+.drawerHead,
+.decisionButtons,
+.docSlotHead,
+.fileRow,
+.teamRow,
+.guideHead {
+    flex-wrap: wrap;
+    row-gap: 8px;
 }

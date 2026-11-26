@@ -1,10 +1,13 @@
 'use client';
 
 import { FormEvent, useEffect, useState } from 'react';
-import Link from 'next/link';
+import Link from '@/components/ui/AppLink';
 import { InstallationRecord, ProjectRecord, UserRole } from '@/lib/types';
 import { exportListToPdf } from '@/lib/exportPdf';
+import { Minus, Plus } from 'lucide-react';
 import AppShell from './AppShell';
+import CommonButton from './ui/CommonButton';
+import { SkeletonTable } from './ui/Skeleton';
 import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
 import { useToast } from './ui/ToastProvider';
@@ -18,6 +21,7 @@ import FilterBar from './ui/FilterBar';
 import ToolbarButton from './ui/ToolbarButton';
 import { TableWrap } from './ui/Table';
 import { fetchCached, OPTIONS_TTL_MS } from '@/lib/fetchCached';
+import { RefreshButton } from './ui/ListControls';
 
 const EMPTY_FORM = { projectId: '', installationDate: '', assignedEngineer: '' };
 
@@ -62,7 +66,16 @@ function InstallationRow({
     <>
       <tr>
         <td>
-          <button type="button" className={historyStyles.toggleBtn} onClick={() => setExpanded((v) => !v)}>{expanded ? '−' : '+'}</button>
+          <CommonButton
+            variant="ghost"
+            size="sm"
+            iconOnly
+            aria-label={expanded ? 'Collapse' : 'Expand'}
+            aria-expanded={expanded}
+            onClick={() => setExpanded((v) => !v)}
+          >
+            {expanded ? <Minus /> : <Plus />}
+          </CommonButton>
         </td>
         <td><Link href={`/projects/${record.project_id}`}>{record.project_id}</Link></td>
         <td>{formatDate(record.installation_date)}</td>
@@ -70,7 +83,7 @@ function InstallationRow({
         <td>{STATUS_LABEL[record.status]}</td>
         <td>
           {isPrivileged && (
-            <button type="button" className={historyStyles.deleteBtn} onClick={() => onDelete(record.id)}>Delete</button>
+            <CommonButton variant="destructive" size="sm" onClick={() => onDelete(record.id)}>Delete</CommonButton>
           )}
         </td>
       </tr>
@@ -90,9 +103,9 @@ function InstallationRow({
             <Field label="Client signature (typed name)">
               <Input value={signature} onChange={(e) => setSignature(e.target.value)} />
             </Field>
-            <button type="button" className={calcStyles.btn} disabled={busy} onClick={handleSave}>
-              {busy ? 'Saving…' : 'Save update'}
-            </button>
+            <CommonButton variant="primary" size="sm" loading={busy} loadingLabel="Saving…" onClick={handleSave}>
+              Save update
+            </CommonButton>
           </td>
         </tr>
       )}
@@ -205,7 +218,7 @@ export default function InstallationView({ currentUser }: InstallationViewProps)
   }
 
   return (
-    <AppShell title="Installation" subtitle="Schedule installs, assign an engineer, and close out with a completion report.">
+    <AppShell fillPage title="Installation" subtitle="Schedule installs, assign an engineer, and close out with a completion report.">
         <h2 className={`${calcStyles.h2} ${calcStyles.h2Flush}`}>Schedule an installation</h2>
         <form className={calcStyles.sectionPanel} onSubmit={handleCreate}>
           <FieldRow>
@@ -230,9 +243,13 @@ export default function InstallationView({ currentUser }: InstallationViewProps)
         <FilterBar className={historyStyles.toolbarSpaced}>
           <ToolbarButton onClick={handleExportPdf}>Export PDF</ToolbarButton>
           <ToolbarButton onClick={() => window.print()}>Print</ToolbarButton>
-          <ToolbarButton onClick={load}>Refresh</ToolbarButton>
+          <RefreshButton onRefresh={load} loading={!loaded} pushRight />
         </FilterBar>
-        <div className={historyStyles.status}>{status}</div>
+        {!loaded && status === 'Loading...' ? (
+          <SkeletonTable columns={6} rows={6} />
+        ) : (
+          <div className={historyStyles.status}>{status === 'Loading...' ? '' : status}</div>
+        )}
         {loaded && (
           <TableWrap>
           <table className={historyStyles.table}>

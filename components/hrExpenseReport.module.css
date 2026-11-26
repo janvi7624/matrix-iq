@@ -29,9 +29,13 @@
 /* The scrollport for the sticky header/footer/label column. Both axes:
    a 12-month matrix is wider than the page, and a 60-employee one taller. */
 .scroller {
-    composes: mx-visible-scroll from global;
+    /* mx-rtable-wrap: capped to one screen on desktop (app/globals.css →
+       "Table viewport"), and fills the rest of the screen on the report page. */
+    composes: mx-visible-scroll mx-rtable-wrap from global;
     overflow: auto;
-    max-height: min(70vh, 760px);
+}
+@media (max-width: 640px) {
+    .scroller { max-height: min(70vh, 760px); }
 }
 
 .matrix {
@@ -274,4 +278,12 @@ td.labelCell { z-index: 1; }
     box-shadow: var(--mx-shadow-pressed-sm);
     color: var(--mx-brand);
     font-weight: var(--mx-weight-semibold);
+}
+
+/* Responsive: these rows hold controls or a title + actions. They wrap
+   onto a second line when the screen is too narrow for them, instead of
+   overflowing or crushing their neighbours. No effect when they fit. */
+.sourceDropdownRow {
+    flex-wrap: wrap;
+    row-gap: 8px;
 }

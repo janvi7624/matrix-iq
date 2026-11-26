@@ -2,11 +2,12 @@
 
 import { useEffect, useState } from 'react';
 import dynamic from 'next/dynamic';
-import Link from 'next/link';
+import Link from '@/components/ui/AppLink';
 import Modal, { ModalOkButton } from './ui/Modal';
 import StatusBadge, { StatusTone } from './ui/StatusBadge';
+import StatCard, { StatCardGrid } from './ui/StatCard';
 import ErrorState from './ui/ErrorState';
-import { SkeletonRows } from './ui/Skeleton';
+import { Skeleton, SkeletonStatCards, SkeletonTable } from './ui/Skeleton';
 import { STAGE_LABEL } from '@/lib/projectStages';
 import { TMS_TASK_STATUS_LABEL } from '@/lib/tmsLabels';
 import { FOLLOW_UP_DAYS } from '@/lib/followUp';
@@ -19,7 +20,7 @@ import styles from './departmentHealthDetail.module.css';
 // measures its own container.
 const TargetAchievementChart = dynamic(() => import('./TargetAchievementChart'), {
   ssr: false,
-  loading: () => <div className={styles.chartPanel}><SkeletonRows rows={3} columns={2} /></div>
+  loading: () => <div className={styles.chartPanel}><Skeleton height={240} radius={12} /></div>
 });
 
 const TARGET_STATUS_LABEL: Record<string, string> = {
@@ -128,7 +129,10 @@ export default function PersonPerformanceDashboard({ username, name, department,
       {error ? (
         <ErrorState message={error} onRetry={() => setReloadKey((k) => k + 1)} />
       ) : !data ? (
-        <div className={styles.loadingWrap}><SkeletonRows rows={5} columns={3} /></div>
+        <div className={styles.loadingWrap}>
+          <SkeletonStatCards count={4} withIcon={false} />
+          <div style={{ marginTop: 16 }}><SkeletonTable columns={4} rows={5} /></div>
+        </div>
       ) : (
         <>
           {metrics.length > 0 && (
@@ -137,26 +141,22 @@ export default function PersonPerformanceDashboard({ username, name, department,
                 Pipeline contribution{score !== null ? ` — ${score}%` : ''}
                 {metrics.some((m) => m.items && m.items.length > 0) ? (metricFilter ? ' — click a tile again to hide the list' : ' — click a tile to see what it counts') : ''}
               </h3>
-              <div className={styles.totalsGrid}>
+              <StatCardGrid className={styles.totalsGrid}>
                 {metrics.map((m) =>
                   m.items && m.items.length > 0 ? (
-                    <button
+                    <StatCard
                       key={m.label}
-                      type="button"
-                      className={`${styles.totalCard} ${styles.totalCardClickable} ${metricFilter === m.label ? styles.totalCardActive : ''}`}
+                      value={m.value}
+                      label={m.label}
+                      selected={metricFilter === m.label}
                       onClick={() => setMetricFilter((f) => (f === m.label ? null : m.label))}
-                    >
-                      <div className={styles.totalValue}>{m.value}</div>
-                      <div className={styles.totalLabel}>{m.label}</div>
-                    </button>
+                      actionLabel={`Show what ${m.label} counts`}
+                    />
                   ) : (
-                    <div key={m.label} className={styles.totalCard}>
-                      <div className={styles.totalValue}>{m.value}</div>
-                      <div className={styles.totalLabel}>{m.label}</div>
-                    </div>
+                    <StatCard key={m.label} value={m.value} label={m.label} />
                   )
                 )}
-              </div>
+              </StatCardGrid>
               {metricFilter && (() => {
                 const items = metrics.find((m) => m.label === metricFilter)?.items || [];
                 return items.length === 0 ? null : (
@@ -184,50 +184,26 @@ export default function PersonPerformanceDashboard({ username, name, department,
           {data.target && (
             <>
               <h3 className={styles.sectionTitle}>Target vs Achievement — {data.target.displayPeriod}</h3>
-              <div className={styles.totalsGrid}>
-                <div className={styles.totalCard}>
-                  <div className={styles.totalValue}>{formatMoney(data.target.targetAmount)}</div>
-                  <div className={styles.totalLabel}>Target</div>
-                </div>
-                <div className={styles.totalCard}>
-                  <div className={styles.totalValue}>{formatMoney(data.target.achievedAmount)}</div>
-                  <div className={styles.totalLabel}>Achieved</div>
-                </div>
-                <div className={styles.totalCard}>
-                  <div className={styles.totalValue}>{data.target.achievementPercent}%</div>
-                  <div className={styles.totalLabel}>Achievement</div>
-                </div>
-                <div className={styles.totalCard}>
-                  <StatusBadge tone={data.target.status === 'achieved' ? 'won' : (data.target.status as StatusTone)} label={TARGET_STATUS_LABEL[data.target.status] || data.target.status} />
-                  <div className={styles.totalLabel}>Status</div>
-                </div>
-              </div>
+              <StatCardGrid className={styles.totalsGrid}>
+                <StatCard value={formatMoney(data.target.targetAmount)} label="Target" />
+                <StatCard value={formatMoney(data.target.achievedAmount)} label="Achieved" />
+                <StatCard value={<>{data.target.achievementPercent}%</>} label="Achievement" />
+                <StatCard value={<StatusBadge tone={data.target.status === 'achieved' ? 'won' : (data.target.status as StatusTone)} label={TARGET_STATUS_LABEL[data.target.status] || data.target.status} />} label="Status" />
+              </StatCardGrid>
               <TargetAchievementChart username={username} />
             </>
           )}
 
           <h3 className={styles.sectionTitle}>Projects</h3>
-          <div className={styles.totalsGrid}>
-            <div className={styles.totalCard}>
-              <div className={styles.totalValue}>{data.projects.assignedProjects}</div>
-              <div className={styles.totalLabel}>Assigned</div>
-            </div>
-            <div className={styles.totalCard}>
-              <div className={styles.totalValue}>{data.projects.activeProjects}</div>
-              <div className={styles.totalLabel}>Active</div>
-            </div>
-            <div className={styles.totalCard}>
-              <div className={styles.totalValue}>{data.projects.completedProjects}</div>
-              <div className={styles.totalLabel}>Completed</div>
-            </div>
-            <div className={styles.totalCard}>
+          <StatCardGrid className={styles.totalsGrid}>
+            <StatCard value={data.projects.assignedProjects} label="Assigned" />
+            <StatCard value={data.projects.activeProjects} label="Active" />
+            <StatCard value={data.projects.completedProjects} label="Completed" />
               {/* Project win/loss — was reading crm.wonLeads/lostLeads, which
                   now count leads (qualified / ruled out on the call), not
                   deals. Same numbers as before, from the project side. */}
-              <div className={styles.totalValue}>{data.projects.wonProjects} / {data.projects.lostProjects}</div>
-              <div className={styles.totalLabel}>Won / Lost</div>
-            </div>
-          </div>
+            <StatCard value={<>{data.projects.wonProjects} / {data.projects.lostProjects}</>} label="Won / Lost" />
+          </StatCardGrid>
 
           {/* The qualification call is where a lead's life is decided now
               (assign -> call -> only 'suitable' becomes a project), so this
@@ -239,40 +215,16 @@ export default function PersonPerformanceDashboard({ username, name, department,
           {data.crm.totalLeads === 0 ? (
             <p className={styles.emptyNote}>No leads assigned to {name || username}.{data.crm.capturedLeads > 0 ? ` Captured ${data.crm.capturedLeads}.` : ''}</p>
           ) : (
-            <div className={styles.totalsGrid}>
-              <div className={styles.totalCard}>
-                <div className={styles.totalValue}>{data.crm.totalLeads}</div>
-                <div className={styles.totalLabel}>Assigned</div>
-              </div>
-              <div className={styles.totalCard}>
-                <div className={styles.totalValue}>{data.crm.calledLeads}</div>
-                <div className={styles.totalLabel}>Called</div>
-              </div>
-              <div className={styles.totalCard}>
-                <div className={styles.totalValue}>{data.crm.qualifiedLeads}</div>
-                <div className={styles.totalLabel}>Suitable</div>
-              </div>
-              <div className={styles.totalCard}>
-                <div className={styles.totalValue}>{data.crm.lostLeads}</div>
-                <div className={styles.totalLabel}>Not suitable</div>
-              </div>
-              <div className={styles.totalCard}>
-                <div className={styles.totalValue}>{data.crm.awaitingCallLeads}</div>
-                <div className={styles.totalLabel}>Awaiting a call</div>
-              </div>
-              <div className={styles.totalCard}>
-                <div className={styles.totalValue}>{data.crm.callbacksDue}</div>
-                <div className={styles.totalLabel}>Call-backs due</div>
-              </div>
-              <div className={styles.totalCard}>
-                <div className={styles.totalValue}>{data.crm.unattendedLeads}</div>
-                <div className={styles.totalLabel}>No call in {FOLLOW_UP_DAYS} days</div>
-              </div>
-              <div className={styles.totalCard}>
-                <div className={styles.totalValue}>{data.crm.capturedLeads}</div>
-                <div className={styles.totalLabel}>Captured by them</div>
-              </div>
-            </div>
+            <StatCardGrid className={styles.totalsGrid}>
+              <StatCard value={data.crm.totalLeads} label="Assigned" />
+              <StatCard value={data.crm.calledLeads} label="Called" />
+              <StatCard value={data.crm.qualifiedLeads} label="Suitable" />
+              <StatCard value={data.crm.lostLeads} label="Not suitable" />
+              <StatCard value={data.crm.awaitingCallLeads} label="Awaiting a call" />
+              <StatCard value={data.crm.callbacksDue} label="Call-backs due" />
+              <StatCard value={data.crm.unattendedLeads} label={<>No call in {FOLLOW_UP_DAYS} days</>} />
+              <StatCard value={data.crm.capturedLeads} label="Captured by them" />
+            </StatCardGrid>
           )}
 
           <h3 className={styles.sectionTitle}>Tasks{taskFilter ? ' — click a tile again to hide the list' : ' — click a tile to see the tasks'}</h3>
@@ -280,20 +232,11 @@ export default function PersonPerformanceDashboard({ username, name, department,
             <p className={styles.emptyNote}>No tasks assigned in TMS.</p>
           ) : (
             <>
-              <div className={styles.totalsGrid}>
-                <button type="button" className={`${styles.totalCard} ${styles.totalCardClickable} ${taskFilter === 'total' ? styles.totalCardActive : ''}`} onClick={() => setTaskFilter((f) => (f === 'total' ? null : 'total'))}>
-                  <div className={styles.totalValue}>{data.tasks.total}</div>
-                  <div className={styles.totalLabel}>Total</div>
-                </button>
-                <button type="button" className={`${styles.totalCard} ${styles.totalCardClickable} ${taskFilter === 'completed' ? styles.totalCardActive : ''}`} onClick={() => setTaskFilter((f) => (f === 'completed' ? null : 'completed'))}>
-                  <div className={styles.totalValue}>{data.tasks.completed}</div>
-                  <div className={styles.totalLabel}>Completed</div>
-                </button>
-                <button type="button" className={`${styles.totalCard} ${styles.totalCardClickable} ${taskFilter === 'pending' ? styles.totalCardActive : ''}`} onClick={() => setTaskFilter((f) => (f === 'pending' ? null : 'pending'))}>
-                  <div className={styles.totalValue}>{data.tasks.pending}</div>
-                  <div className={styles.totalLabel}>Pending</div>
-                </button>
-              </div>
+              <StatCardGrid className={styles.totalsGrid}>
+                <StatCard value={data.tasks.total} label="Total" selected={taskFilter === 'total'} onClick={() => setTaskFilter((f) => (f === 'total' ? null : 'total'))} actionLabel="Show total tasks" />
+                <StatCard value={data.tasks.completed} label="Completed" selected={taskFilter === 'completed'} onClick={() => setTaskFilter((f) => (f === 'completed' ? null : 'completed'))} actionLabel="Show completed tasks" />
+                <StatCard value={data.tasks.pending} label="Pending" selected={taskFilter === 'pending'} onClick={() => setTaskFilter((f) => (f === 'pending' ? null : 'pending'))} actionLabel="Show pending tasks" />
+              </StatCardGrid>
               {taskFilter && (() => {
                 const filtered = data.tasksList.filter((t) =>
                   taskFilter === 'total' ? true : taskFilter === 'completed' ? t.status === 'completed' : t.status !== 'completed' && t.status !== 'cancelled'
@@ -326,24 +269,12 @@ export default function PersonPerformanceDashboard({ username, name, department,
           )}
 
           <h3 className={styles.sectionTitle}>Quotations &amp; follow-ups</h3>
-          <div className={styles.totalsGrid}>
-            <div className={styles.totalCard}>
-              <div className={styles.totalValue}>{data.sales.quotationsCreated}</div>
-              <div className={styles.totalLabel}>Quotations created</div>
-            </div>
-            <div className={styles.totalCard}>
-              <div className={styles.totalValue}>{data.sales.quotationsConverted}</div>
-              <div className={styles.totalLabel}>Converted</div>
-            </div>
-            <div className={styles.totalCard}>
-              <div className={styles.totalValue}>{data.followUps.pending}</div>
-              <div className={styles.totalLabel}>Follow-ups pending</div>
-            </div>
-            <div className={styles.totalCard}>
-              <div className={styles.totalValue}>{data.followUps.overdue}</div>
-              <div className={styles.totalLabel}>Follow-ups overdue</div>
-            </div>
-          </div>
+          <StatCardGrid className={styles.totalsGrid}>
+            <StatCard value={data.sales.quotationsCreated} label="Quotations created" />
+            <StatCard value={data.sales.quotationsConverted} label="Converted" />
+            <StatCard value={data.followUps.pending} label="Follow-ups pending" />
+            <StatCard value={data.followUps.overdue} label="Follow-ups overdue" />
+          </StatCardGrid>
 
           <h3 className={styles.sectionTitle}>Project status ({data.projectsList.length})</h3>
           {data.projectsList.length === 0 ? (

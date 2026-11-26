@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   ChevronDown,
   ChevronRight,
@@ -15,10 +15,11 @@ import {
   Pencil,
   Plus,
   Search,
-  Trash2,
-  X
+  Trash2
 } from 'lucide-react';
 import AppShell from './AppShell';
+import CommonButton from './ui/CommonButton';
+import SearchInput from './ui/SearchInput';
 import EmptyState from './ui/EmptyState';
 import ErrorState from './ui/ErrorState';
 import { Skeleton } from './ui/Skeleton';
@@ -45,6 +46,8 @@ import {
 import calcStyles from './calculator.module.css';
 import styles from './materials.module.css';
 import { MATERIAL_CONFIDENTIALITY_NOTICE } from '@/lib/materialConfidentiality';
+import RowActions from './ui/RowActions';
+import Select from '@/components/ui/Select';
 
 // Kept in lockstep with lib/materialStore.ts's MaterialSource — a duplicate
 // of it rather than an import, as the rest of this file's payload types are.
@@ -153,7 +156,6 @@ export default function MaterialsView({ canManage: canManageInitial }: { canMana
   const [reloadKey, setReloadKey] = useState(0);
   const [editing, setEditing] = useState<MaterialDocument | 'new' | null>(null);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
-  const searchRef = useRef<HTMLInputElement>(null);
 
   // Derived rather than its own state, so the fetch effect sets nothing
   // synchronously in its body (react-hooks/set-state-in-effect).
@@ -193,20 +195,9 @@ export default function MaterialsView({ canManage: canManageInitial }: { canMana
     };
   }, [folderId, category, debouncedSearch, reloadKey]);
 
-  // "/" focuses search the way every search-first tool does, since finding a
-  // document is the only thing most people come here to do.
-  useEffect(() => {
-    function onKeyDown(event: KeyboardEvent) {
-      const target = event.target as HTMLElement | null;
-      const typingAlready = target && /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName);
-      if (event.key === '/' && !typingAlready) {
-        event.preventDefault();
-        searchRef.current?.focus();
-      }
-    }
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, []);
+  // "/" focuses search (SearchInput's shortcut) the way every search-first
+  // tool does, since finding a document is the only thing most people come
+  // here to do.
 
   const load = () => setReloadKey((k) => k + 1);
   const canManage = data?.canManage ?? canManageInitial;
@@ -358,33 +349,22 @@ export default function MaterialsView({ canManage: canManageInitial }: { canMana
       </p>
 
       <div className={styles.toolbar}>
-        <div className={styles.searchWrap}>
-          <Search size={16} className={styles.searchIcon} aria-hidden />
-          <input
-            ref={searchRef}
-            type="search"
-            className={styles.searchInput}
-            placeholder="Search by product, document or description…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            aria-label="Search materials"
-          />
-          {search ? (
-            <button type="button" className={styles.searchClear} onClick={() => setSearch('')} aria-label="Clear search">
-              <X size={14} />
-            </button>
-          ) : (
-            <kbd className={styles.searchKbd}>/</kbd>
-          )}
-        </div>
+        <SearchInput
+          className={styles.searchWrap}
+          shortcut="/"
+          placeholder="Search by product, document or description…"
+          value={search}
+          onChange={(v) => setSearch(v)}
+          aria-label="Search materials"
+        />
         {canManage && (
           <>
-            <button type="button" className={styles.ghostBtn} onClick={() => setFolderDialog({ mode: 'new' })}>
-              <FolderPlus size={15} /> New folder
-            </button>
-            <button type="button" className={styles.primaryBtn} onClick={() => setEditing('new')}>
-              <Plus size={16} /> Add material
-            </button>
+            <CommonButton variant="outlined" size="md" leadingIcon={<FolderPlus />} onClick={() => setFolderDialog({ mode: 'new' })}>
+              New folder
+            </CommonButton>
+            <CommonButton variant="primary" size="md" leadingIcon={<Plus />} onClick={() => setEditing('new')}>
+              Add material
+            </CommonButton>
           </>
         )}
       </div>
@@ -476,9 +456,9 @@ export default function MaterialsView({ canManage: canManageInitial }: { canMana
           }
           action={
             canManage ? (
-              <button type="button" className={styles.primaryBtn} onClick={() => setEditing('new')}>
-                <Plus size={16} /> Add the first material
-              </button>
+              <CommonButton variant="primary" size="md" leadingIcon={<Plus />} onClick={() => setEditing('new')}>
+                Add the first material
+              </CommonButton>
             ) : undefined
           }
         />
@@ -493,9 +473,9 @@ export default function MaterialsView({ canManage: canManageInitial }: { canMana
           }
           action={
             canManage ? (
-              <button type="button" className={styles.primaryBtn} onClick={() => setEditing('new')}>
-                <Plus size={16} /> Add material
-              </button>
+              <CommonButton variant="primary" size="md" leadingIcon={<Plus />} onClick={() => setEditing('new')}>
+                Add material
+              </CommonButton>
             ) : undefined
           }
         />
@@ -505,9 +485,9 @@ export default function MaterialsView({ canManage: canManageInitial }: { canMana
           title="Nothing matches that search"
           message="Try a product code, or a word from the document name."
           action={
-            <button type="button" className={styles.ghostBtn} onClick={() => { setSearch(''); setCategory('all'); }}>
+            <CommonButton variant="outlined" size="md" onClick={() => { setSearch(''); setCategory('all'); }}>
               Clear filters
-            </button>
+            </CommonButton>
           }
         />
       ) : (
@@ -537,12 +517,13 @@ export default function MaterialsView({ canManage: canManageInitial }: { canMana
                       </span>
                       {canManage && (
                         <div className={styles.cardTools}>
-                          <button type="button" className={styles.iconBtn} onClick={() => setFolderDialog({ mode: 'edit', folder })} aria-label={`Rename ${folder.name}`}>
-                            <Pencil size={14} />
-                          </button>
-                          <button type="button" className={styles.iconBtn} onClick={() => handleDeleteFolder(folder)} aria-label={`Delete ${folder.name}`}>
-                            <Trash2 size={14} />
-                          </button>
+                          <RowActions
+                            label={`Actions for folder ${folder.name}`}
+                            actions={[
+                              { key: 'rename', label: 'Rename', icon: <Pencil />, onClick: () => setFolderDialog({ mode: 'edit', folder }) },
+                              { key: 'delete', label: 'Delete', icon: <Trash2 />, destructive: true, onClick: () => handleDeleteFolder(folder) }
+                            ]}
+                          />
                         </div>
                       )}
                     </div>
@@ -600,12 +581,13 @@ export default function MaterialsView({ canManage: canManageInitial }: { canMana
                         </span>
                         {canManage && !multiple && single && (
                           <div className={styles.cardTools}>
-                            <button type="button" className={styles.iconBtn} onClick={() => setEditing(single)} aria-label={`Edit ${product.product}`}>
-                              <Pencil size={14} />
-                            </button>
-                            <button type="button" className={styles.iconBtn} onClick={() => handleDelete(single)} aria-label={`Remove ${product.product}`}>
-                              <Trash2 size={14} />
-                            </button>
+                            <RowActions
+                              label={`Actions for ${product.product}`}
+                              actions={[
+                                { key: 'edit', label: 'Edit', icon: <Pencil />, onClick: () => setEditing(single) },
+                                { key: 'remove', label: 'Remove', icon: <Trash2 />, destructive: true, onClick: () => handleDelete(single) }
+                              ]}
+                            />
                           </div>
                         )}
                       </div>
@@ -632,19 +614,27 @@ export default function MaterialsView({ canManage: canManageInitial }: { canMana
                       </div>
 
                       <div className={styles.cardActions}>
-                        <a className={styles.openBtn} href={product.primaryLink} target="_blank" rel="noopener noreferrer">
-                          <ExternalLink size={14} /> {product.isFolder ? 'Open folder' : 'Open'}
-                        </a>
+                        <CommonButton
+                          variant="primary"
+                          size="sm"
+                          href={product.primaryLink}
+                          native
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          leadingIcon={<ExternalLink />}
+                        >
+                          {product.isFolder ? 'Open folder' : 'Open'}
+                        </CommonButton>
                         {multiple && (
-                          <button
-                            type="button"
-                            className={styles.ghostBtn}
+                          <CommonButton
+                            variant="ghost"
+                            size="sm"
+                            leadingIcon={<ChevronDown className={isOpen ? styles.chevronOpen : undefined} />}
                             onClick={() => toggleExpanded(key)}
                             aria-expanded={isOpen}
                           >
-                            <ChevronDown size={14} className={isOpen ? styles.chevronOpen : undefined} />
                             {isOpen ? 'Hide' : 'All files'}
-                          </button>
+                          </CommonButton>
                         )}
                       </div>
 
@@ -659,14 +649,13 @@ export default function MaterialsView({ canManage: canManageInitial }: { canMana
                                   {document.title}
                                 </a>
                                 {canManage && (
-                                  <>
-                                    <button type="button" className={styles.iconBtn} onClick={() => setEditing(document)} aria-label={`Edit ${document.title}`}>
-                                      <Pencil size={12} />
-                                    </button>
-                                    <button type="button" className={styles.iconBtn} onClick={() => handleDelete(document)} aria-label={`Remove ${document.title}`}>
-                                      <Trash2 size={12} />
-                                    </button>
-                                  </>
+                                  <RowActions
+                                    label={`Actions for ${document.title}`}
+                                    actions={[
+                                      { key: 'edit', label: 'Edit', icon: <Pencil />, onClick: () => setEditing(document) },
+                                      { key: 'remove', label: 'Remove', icon: <Trash2 />, destructive: true, onClick: () => handleDelete(document) }
+                                    ]}
+                                  />
                                 )}
                               </li>
                             );
@@ -884,16 +873,15 @@ function MaterialDialog({
 
       <div className={calcStyles.field}>
         <label htmlFor="materialCategory">Category *</label>
-        <select
+        <Select
           id="materialCategory"
-          className={calcStyles.formControl}
           value={values.category}
           onChange={(e) => set('category', e.target.value as MaterialCategory)}
         >
           {MATERIAL_CATEGORIES.map((c) => (
             <option key={c} value={c}>{MATERIAL_CATEGORY_LABEL[c]}</option>
           ))}
-        </select>
+        </Select>
         <div className={calcStyles.small}>{MATERIAL_CATEGORY_HINT[values.category]}</div>
       </div>
 

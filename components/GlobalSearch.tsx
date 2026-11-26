@@ -4,6 +4,7 @@ import { KeyboardEvent, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import { Search, Clock, FolderKanban, FileText, Contact, MapPin } from 'lucide-react';
+import { loadSidebarData, useShellData } from '@/lib/shellDataStore';
 import styles from './ui/search.module.css';
 
 interface SearchResult {
@@ -29,14 +30,19 @@ const CATEGORY_ICON = {
 
 const RECENT_KEY = 'mx-recent-searches';
 
-// Self-contained: checks its own privilege (mirrors how Sidebar.tsx already
-// fetches /api/auth/me independently) and renders nothing at all — no
+// Self-contained: checks the viewer's privilege (from the shared chrome
+// data, lib/shellDataStore) and renders nothing at all — no
 // button, no Ctrl+K listener — for a non-privileged viewer, so a plain
 // "user" login sees zero change to their header. Mounted once inside
 // PortalHeader, which every AppShell page already renders.
 export default function GlobalSearch() {
   const router = useRouter();
-  const [privileged, setPrivileged] = useState(false);
+  // Role Management's isPrivileged flag for this session — read from the
+  // chrome data fetched once per login (lib/shellDataStore, /api/sidebar),
+  // not a separate /api/auth/me request on every page change. It only decides
+  // whether the search UI shows; /api/search authorises every query itself.
+  const { sidebar } = useShellData();
+  const privileged = Boolean(sidebar?.viewer?.isPrivileged);
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<SearchResult[]>([]);
@@ -47,15 +53,8 @@ export default function GlobalSearch() {
   const debounceRef = useRef<number | null>(null);
 
   useEffect(() => {
-    fetch('/api/auth/me')
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d: { isPrivileged?: boolean } | null) => {
-        // Role Management's isPrivileged flag, straight from the session —
-        // NOT re-derived from role name, since an admin can toggle a role's
-        // privileged status independently of what the role is called.
-        if (d?.isPrivileged) setPrivileged(true);
-      })
-      .catch(() => null);
+    // No-op when the Sidebar has already loaded it (shared, deduplicated).
+    void loadSidebarData();
   }, []);
 
   useEffect(() => {

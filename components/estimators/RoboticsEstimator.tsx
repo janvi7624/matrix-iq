@@ -8,6 +8,7 @@ import { selectAllOnFocus } from '@/lib/numberInputHelpers';
 import { DomainResult, LineItem } from '@/lib/types';
 import { applyOverride, extraProductKeys, overrideMapKey, OverrideMap } from '@/lib/catalogOverrides';
 import styles from '../calculator.module.css';
+import Select from '../ui/Select';
 
 interface RoboticsEstimatorProps {
   active: boolean;
@@ -69,19 +70,19 @@ export default function RoboticsEstimator({ active, onResultChange, overrides }:
       <div className={`${styles.row} ${styles.columns}`}>
         <div className={styles.field}>
           <label className={styles.label} htmlFor="roboticsModel">Robot model</label>
-          <select id="roboticsModel" className={styles.formControl} value={modelKey} onChange={(e) => setModelKey(e.target.value)}>
+          <Select id="roboticsModel" value={modelKey} onChange={(e) => setModelKey(e.target.value)}>
             {modelKeys.map((key) => (
               <option key={key} value={key}>{key} — {effectiveProducts[key]?.category}</option>
             ))}
-          </select>
+          </Select>
         </div>
         <div className={styles.field}>
           <label className={styles.label} htmlFor="roboticsPriceTier">Price tier</label>
-          <select id="roboticsPriceTier" className={styles.formControl} value={priceTier} onChange={(e) => setPriceTier(e.target.value as Tier)}>
+          <Select id="roboticsPriceTier" value={priceTier} onChange={(e) => setPriceTier(e.target.value as Tier)}>
             <option value="distributor">Distributor price</option>
             <option value="partner">Partner price</option>
             <option value="customer">Customer price</option>
-          </select>
+          </Select>
         </div>
       </div>
       <div className={`${styles.row} ${styles.columns}`}>

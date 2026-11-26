@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { Check, Clock, Eye, FileText, Upload, X } from 'lucide-react';
 import { PartnerRecord } from '@/lib/types';
-import { PARTNER_DOCUMENT_KINDS, PARTNER_DOCUMENT_LABEL } from '@/lib/partnerOnboarding';
+import { PARTNER_DOCUMENT_GROUPS, PARTNER_DOCUMENT_KINDS, PARTNER_DOCUMENT_LABEL } from '@/lib/partnerOnboarding';
 import {
   PARTNER_APPROVAL_LABEL,
   PARTNER_APPROVAL_STAGES,
@@ -14,6 +14,7 @@ import {
   lastRejection
 } from '@/lib/partnerApprovalChain';
 import Modal, { ModalCancelButton } from './ui/Modal';
+import CommonButton from './ui/CommonButton';
 import styles from './partnerApproval.module.css';
 
 export interface ApprovalInfo {
@@ -113,8 +114,11 @@ export default function PartnerApprovalPanel({
           })}
         </ol>
 
+        {PARTNER_DOCUMENT_GROUPS.map((group) => (
+        <div key={group.title} className={styles.docGroup}>
+        <div className={styles.docGroupTitle}>{group.title}</div>
         <div className={styles.docList}>
-          {PARTNER_DOCUMENT_KINDS.map((kind) => {
+          {group.kinds.map((kind) => {
             const doc = documents.find((d) => d.kind === kind);
             return (
               <div key={kind} className={styles.docRow}>
@@ -137,9 +141,9 @@ export default function PartnerApprovalPanel({
                 </div>
                 <div className={styles.docActions}>
                   {doc?.files.map((f, i) => (
-                    <a key={f.path} className={styles.viewBtn} href={fileHref(f.path)} target="_blank" rel="noopener noreferrer" title={f.name}>
-                      <Eye size={14} /> View{doc.files.length > 1 ? ` ${i + 1}` : ''}
-                    </a>
+                    <CommonButton key={f.path} native size="sm" leadingIcon={<Eye />} href={fileHref(f.path)} target="_blank" rel="noopener noreferrer" title={f.name}>
+                      View{doc.files.length > 1 ? ` ${i + 1}` : ''}
+                    </CommonButton>
                   ))}
                   {canManage && stage !== 'approved' && (
                     <label className={styles.uploadBtn}>
@@ -152,6 +156,8 @@ export default function PartnerApprovalPanel({
             );
           })}
         </div>
+        </div>
+        ))}
 
         {approval?.canDecide && stage && stage !== 'approved' && (
           <div className={styles.decideBar}>
@@ -159,12 +165,12 @@ export default function PartnerApprovalPanel({
               Your decision as <strong>{PARTNER_APPROVAL_LABEL[stage]}</strong> — review the documents above first.
             </div>
             <div className={styles.decideButtons}>
-              <button type="button" className={styles.rejectBtn} disabled={deciding} onClick={() => { setRejectKinds([]); setRejectNote(''); setRejectOpen(true); }}>
-                <X size={15} /> Send back
-              </button>
-              <button type="button" className={styles.approveBtn} disabled={deciding} onClick={() => { setApproveNote(''); setApproveOpen(true); }}>
-                <Check size={15} /> Approve
-              </button>
+              <CommonButton variant="destructive" leadingIcon={<X />} disabled={deciding} onClick={() => { setRejectKinds([]); setRejectNote(''); setRejectOpen(true); }}>
+                Send back
+              </CommonButton>
+              <CommonButton variant="success" leadingIcon={<Check />} disabled={deciding} onClick={() => { setApproveNote(''); setApproveOpen(true); }}>
+                Approve
+              </CommonButton>
             </div>
           </div>
         )}
@@ -193,14 +199,14 @@ export default function PartnerApprovalPanel({
           footer={
             <>
               <ModalCancelButton onClick={() => setApproveOpen(false)} disabled={deciding}>Cancel</ModalCancelButton>
-              <button
-                type="button"
-                className={styles.approveBtn}
-                disabled={deciding}
+              <CommonButton
+                variant="success"
+                loading={deciding}
+                loadingLabel="Saving…"
                 onClick={async () => { if (await onDecide('approved', approveNote, [])) setApproveOpen(false); }}
               >
-                {deciding ? 'Saving…' : 'Approve'}
-              </button>
+                Approve
+              </CommonButton>
             </>
           }
         >
@@ -223,14 +229,15 @@ export default function PartnerApprovalPanel({
           footer={
             <>
               <ModalCancelButton onClick={() => setRejectOpen(false)} disabled={deciding}>Cancel</ModalCancelButton>
-              <button
-                type="button"
-                className={styles.rejectBtnSolid}
-                disabled={deciding || !rejectNote.trim()}
+              <CommonButton
+                variant="destructiveSolid"
+                loading={deciding}
+                loadingLabel="Saving…"
+                disabled={!rejectNote.trim()}
                 onClick={async () => { if (await onDecide('rejected', rejectNote, rejectKinds)) setRejectOpen(false); }}
               >
-                {deciding ? 'Saving…' : 'Send back'}
-              </button>
+                Send back
+              </CommonButton>
             </>
           }
         >

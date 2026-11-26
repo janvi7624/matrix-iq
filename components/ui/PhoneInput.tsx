@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import styles from '@/components/calculator.module.css';
+import Select from './Select';
 
 interface Country {
   name: string;
@@ -137,7 +138,7 @@ export default function PhoneInput({ value, onChange, disabled, id, className }:
   return (
     <div>
       <div className={`${styles.phoneInputRow} ${className ?? ''}`}>
-        <select
+        <Select
           className={`${styles.formControl} ${styles.phoneDialSelect}`}
           value={dialCode}
           onChange={(e) => handleDialChange(e.target.value)}
@@ -149,7 +150,7 @@ export default function PhoneInput({ value, onChange, disabled, id, className }:
               {c.flag} {c.dialCode} — {c.name}
             </option>
           ))}
-        </select>
+        </Select>
         <input
           id={id}
           className={styles.formControl}

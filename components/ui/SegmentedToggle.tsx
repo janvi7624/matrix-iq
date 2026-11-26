@@ -2,6 +2,7 @@
 
 import { ButtonHTMLAttributes, ReactNode } from 'react';
 import styles from '../quotationHistory.module.css';
+import CommonButton from './CommonButton';
 
 export interface SegmentedOption<V extends string> {
   value: V;
@@ -29,7 +30,8 @@ export default function SegmentedToggle<V extends string>({ options, value, onCh
   );
 }
 
-export function SegmentedButton({ active, className, ...rest }: ButtonHTMLAttributes<HTMLButtonElement> & { active?: boolean }) {
-  const classes = [styles.modeToggleBtn, active ? styles.modeToggleBtnActive : '', className || ''].filter(Boolean).join(' ');
-  return <button type="button" className={classes} {...rest} />;
+// Each segment is a CommonButton toggle: the active one gets the shared
+// solid "selected" fill so it is unmistakable against its neighbours.
+export function SegmentedButton({ active, ...rest }: ButtonHTMLAttributes<HTMLButtonElement> & { active?: boolean }) {
+  return <CommonButton variant="ghost" size="sm" selected={Boolean(active)} {...rest} />;
 }

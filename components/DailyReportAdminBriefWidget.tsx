@@ -1,6 +1,8 @@
 'use client';
 
-import Link from 'next/link';
+import { ArrowRight } from 'lucide-react';
+import CommonButton from './ui/CommonButton';
+import StatCard, { StatCardGrid } from './ui/StatCard';
 import styles from './dailyReportAdminBrief.module.css';
 
 interface BriefRow {
@@ -62,32 +64,18 @@ export default function DailyReportAdminBriefWidget({ data }: { data: BriefPaylo
           <span className={styles.title}>Daily Report — All Departments</span>
           <span className={styles.period}>{data.monthLabel}</span>
         </div>
-        <Link href="/daily-reports?tab=team">Open Team Daily Reports →</Link>
+        <CommonButton href="/daily-reports?tab=team" size="sm" variant="outlined" trailingIcon={<ArrowRight />}>
+          Open Team Daily Reports
+        </CommonButton>
       </div>
 
       {hasData ? (
-        <div className={styles.summaryStrip}>
-          <div className={styles.stat}>
-            <span className={styles.statLabel}>Expected</span>
-            <span className={styles.statValue}>{t.expected}</span>
-            <span className={styles.statSub}>report-days owed</span>
-          </div>
-          <div className={styles.stat}>
-            <span className={styles.statLabel}>Submitted</span>
-            <span className={styles.statValue}>{t.submitted}</span>
-            <span className={styles.statSub}>{t.submitted_late} late</span>
-          </div>
-          <div className={styles.stat}>
-            <span className={styles.statLabel}>Missing</span>
-            <span className={`${styles.statValue} ${t.missing > 0 ? styles.statValueMissing : ''}`}>{t.missing}</span>
-            <span className={styles.statSub}>{t.leave_covered} on leave</span>
-          </div>
-          <div className={styles.stat}>
-            <span className={styles.statLabel}>Compliance</span>
-            <span className={styles.statValue}>{pct(t.expected, compliance)}</span>
-            <span className={styles.statSub}>{t.submitted} / {denominator}</span>
-          </div>
-        </div>
+        <StatCardGrid minWidth={140} className={styles.summaryStrip}>
+          <StatCard size="compact" value={t.expected} label="Expected" sub="report-days owed" />
+          <StatCard size="compact" value={t.submitted} label="Submitted" sub={`${t.submitted_late} late`} />
+          <StatCard size="compact" value={t.missing} label="Missing" sub={`${t.leave_covered} on leave`} tone={t.missing > 0 ? 'danger' : 'default'} />
+          <StatCard size="compact" value={pct(t.expected, compliance)} label="Compliance" sub={`${t.submitted} / ${denominator}`} />
+        </StatCardGrid>
       ) : (
         <div className={styles.noData}>
           No daily reports were tracked in {data.monthLabel} — nothing was expected, so there is nothing to

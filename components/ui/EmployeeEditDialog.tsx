@@ -4,10 +4,12 @@ import { FormEvent, useEffect, useRef, useState } from 'react';
 import { DepartmentRecord, PublicUser, RoleRecord, UserRole } from '@/lib/types';
 import { useModalBehavior } from '@/lib/useModalBehavior';
 import PhoneInput from './PhoneInput';
+import CommonButton from './CommonButton';
 import notifyStyles from './notify.module.css';
 import calcStyles from '../calculator.module.css';
 import historyStyles from '../quotationHistory.module.css';
 import styles from './employeeEditDialog.module.css';
+import Select from './Select';
 
 export interface EmployeeEditPayload {
   name: string;
@@ -144,10 +146,10 @@ export default function EmployeeEditDialog({
           <div className={`${calcStyles.row} ${calcStyles.columns}`}>
             <div className={calcStyles.field}>
               <label className={calcStyles.label} htmlFor="editDepartment">Department</label>
-              <select id="editDepartment" className={calcStyles.formControl} value={form.department} onChange={(e) => set('department', e.target.value)}>
+              <Select id="editDepartment" value={form.department} onChange={(e) => set('department', e.target.value)}>
                 <option value="">No department</option>
                 {[...departments].sort((a, b) => a.name.localeCompare(b.name)).map((d) => <option key={d.id} value={d.name}>{d.name}</option>)}
-              </select>
+              </Select>
               {form.department && (
                 <label className={`${calcStyles.label} ${styles.managerCheckboxLabel}`}>
                   <input
@@ -169,9 +171,8 @@ export default function EmployeeEditDialog({
           <div className={`${calcStyles.row} ${calcStyles.columns}`}>
             <div className={calcStyles.field}>
               <label className={calcStyles.label} htmlFor="editReportingManager">Reports to</label>
-              <select
+              <Select
                 id="editReportingManager"
-                className={calcStyles.formControl}
                 value={form.reportingManagerId}
                 onChange={(e) => set('reportingManagerId', e.target.value)}
               >
@@ -179,7 +180,7 @@ export default function EmployeeEditDialog({
                 {managerOptions.map((m) => (
                   <option key={m.id} value={m.id}>{m.name || m.username}</option>
                 ))}
-              </select>
+              </Select>
               <span className={calcStyles.small}>
                 Leave as the default unless this person reports to someone other than their
                 department&apos;s manager. Their requests go to the person named here; the
@@ -191,11 +192,11 @@ export default function EmployeeEditDialog({
           <div className={`${calcStyles.row} ${calcStyles.columns}`}>
             <div className={calcStyles.field}>
               <label className={calcStyles.label} htmlFor="editRole">Role</label>
-              <select id="editRole" className={calcStyles.formControl} value={form.role} onChange={(e) => set('role', e.target.value as UserRole)}>
+              <Select id="editRole" value={form.role} onChange={(e) => set('role', e.target.value as UserRole)}>
                 {roles
                   .filter((r) => r.key !== 'superadmin' || includeSuperadmin)
                   .map((r) => <option key={r.key} value={r.key}>{r.label}</option>)}
-              </select>
+              </Select>
             </div>
             <div className={calcStyles.field}>
               <label className={calcStyles.label} htmlFor="editPassword">Set a new password</label>
@@ -213,10 +214,10 @@ export default function EmployeeEditDialog({
           </div>
 
           <div className={`${notifyStyles.confirmActions} ${notifyStyles.confirmActionsSpaced}`}>
-            <button type="button" className={notifyStyles.confirmCancel} onClick={onClose}>Cancel</button>
-            <button type="submit" className={notifyStyles.confirmOk} disabled={saving}>
+            <CommonButton variant="secondary" size="md" onClick={onClose}>Cancel</CommonButton>
+            <CommonButton type="submit" variant="primary" size="md" disabled={saving}>
               {saving ? 'Saving…' : 'Save changes'}
-            </button>
+            </CommonButton>
           </div>
         </form>
       </div>

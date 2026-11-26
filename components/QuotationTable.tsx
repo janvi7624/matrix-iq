@@ -1,19 +1,22 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import Link from 'next/link';
-import { Download, FilePlus2, FileText, Loader2, Trash2 } from 'lucide-react';
+import { Download, FilePlus2, FileText, Trash2 } from 'lucide-react';
 import { LineItem, ProductGroup, QuotationEffectiveStatus, QuotationRecord } from '@/lib/types';
 import { formatMoney } from '@/lib/format';
 import { daysSince, needsFollowUp, parseFollowUpNotes } from '@/lib/followUp';
 import { computeEffectiveStatusClient } from '@/lib/quotationStatus';
 import { downloadQuotationFromRecord } from '@/lib/quotationPdfFromRecord';
 import QuotationSharePartnerButton from './QuotationSharePartnerButton';
+import CommonButton from './ui/CommonButton';
 import { useConfirm } from './ui/ConfirmDialog';
 import { useToast } from './ui/ToastProvider';
 import EmptyState from './ui/EmptyState';
 import { TableWrap } from './ui/Table';
+import { SkeletonTable } from './ui/Skeleton';
 import styles from './quotationHistory.module.css';
+import RowActions from './ui/RowActions';
+import Select from './ui/Select';
 
 const STATUS_LABEL: Record<QuotationEffectiveStatus, string> = {
   draft: 'Draft',
@@ -93,7 +96,7 @@ function VersionHistory({ quotationId }: { quotationId: string }) {
   }, [quotationId]);
 
   if (loadError) return <div className={styles.small}>Could not load version history.</div>;
-  if (!versions) return <div className={styles.small}>Loading version history…</div>;
+  if (!versions) return <SkeletonTable rows={3} columns={8} />;
   if (versions.length <= 1) return <div className={styles.small}>No revisions yet — this is the only version.</div>;
 
   return (
@@ -249,8 +252,9 @@ function QuotationRow({ row, onDelete, onLogFollowUp, showSalesPerson, onChangeS
         <td className={styles.amount}>{formatMoney(row.total)}</td>
         <td>
           {onChangeStatus ? (
-            <select
-              className={styles.statusSelect}
+            <Select
+              dropdownSize="sm"
+              auto
               value={row.status}
               disabled={statusBusy}
               onChange={(e) => handleStatusChange(e.target.value as QuotationRecord['status'])}
@@ -259,7 +263,7 @@ function QuotationRow({ row, onDelete, onLogFollowUp, showSalesPerson, onChangeS
               <option value="sent">Sent</option>
               <option value="approved">Approved</option>
               <option value="rejected">Rejected</option>
-            </select>
+            </Select>
           ) : (
             <span className={`${styles.statusBadge} ${STATUS_CLASS[effectiveStatus]}`}>{STATUS_LABEL[effectiveStatus]}</span>
           )}
@@ -278,34 +282,36 @@ function QuotationRow({ row, onDelete, onLogFollowUp, showSalesPerson, onChangeS
         </td>
         <td>
           <div className={styles.rowActionsInline}>
-            {/* Revise leads: it's the action people come to a past quotation
-                to perform, so it carries the brand tint and sits first.
-                Download is the supporting action beside it. */}
-            <Link
-              href={`/quotation?reviseId=${row.id}`}
-              className={`${styles.rowAction} ${styles.rowActionPrimary}`}
-              title={`Create a new version of ${row.quotation_number}`}
-            >
-              <FilePlus2 size={14} aria-hidden />
-              <span className={styles.rowActionLabel}>Revise</span>
-            </Link>
-            <button
-              type="button"
-              className={styles.rowAction}
-              disabled={downloadBusy}
-              title={isProposal ? 'Open the uploaded commercial document' : 'Rebuild and download this quotation as a PDF'}
-              onClick={handleDownload}
-            >
-              {downloadBusy ? <Loader2 size={14} className={styles.rowActionSpin} aria-hidden /> : <Download size={14} aria-hidden />}
-              {/* Fixed-width label: "Download" -> "Working…" used to resize
-                  the button and shunt everything beside it sideways
-                  mid-click. */}
-              <span className={`${styles.rowActionLabel} ${styles.rowActionLabelFixed}`}>
-                {downloadBusy ? 'Working…' : 'Download'}
-              </span>
-            </button>
+            {/* Revise leads (it is what people open a past quotation to do), then
+                Download; Delete is last and red. All in the ⋮ menu. */}
+            <RowActions
+              label={`Actions for ${row.quotation_number}`}
+              actions={[
+                { key: 'revise', label: 'Revise', icon: <FilePlus2 />, href: `/quotation?reviseId=${row.id}`, title: `Create a new version of ${row.quotation_number}` },
+                {
+                  key: 'download',
+                  label: downloadBusy ? 'Preparing download…' : isProposal ? 'Open document' : 'Download PDF',
+                  icon: <Download />,
+                  disabled: downloadBusy,
+                  title: isProposal ? 'Open the uploaded commercial document' : 'Rebuild and download this quotation as a PDF',
+                  onClick: handleDownload
+                },
+                {
+                  key: 'delete',
+                  label: 'Delete',
+                  icon: <Trash2 />,
+                  destructive: true,
+                  hidden: !onDelete,
+                  onClick: async () => {
+                    if (onDelete && (await confirm({ message: `Delete quotation ${row.quotation_number}? This cannot be undone.`, danger: true }))) {
+                      onDelete(row.id);
+                    }
+                  }
+                }
+              ]}
+            />
             {/* Renders nothing unless this quotation's project came from a
-                partner — see the component. */}
+                partner — see the component. Has its own dialog, so it stays a button. */}
             <QuotationSharePartnerButton
               quotationId={row.id}
               quotationNumber={row.quotation_number}
@@ -315,23 +321,6 @@ function QuotationRow({ row, onDelete, onLogFollowUp, showSalesPerson, onChangeS
               shareable={row.status !== 'draft'}
               onChanged={() => onRefresh?.()}
             />
-            {onDelete && (
-              <button
-                type="button"
-                /* Separated and danger-toned: a destructive action should not
-                   sit flush against two routine ones at the same weight. */
-                className={`${styles.rowAction} ${styles.rowActionDanger}`}
-                title={`Delete ${row.quotation_number}`}
-                onClick={async () => {
-                  if (await confirm({ message: `Delete quotation ${row.quotation_number}? This cannot be undone.`, danger: true })) {
-                    onDelete(row.id);
-                  }
-                }}
-              >
-                <Trash2 size={14} aria-hidden />
-                <span className={styles.rowActionLabel}>Delete</span>
-              </button>
-            )}
           </div>
         </td>
       </tr>
@@ -375,6 +364,7 @@ function QuotationRow({ row, onDelete, onLogFollowUp, showSalesPerson, onChangeS
                   <div key={`${group.label}-${gi}`} className={styles.qdGroup}>
                     <div className={styles.qdGroupName}>{group.label}</div>
                     {group.remark && group.remark.trim() && <div className={styles.qdGroupRemark}>{group.remark.trim()}</div>}
+                    <div className="mx-rtable-wrap">
                     <table className={styles.qdItems}>
                       <thead>
                         <tr>
@@ -395,6 +385,7 @@ function QuotationRow({ row, onDelete, onLogFollowUp, showSalesPerson, onChangeS
                         ))}
                       </tbody>
                     </table>
+                    </div>
                   </div>
                 ))
               )}
@@ -427,12 +418,14 @@ function QuotationRow({ row, onDelete, onLogFollowUp, showSalesPerson, onChangeS
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
               />
-              <button type="button" disabled={busy} onClick={handleLogFollowUp}>
-                {busy ? 'Logging…' : 'Log follow-up'}
-              </button>
+              <CommonButton variant="primary" size="sm" loading={busy} loadingLabel="Logging…" onClick={handleLogFollowUp}>
+                Log follow-up
+              </CommonButton>
             </div>
             <div className={styles.navGroupLabel}>Version History</div>
-            <div className={styles.versionTableWrap}>
+            {/* mx-rtable-wrap: like every table, it scrolls inside its own box
+                (nested in the quotations table, so it is not height-capped). */}
+            <div className={`${styles.versionTableWrap} mx-rtable-wrap`}>
               <VersionHistory quotationId={row.id} />
             </div>
           </td>

@@ -6,9 +6,10 @@ import { findHandoverRecipient, handOverCapturedLead } from '@/lib/leadHandover'
 import { logAudit } from '@/lib/auditLogStore';
 import { getClientIp } from '@/lib/requestIp';
 import { apiErrorResponse } from '@/lib/apiError';
-import { DomainKey, LeadPriority } from '@/lib/types';
+import { DomainKey, LeadPriority, LeadSource } from '@/lib/types';
 import { isLeadOrigin } from '@/lib/leadSources';
 import { isLeadReference } from '@/lib/leadReferenceOptions';
+import { getListParam } from '@/lib/listParam';
 
 const VALID_DOMAINS: DomainKey[] = ['av', 'robotics', 'ai', 'si', 'visitiq'];
 const VALID_PRIORITIES: LeadPriority[] = ['hot', 'warm', 'cool', ''];
@@ -31,15 +32,15 @@ export async function GET(request: NextRequest) {
 
     const query: LeadListQuery = {
       search: params.get('search') || undefined,
-      priority: (params.get('priority') as LeadPriority) || undefined,
-      interest: (params.get('interest') as DomainKey) || undefined,
-      source: (params.get('source') as LeadListQuery['source']) || undefined,
-      metaForm: params.get('metaForm') || undefined,
-      metaCampaign: params.get('metaCampaign') || undefined,
+      priority: getListParam(params, 'priority') as LeadPriority[],
+      interest: getListParam(params, 'interest') as DomainKey[],
+      source: getListParam(params, 'source') as LeadSource[],
+      metaForm: getListParam(params, 'metaForm'),
+      metaCampaign: getListParam(params, 'metaCampaign'),
       origin: params.get('origin') || undefined,
-      callOutcome: params.get('callOutcome') || undefined,
+      callOutcome: getListParam(params, 'callOutcome'),
       unattendedOnly: params.get('unattended') === '1',
-      assignee: params.get('assignee') || undefined,
+      assignee: getListParam(params, 'assignee'),
       sortBy: (params.get('sort') as LeadListQuery['sortBy']) || undefined,
       page: Number(params.get('page')) || 1,
       pageSize: Number(params.get('pageSize')) || 20

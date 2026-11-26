@@ -1,10 +1,10 @@
 'use client';
 
 import { Suspense, useEffect, useMemo, useState } from 'react';
-import Link from 'next/link';
+import Link from '@/components/ui/AppLink';
 import { useSearchParams } from 'next/navigation';
 import { AuditLogEntry, BackOfficeRemarkTag, DcLineItem, DcStatus, DeliveryChallanRecord, DemoScheduleRecord, ProjectRecord, PublicAppConfig } from '@/lib/types';
-import { CheckCircle2, Download, Lock, Package, Pencil, Plus, Printer, Save, Trash2, Truck, X } from 'lucide-react';
+import { ArrowRight, CheckCircle2, Download, Lock, Package, Pencil, Plus, Printer, Save, Trash2, Truck, X } from 'lucide-react';
 import PhoneInput from '@/components/ui/PhoneInput';
 import SegmentedToggle from '@/components/ui/SegmentedToggle';
 import StatTile from '@/components/ui/StatTile';
@@ -16,6 +16,8 @@ import calcStyles from './calculator.module.css';
 import { useToast } from './ui/ToastProvider';
 import { useConfirm } from './ui/ConfirmDialog';
 import Button from './ui/Button';
+import CommonButton from './ui/CommonButton';
+import CommonChip from './ui/CommonChip';
 import StatusBadge, { StatusTone } from './ui/StatusBadge';
 import { todayDateInputValue } from '@/lib/dateHelpers';
 import { formatMoney } from '@/lib/format';
@@ -23,7 +25,10 @@ import styles from './backOffice.module.css';
 import FilterBar from './ui/FilterBar';
 import Modal, { ModalOkButton } from './ui/Modal';
 import Table, { TableColumn } from './ui/Table';
+import { SkeletonList, SkeletonStatCards, SkeletonTable } from './ui/Skeleton';
 import { fetchCached, OPTIONS_TTL_MS } from '@/lib/fetchCached';
+import { RefreshButton } from './ui/ListControls';
+import Select from '@/components/ui/Select';
 
 const DC_STATUS_LABEL: Record<DcStatus, string> = { prepared: 'Prepared', dispatched: 'Dispatched', returned: 'Returned', closed: 'Closed' };
 const DC_STATUS_TONE: Record<DcStatus, StatusTone> = {
@@ -81,8 +86,7 @@ function RequestedBySelect({ employees, value, onChange }: { employees: ActiveEm
 
   return (
     <>
-      <select
-        className={calcStyles.formControl}
+      <Select
         value={otherMode ? REQUESTED_BY_OTHER : value}
         onChange={(e) => {
           if (e.target.value === REQUESTED_BY_OTHER) {
@@ -99,7 +103,7 @@ function RequestedBySelect({ employees, value, onChange }: { employees: ActiveEm
           <option key={e.username} value={e.username}>{e.name}{e.department ? ` — ${e.department}` : ''}</option>
         ))}
         <option value={REQUESTED_BY_OTHER}>Other (type a name)…</option>
-      </select>
+      </Select>
       {otherMode && (
         <input
           className={`${calcStyles.formControl} ${styles.formRowSpacingTop}`}
@@ -239,12 +243,12 @@ function ManualDcPanel({ projects, employees, onGenerated, onCancel }: { project
       </div>
       <div className={calcStyles.field}>
         <label className={calcStyles.label}>Link to a project (optional — prefills client details)</label>
-        <select className={calcStyles.formControl} value={projectId} onChange={(e) => pickProject(e.target.value)}>
+        <Select value={projectId} onChange={(e) => pickProject(e.target.value)}>
           <option value="">— None —</option>
           {projects.map((p) => (
             <option key={p.id} value={p.id}>{p.client_name}{p.company ? ` (${p.company})` : ''}</option>
           ))}
-        </select>
+        </Select>
       </div>
       {!projectId && (
         <div className={calcStyles.field}>
@@ -350,6 +354,7 @@ function DcDetail({ dc, canManage, employees, onUpdated, onDelete, onClose }: { 
   // carry every DC's full history — only the one dialog that's actually open
   // does.
   const [activity, setActivity] = useState<AuditLogEntry[]>([]);
+  const [activityLoaded, setActivityLoaded] = useState(false);
   async function loadActivity() {
     try {
       const response = await fetch(`/api/delivery-challans/${dc.id}`);
@@ -357,6 +362,8 @@ function DcDetail({ dc, canManage, employees, onUpdated, onDelete, onClose }: { 
       setActivity(Array.isArray(data?.activity) ? data.activity : []);
     } catch {
       setActivity([]);
+    } finally {
+      setActivityLoaded(true);
     }
   }
   useEffect(() => { loadActivity(); }, [dc.id]);
@@ -639,12 +646,12 @@ function DcDetail({ dc, canManage, employees, onUpdated, onDelete, onClose }: { 
           <div className={`${calcStyles.row} ${calcStyles.columns}`}>
             <div className={calcStyles.field}>
               <label className={calcStyles.label}>Condition</label>
-              <select className={calcStyles.formControl} value={condition} onChange={(e) => setCondition(e.target.value as typeof condition)}>
+              <Select value={condition} onChange={(e) => setCondition(e.target.value as typeof condition)}>
                 <option value="">-- Select --</option>
                 <option value="good">Good</option>
                 <option value="minor_damage">Minor damage</option>
                 <option value="major_damage">Major damage</option>
-              </select>
+              </Select>
             </div>
             <div className={calcStyles.field}>
               <label className={calcStyles.label}>Flags</label>
@@ -680,14 +687,13 @@ function DcDetail({ dc, canManage, employees, onUpdated, onDelete, onClose }: { 
             <label className={calcStyles.label}>Remarks</label>
             <div className={styles.remarkTagsRow}>
               {BACK_OFFICE_REMARK_TAGS.map((tag) => (
-                <button
+                <CommonChip
                   key={tag}
-                  type="button"
-                  className={`${remarkTags.includes(tag) ? historyStyles.modeToggleBtnActive : historyStyles.modeToggleBtn} ${historyStyles.pillButton}`}
+                  selected={remarkTags.includes(tag)}
                   onClick={() => toggleRemarkTag(tag)}
                 >
                   {BACK_OFFICE_REMARK_LABEL[tag]}
-                </button>
+                </CommonChip>
               ))}
             </div>
             <textarea className={calcStyles.formControl} rows={2} placeholder="Additional detail…" value={remarks} onChange={(e) => setRemarks(e.target.value)} />
@@ -864,7 +870,9 @@ function DcDetail({ dc, canManage, employees, onUpdated, onDelete, onClose }: { 
 
       <div className={styles.sectionSpacingTop16}>
         <h3 className={historyStyles.h3Flush}>Activity Log</h3>
-        {activity.length === 0 ? (
+        {!activityLoaded ? (
+          <SkeletonList rows={3} avatar={false} boxed={false} />
+        ) : activity.length === 0 ? (
           <div className={calcStyles.small}>No activity recorded yet.</div>
         ) : (
           <div className={styles.activityList}>
@@ -969,7 +977,14 @@ function DemoExpenseSummaryPanel() {
         <h2 className={calcStyles.h2Flush}>Demo & Expense Summary{data?.label ? ` — ${data.label}` : ''}</h2>
         <SegmentedToggle options={SUMMARY_PERIOD_OPTIONS} value={period} onChange={setPeriod} />
       </div>
-      <div className={historyStyles.status}>{status}</div>
+      {!data && status === 'Loading...' ? (
+        <>
+          <SkeletonStatCards count={3} withIcon={false} />
+          <div className={styles.sectionSpacingTop16}><SkeletonTable columns={3} rows={6} /></div>
+        </>
+      ) : (
+        <div className={historyStyles.status}>{status}</div>
+      )}
 
       {data && (
         <>
@@ -1148,15 +1163,19 @@ function BackOfficeContent({ canManage }: { canManage: boolean }) {
       key: 'actions',
       header: '',
       render: (dc) => (
-        <button type="button" className={historyStyles.button} onClick={() => setOpenId(dc.id)}>
+        <CommonButton variant="secondary" size="sm" onClick={() => setOpenId(dc.id)}>
           View
-        </button>
+        </CommonButton>
       )
     }
   ];
 
   return (
-    <AppShell title="Back Office Operations" subtitle="Delivery Challans — materials out, dispatched, returned, and closed.">
+    <AppShell
+      fillPage={view === 'challans' && !demoForGenerate && !showManualDc}
+      title="Back Office Operations"
+      subtitle="Delivery Challans — materials out, dispatched, returned, and closed."
+    >
         <SegmentedToggle
           options={[
             { value: 'challans', label: 'Delivery Challans' },
@@ -1179,7 +1198,7 @@ function BackOfficeContent({ canManage }: { canManage: boolean }) {
               {demosAwaitingDc.map((demo) => (
                 <li key={demo.id} className={styles.awaitingListItem}>
                   <span>{demo.client_name}</span>
-                  <Link className={`${historyStyles.actionBtn} ${historyStyles.actionBtnPrimary} ${historyStyles.actionBtnCompact}`} href={`/backoffice?demoId=${demo.id}`}>Generate DC →</Link>
+                  <CommonButton variant="primary" size="sm" trailingIcon={<ArrowRight />} href={`/backoffice?demoId=${demo.id}`}>Generate DC</CommonButton>
                 </li>
               ))}
             </ul>
@@ -1199,9 +1218,13 @@ function BackOfficeContent({ canManage }: { canManage: boolean }) {
         <h2 className={`${calcStyles.h2} ${demoForGenerate || showManualDc ? styles.allDcHeadingSpaced : calcStyles.h2Flush}`}>All Delivery Challans</h2>
         <FilterBar>
           {canManage && !showManualDc && <Button variant="primary" icon={<Plus size={16} />} compact onClick={() => setShowManualDc(true)}>Create Manual DC</Button>}
-          <button type="button" className={historyStyles.button} onClick={load}>Refresh</button>
+          <RefreshButton onRefresh={load} loading={!loaded} pushRight />
         </FilterBar>
-        <div className={historyStyles.status}>{status}</div>
+        {!loaded && status === 'Loading...' ? (
+          <SkeletonTable columns={8} rows={6} />
+        ) : (
+          <div className={historyStyles.status}>{status === 'Loading...' ? '' : status}</div>
+        )}
         {loaded && (
           <Table
             columns={dcColumns}

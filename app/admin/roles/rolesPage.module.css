@@ -10,3 +10,6 @@
 .capsWrap { display: flex; gap: 8px; flex-wrap: wrap; }
 .capChip { padding: 8px 12px; border: 1px solid var(--mx-border); border-radius: 10px; }
 .capLabelText { font-size: 13.5px; font-weight: 600; }
+
+/* Each permission table is a capped table viewport (sticky header, rows scroll inside). */
+.permScroll { composes: mx-rtable-wrap from global; }

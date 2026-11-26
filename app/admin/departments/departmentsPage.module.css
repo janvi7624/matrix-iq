@@ -5,3 +5,11 @@
 .managerCheckboxRow { display: flex; align-items: center; gap: 6px; font-size: 12.5px; padding: 2px 0; }
 .actionsRow6 { display: flex; gap: 6px; }
 .mutedNote55 { opacity: 0.55; }
+
+/* Responsive: these rows hold controls or a title + actions. They wrap
+   onto a second line when the screen is too narrow for them, instead of
+   overflowing or crushing their neighbours. No effect when they fit. */
+.reorderRow {
+    flex-wrap: wrap;
+    row-gap: 8px;
+}

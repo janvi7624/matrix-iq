@@ -36,15 +36,29 @@ function toRecord(row: Model): ProductRecord {
 
 export interface ProductFilters {
   q?: string;
-  category?: string;
+  // One value or a list (multi-select filter: matches ANY); an empty list is no filter.
+  category?: string | string[];
   brand?: string;
-  status?: ProductStatus;
+  status?: ProductStatus | ProductStatus[];
+}
+
+// A single value stays a plain equality; a list becomes IN (...). Undefined
+// means "no filter" — including an empty list, which would otherwise be IN ()
+// and match nothing.
+function oneOrMany<T>(value: T | T[] | undefined): T | { [Op.in]: T[] } | undefined {
+  if (Array.isArray(value)) {
+    if (value.length === 0) return undefined;
+    return value.length === 1 ? value[0] : { [Op.in]: value };
+  }
+  return value || undefined;
 }
 
 export async function listProducts(filters: ProductFilters = {}): Promise<ProductRecord[]> {
   const where: Record<string, unknown> = {};
-  if (filters.status) where.status = filters.status;
-  if (filters.category) where.category = filters.category;
+  const status = oneOrMany(filters.status);
+  if (status) where.status = status;
+  const category = oneOrMany(filters.category);
+  if (category) where.category = category;
   if (filters.brand) where.brand = filters.brand;
   if (filters.q?.trim()) {
     const q = `%${filters.q.trim()}%`;

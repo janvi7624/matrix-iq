@@ -1,4 +1,4 @@
-import Link from 'next/link';
+import Link from '@/components/ui/AppLink';
 import { ArrowRight, Check, Sparkles } from 'lucide-react';
 import { GST_RATE, MODULE_GROUPS, PLANS, TRIAL_DAYS, formatInr, planIncludesModule, type Plan } from '@/lib/plans';
 import { SiteFooter } from './LandingPage';

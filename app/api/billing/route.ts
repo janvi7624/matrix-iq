@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getViewerContext } from '@/lib/viewerContext';
 import { getBilling } from '@/lib/billingStore';
 import { apiErrorResponse } from '@/lib/apiError';
+import { getListParam } from '@/lib/listParam';
 
 // Won deals and the agreed work behind them.
 //
@@ -19,7 +20,7 @@ export async function GET(request: NextRequest) {
     const report = await getBilling(viewer.username, {
       from: params.get('from') || undefined,
       to: params.get('to') || undefined,
-      owner: params.get('owner') || undefined,
+      owner: getListParam(params, 'owner'),
       query: params.get('q') || undefined
     });
     return NextResponse.json(report);
